@@ -515,7 +515,7 @@ func _text(key: String) -> String:
 	var fa := {
 		"continue": "ادامه بازی", "new_ai": "بازی جدید با هوش مصنوعی", "local": "بازی دونفره محلی",
 		"close": "بستن منو", "white": "سفید", "black": "سیاه", "play_as": "بازی با مهره‌های: ",
-		"level": "سطح هوش مصنوعی: ", "easy": "آسان", "medium": "متوسط", "hard": "سخت",
+		"level": "سطح هوش مصنوعی: ", "easy": "آسان", "medium": "متوسط", "hard": "سخت", "professional": "حرفه‌ای",
 		"white_turn": "نوبت سفید", "black_turn": "نوبت سیاه", "check": " — کیش", "thinking": "هوش مصنوعی در حال فکر کردن...",
 		"moves": "حرکت‌ها", "white_captured": "گرفته‌های سفید: ", "black_captured": "گرفته‌های سیاه: ",
 		"language": "زبان: فارسی", "game_over": "پایان بازی", "resign_confirm": "آیا مطمئن هستید که می‌خواهید تسلیم شوید؟"
@@ -523,7 +523,7 @@ func _text(key: String) -> String:
 	var en := {
 		"continue": "CONTINUE GAME", "new_ai": "NEW GAME VS AI", "local": "LOCAL TWO PLAYERS",
 		"close": "CLOSE MENU", "white": "WHITE", "black": "BLACK", "play_as": "PLAY AS: ",
-		"level": "AI LEVEL: ", "easy": "EASY", "medium": "MEDIUM", "hard": "HARD",
+		"level": "AI LEVEL: ", "easy": "EASY", "medium": "MEDIUM", "hard": "HARD", "professional": "PROFESSIONAL",
 		"white_turn": "White to move", "black_turn": "Black to move", "check": " — CHECK", "thinking": "Computer thinking...",
 		"moves": "MOVES", "white_captured": "White captured: ", "black_captured": "Black captured: ",
 		"language": "LANGUAGE: ENGLISH", "game_over": "GAME OVER", "resign_confirm": "Are you sure you want to resign?"
@@ -560,7 +560,7 @@ func _cycle_player_color() -> void:
 
 
 func _cycle_ai_difficulty() -> void:
-	var levels := ["easy", "medium", "hard"]
+	var levels := ["easy", "medium", "hard", "professional"]
 	ai_difficulty = levels[(levels.find(ai_difficulty) + 1) % levels.size()]
 	_difficulty_button.text = _text("level") + _text(ai_difficulty)
 
@@ -1054,7 +1054,7 @@ func _load_autosave() -> bool:
 	play_vs_ai = bool(parsed.get("play_vs_ai", true))
 	human_color = int(parsed.get("human_color", ChessRules.WHITE))
 	ai_difficulty = parsed.get("ai_difficulty", "medium")
-	if ai_difficulty not in ["easy", "medium", "hard"]:
+	if ai_difficulty not in ["easy", "medium", "hard", "professional"]:
 		ai_difficulty = "medium"
 	language = parsed.get("language", "en")
 	if language not in ["en", "fa"]: language = "en"

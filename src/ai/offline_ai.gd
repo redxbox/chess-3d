@@ -15,17 +15,30 @@ static func choose_move(fen: String, difficulty: String) -> Dictionary:
 	var moves: Array[Dictionary] = game.legal_moves()
 	if moves.is_empty():
 		return {}
+	var book_move := _opening_book_move(game, moves)
+	if not book_move.is_empty() and difficulty != "easy":
+		return book_move
 	if difficulty == "easy":
 		return _easy_move(moves)
 
-	var depth := 2 if difficulty == "medium" else 3
+	var depth := 2
+	var time_budget_ms := 450
+	if difficulty == "hard":
+		depth = 3
+		time_budget_ms = 1200
+	elif difficulty == "professional":
+		depth = 4
+		time_budget_ms = 2600
+	var deadline := Time.get_ticks_msec() + time_budget_ms
 	var ai_color: int = game.turn
 	var best_score := -INF
 	var best_moves: Array[Dictionary] = []
 	for move in _ordered_moves(moves):
+		if not best_moves.is_empty() and Time.get_ticks_msec() >= deadline:
+			break
 		var snapshot: Dictionary = game._snapshot()
 		game._apply_unchecked(move)
-		var score := -_negamax(game, depth - 1, -INF, INF, 1 - ai_color)
+		var score := -_negamax(game, depth - 1, -INF, INF, 1 - ai_color, deadline)
 		game._restore(snapshot)
 		if score > best_score:
 			best_score = score
@@ -33,6 +46,22 @@ static func choose_move(fen: String, difficulty: String) -> Dictionary:
 		elif score == best_score:
 			best_moves.append(move)
 	return best_moves.pick_random()
+
+
+static func _opening_book_move(game, moves: Array[Dictionary]) -> Dictionary:
+	if game.fullmove_number != 1 or game.halfmove_clock != 0:
+		return {}
+	var candidates: Array[Array] = []
+	if game.turn == ChessGame.WHITE:
+		candidates = [[Vector2i(4, 6), Vector2i(4, 4)], [Vector2i(3, 6), Vector2i(3, 4)], [Vector2i(6, 7), Vector2i(5, 5)], [Vector2i(2, 6), Vector2i(2, 4)]]
+	else:
+		candidates = [[Vector2i(4, 1), Vector2i(4, 3)], [Vector2i(2, 1), Vector2i(2, 3)], [Vector2i(6, 0), Vector2i(5, 2)]]
+	candidates.shuffle()
+	for candidate in candidates:
+		for move in moves:
+			if move.from == candidate[0] and move.to == candidate[1]:
+				return move
+	return {}
 
 
 static func _easy_move(moves: Array[Dictionary]) -> Dictionary:
@@ -44,8 +73,8 @@ static func _easy_move(moves: Array[Dictionary]) -> Dictionary:
 	return weighted.pick_random()
 
 
-static func _negamax(game, depth: int, alpha: int, beta: int, perspective: int) -> int:
-	if depth <= 0:
+static func _negamax(game, depth: int, alpha: int, beta: int, perspective: int, deadline: int) -> int:
+	if depth <= 0 or Time.get_ticks_msec() >= deadline:
 		return _evaluate(game, perspective)
 	var moves: Array[Dictionary] = game.legal_moves()
 	if moves.is_empty():
@@ -57,7 +86,7 @@ static func _negamax(game, depth: int, alpha: int, beta: int, perspective: int) 
 	for move in _ordered_moves(moves):
 		var snapshot: Dictionary = game._snapshot()
 		game._apply_unchecked(move)
-		var score := -_negamax(game, depth - 1, -beta, -local_alpha, 1 - perspective)
+		var score := -_negamax(game, depth - 1, -beta, -local_alpha, 1 - perspective, deadline)
 		game._restore(snapshot)
 		best = maxi(best, score)
 		local_alpha = maxi(local_alpha, score)
