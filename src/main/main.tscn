@@ -1,0 +1,42 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/main/main.gd" id="1_main"]
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="Board" type="Node3D" parent="."]
+
+[node name="KeyLight" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-55, -35, 0)
+light_color = Color(1, 0.88, 0.72, 1)
+light_energy = 1.25
+shadow_enabled = true
+
+[node name="FillLight" type="OmniLight3D" parent="."]
+position = Vector3(-4, 5, 3)
+omni_range = 12.0
+light_color = Color(0.35, 0.52, 1, 1)
+light_energy = 2.0
+
+[node name="CameraRig" type="Node3D" parent="."]
+rotation_degrees = Vector3(0, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+position = Vector3(0, 8.5, 9.5)
+rotation_degrees = Vector3(-40, 0, 0)
+current = true
+fov = 42.0
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="Title" type="Label" parent="UI"]
+offset_left = 28.0
+offset_top = 24.0
+offset_right = 420.0
+offset_bottom = 76.0
+theme_override_colors/font_color = Color(0.94, 0.86, 0.67, 1)
+theme_override_font_sizes/font_size = 30
+text = "CHESS 3D"

@@ -1,0 +1,56 @@
+name: Godot CI
+
+on:
+  push:
+    branches: [main, arena/01a0dc2e-chess-3d]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: godot-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate Godot project
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.4.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Import resources
+        run: godot --headless --editor --quit-after 10
+      - name: Validate startup scene
+        run: godot --headless --path . --quit-after 2
+
+  android-debug:
+    name: Build Android debug APK
+    needs: validate
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.4.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify export templates
+        run: test -d "$HOME/.local/share/godot/export_templates/4.4.1.stable"
+      - name: Configure Android debug signing
+        run: |
+          mkdir -p "$HOME/.android" build/android
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android \
+            -keystore "$HOME/.android/debug.keystore" -storepass android \
+            -dname "CN=Android Debug,O=Android,C=US" -validity 9999
+      - name: Export APK
+        run: godot --headless --path . --export-debug "Android" build/android/chess-3d.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess-3d-android-debug
+          path: build/android/chess-3d.apk
+          if-no-files-found: error
+          retention-days: 14
