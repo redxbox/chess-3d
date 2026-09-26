@@ -64,6 +64,7 @@ jobs:
             tail -20 build/android/export.log | while IFS= read -r line; do
               echo "::error title=Godot Android export::$line"
             done
+            echo "::error title=Godot export log (base64)::$(base64 -w0 build/android/export.log)"
           fi
           exit "$status"
       - name: Upload APK
