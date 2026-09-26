@@ -15,7 +15,7 @@ size/viewport_height=1080
 size/window_width_override=1280
 size/window_height_override=720
 stretch/mode="canvas_items"
-handheld/orientation=1
+handheld/orientation=0
 
 [rendering]
 textures/vram_compression/import_etc2_astc=true

@@ -15,6 +15,7 @@ var _last_pointer := Vector2.ZERO
 func _ready() -> void:
 	_setup_environment()
 	_create_board()
+	_create_pieces()
 
 
 func _setup_environment() -> void:
@@ -53,6 +54,81 @@ func _create_board() -> void:
 	base.mesh = base_mesh
 	base.position.y = -0.22
 	board.add_child(base)
+
+
+func _create_pieces() -> void:
+	var ivory := _material(Color("ead9b5"), 0.2, 0.35)
+	var ruby := _material(Color("6f1832"), 0.18, 0.45)
+	var back_rank := ["rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"]
+
+	for file in BOARD_SIZE:
+		_add_piece(back_rank[file], file, 0, ruby)
+		_add_piece("pawn", file, 1, ruby)
+		_add_piece("pawn", file, 6, ivory)
+		_add_piece(back_rank[file], file, 7, ivory)
+
+
+func _add_piece(kind: String, file: int, rank: int, material: Material) -> void:
+	var piece := Node3D.new()
+	piece.name = "%s_%d_%d" % [kind.capitalize(), file, rank]
+	piece.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.12, (rank - 3.5) * SQUARE_SIZE)
+	board.add_child(piece)
+
+	_add_cylinder(piece, 0.32, 0.42, 0.14, 0.08, material)
+	_add_cylinder(piece, 0.23, 0.29, 0.26, 0.26, material)
+
+	match kind:
+		"pawn":
+			_add_cylinder(piece, 0.13, 0.20, 0.42, 0.50, material)
+			_add_sphere(piece, 0.20, 0.82, material)
+		"rook":
+			_add_cylinder(piece, 0.21, 0.25, 0.54, 0.53, material)
+			_add_cylinder(piece, 0.32, 0.25, 0.16, 0.88, material)
+		"knight":
+			_add_cylinder(piece, 0.16, 0.23, 0.48, 0.50, material)
+			_add_sphere(piece, 0.24, 0.88, material, Vector3(0.08, 0.0, -0.05))
+			_add_cylinder(piece, 0.08, 0.16, 0.32, 1.04, material, Vector3(22, 0, 0))
+		"bishop":
+			_add_cylinder(piece, 0.12, 0.22, 0.62, 0.54, material)
+			_add_sphere(piece, 0.22, 0.96, material)
+			_add_sphere(piece, 0.07, 1.19, material)
+		"queen":
+			_add_cylinder(piece, 0.14, 0.24, 0.72, 0.58, material)
+			_add_cylinder(piece, 0.28, 0.15, 0.16, 1.00, material)
+			_add_sphere(piece, 0.11, 1.19, material)
+		"king":
+			_add_cylinder(piece, 0.15, 0.25, 0.78, 0.60, material)
+			_add_cylinder(piece, 0.26, 0.16, 0.13, 1.05, material)
+			_add_cylinder(piece, 0.055, 0.055, 0.34, 1.28, material)
+			_add_cylinder(piece, 0.055, 0.055, 0.25, 1.38, material, Vector3(0, 0, 90))
+
+
+func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
+	var mesh_instance := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = top_radius
+	mesh.bottom_radius = bottom_radius
+	mesh.height = height
+	mesh.radial_segments = 24
+	mesh.rings = 3
+	mesh.material = material
+	mesh_instance.mesh = mesh
+	mesh_instance.position.y = y
+	mesh_instance.rotation_degrees = rotation
+	parent.add_child(mesh_instance)
+
+
+func _add_sphere(parent: Node3D, radius: float, y: float, material: Material, offset := Vector3.ZERO) -> void:
+	var mesh_instance := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = radius
+	mesh.height = radius * 2.0
+	mesh.radial_segments = 24
+	mesh.rings = 12
+	mesh.material = material
+	mesh_instance.mesh = mesh
+	mesh_instance.position = Vector3(offset.x, y + offset.y, offset.z)
+	parent.add_child(mesh_instance)
 
 
 func _material(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:
