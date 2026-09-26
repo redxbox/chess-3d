@@ -150,6 +150,39 @@ func _create_board() -> void:
 	floor.mesh = floor_mesh
 	floor.position.y = -0.82
 	board.add_child(floor)
+	_add_board_coordinates()
+	_create_room_details(wood, gold)
+
+
+func _add_board_coordinates() -> void:
+	var label_color := Color("d5b875")
+	for index in BOARD_SIZE:
+		for data in [
+			["abcdefgh"[index], Vector3((index - 3.5) * SQUARE_SIZE, 0.15, 4.34)],
+			[str(8 - index), Vector3(-4.34, 0.15, (index - 3.5) * SQUARE_SIZE)]
+		]:
+			var label := Label3D.new()
+			label.text = data[0]
+			label.font_size = 48
+			label.modulate = label_color
+			label.outline_size = 8
+			label.outline_modulate = Color(0.03, 0.02, 0.03, 0.9)
+			label.position = data[1]
+			label.rotation_degrees.x = -90.0
+			label.pixel_size = 0.005
+			board.add_child(label)
+
+
+func _create_room_details(wood: Material, gold: Material) -> void:
+	for corner in [Vector3(-8.5, -0.8, -8.5), Vector3(8.5, -0.8, -8.5), Vector3(-8.5, -0.8, 8.5), Vector3(8.5, -0.8, 8.5)]:
+		var column := Node3D.new()
+		column.position = corner
+		board.add_child(column)
+		_add_cylinder(column, 0.72, 0.9, 0.28, 0.14, gold)
+		_add_cylinder(column, 0.42, 0.55, 4.8, 2.65, wood)
+		_add_torus(column, 0.48, 0.08, 0.45, gold)
+		_add_torus(column, 0.48, 0.08, 4.88, gold)
+		_add_cylinder(column, 0.9, 0.72, 0.28, 5.04, gold)
 
 
 func _add_board_box(position: Vector3, size: Vector3, material: Material) -> void:
@@ -466,10 +499,45 @@ func _animate_board_move(move: Dictionary, finished: Callable) -> void:
 	tween.tween_property(moving_piece, "position", midpoint, 0.13)
 	tween.tween_property(moving_piece, "position", target, 0.15)
 	if is_instance_valid(captured_piece):
+		_spawn_capture_effect(captured_piece.position, move.captured)
 		var capture_tween := create_tween().set_parallel(true)
 		capture_tween.tween_property(captured_piece, "scale", Vector3.ZERO, 0.2)
 		capture_tween.tween_property(captured_piece, "position:y", -0.25, 0.2)
 	tween.finished.connect(finished)
+
+
+func _spawn_capture_effect(position: Vector3, captured_code: String) -> void:
+	var particles := CPUParticles3D.new()
+	particles.amount = 14
+	particles.lifetime = 0.55
+	particles.one_shot = true
+	particles.explosiveness = 0.95
+	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	particles.emission_sphere_radius = 0.16
+	particles.direction = Vector3(0, 1, 0)
+	particles.spread = 70.0
+	particles.initial_velocity_min = 1.0
+	particles.initial_velocity_max = 2.2
+	particles.gravity = Vector3(0, -4.2, 0)
+	particles.scale_amount_min = 0.45
+	particles.scale_amount_max = 1.0
+	var spark := SphereMesh.new()
+	spark.radius = 0.035
+	spark.height = 0.07
+	spark.radial_segments = 8
+	spark.rings = 4
+	var spark_material := StandardMaterial3D.new()
+	var spark_color := Color("d6bd82") if captured_code == captured_code.to_upper() else Color("b72a55")
+	spark_material.albedo_color = spark_color
+	spark_material.emission_enabled = true
+	spark_material.emission = spark_color
+	spark_material.emission_energy_multiplier = 1.8
+	spark.material = spark_material
+	particles.mesh = spark
+	particles.position = position + Vector3(0, 0.45, 0)
+	board.add_child(particles)
+	particles.emitting = true
+	get_tree().create_timer(1.0).timeout.connect(particles.queue_free)
 
 
 func _draw_highlights() -> void:
