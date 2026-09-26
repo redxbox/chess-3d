@@ -25,6 +25,7 @@ var archive := ArchiveStore.new()
 var pieces_root := Node3D.new()
 var highlights_root := Node3D.new()
 var decor_root := Node3D.new()
+var _mesh_cache: Dictionary = {}
 var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
 var last_move: Dictionary = {}
@@ -44,6 +45,10 @@ var _drag_piece_from := Vector2i(-1, -1)
 var _drag_piece_active := false
 var haptics_enabled := true
 var graphics_quality := "auto"
+var _auto_quality_override := ""
+var _low_fps_seconds := 0
+var _fps_accumulator := 0.0
+var _fps_label: Label
 var capture_effects_enabled := true
 var sound_enabled := true
 var sound_volume := 0.75
@@ -104,6 +109,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_fps_accumulator += delta
+	if _fps_accumulator >= 1.0:
+		_fps_accumulator = 0.0
+		_monitor_performance()
 	if clock_enabled and game.result == "":
 		if game.turn == ChessRules.WHITE:
 			white_time = maxf(0.0, white_time - delta)
@@ -250,6 +259,7 @@ func _add_board_box(position: Vector3, size: Vector3, material: Material) -> voi
 
 
 func _create_pieces() -> void:
+	_mesh_cache.clear()
 	for child in pieces_root.get_children():
 		child.queue_free()
 	var ivory := _material(Color("c8ad78"), 0.3, 0.2)
@@ -314,14 +324,18 @@ func _add_piece(kind: String, file: int, rank: int, material: Material) -> void:
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = top_radius
-	mesh.bottom_radius = bottom_radius
-	mesh.height = height
-	mesh.radial_segments = 24
-	mesh.rings = 3
-	mesh.material = material
-	mesh_instance.mesh = mesh
+	var segments := 12 if _effective_graphics_quality() == "low" else (18 if _effective_graphics_quality() == "medium" else 24)
+	var key := "cyl:%s:%s:%s:%d:%d" % [top_radius, bottom_radius, height, segments, material.get_instance_id()]
+	if not _mesh_cache.has(key):
+		var created := CylinderMesh.new()
+		created.top_radius = top_radius
+		created.bottom_radius = bottom_radius
+		created.height = height
+		created.radial_segments = segments
+		created.rings = 2
+		created.material = material
+		_mesh_cache[key] = created
+	mesh_instance.mesh = _mesh_cache[key]
 	mesh_instance.position.y = y
 	mesh_instance.rotation_degrees = rotation
 	parent.add_child(mesh_instance)
@@ -329,13 +343,17 @@ func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, heig
 
 func _add_torus(parent: Node3D, radius: float, tube: float, y: float, material: Material) -> void:
 	var mesh_instance := MeshInstance3D.new()
-	var mesh := TorusMesh.new()
-	mesh.inner_radius = maxf(0.01, radius - tube)
-	mesh.outer_radius = radius + tube
-	mesh.rings = 24
-	mesh.ring_segments = 8
-	mesh.material = material
-	mesh_instance.mesh = mesh
+	var segments := 12 if _effective_graphics_quality() == "low" else (18 if _effective_graphics_quality() == "medium" else 24)
+	var key := "torus:%s:%s:%d:%d" % [radius, tube, segments, material.get_instance_id()]
+	if not _mesh_cache.has(key):
+		var created := TorusMesh.new()
+		created.inner_radius = maxf(0.01, radius - tube)
+		created.outer_radius = radius + tube
+		created.rings = segments
+		created.ring_segments = 6 if segments == 12 else 8
+		created.material = material
+		_mesh_cache[key] = created
+	mesh_instance.mesh = _mesh_cache[key]
 	mesh_instance.position.y = y
 	parent.add_child(mesh_instance)
 
@@ -352,13 +370,18 @@ func _add_box(parent: Node3D, size: Vector3, position: Vector3, material: Materi
 
 func _add_sphere(parent: Node3D, radius: float, y: float, material: Material, offset := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
-	var mesh := SphereMesh.new()
-	mesh.radius = radius
-	mesh.height = radius * 2.0
-	mesh.radial_segments = 24
-	mesh.rings = 12
-	mesh.material = material
-	mesh_instance.mesh = mesh
+	var segments := 12 if _effective_graphics_quality() == "low" else (18 if _effective_graphics_quality() == "medium" else 24)
+	var rings := 6 if segments == 12 else (9 if segments == 18 else 12)
+	var key := "sphere:%s:%d:%d:%d" % [radius, segments, rings, material.get_instance_id()]
+	if not _mesh_cache.has(key):
+		var created := SphereMesh.new()
+		created.radius = radius
+		created.height = radius * 2.0
+		created.radial_segments = segments
+		created.rings = rings
+		created.material = material
+		_mesh_cache[key] = created
+	mesh_instance.mesh = _mesh_cache[key]
 	mesh_instance.position = Vector3(offset.x, y + offset.y, offset.z)
 	parent.add_child(mesh_instance)
 
@@ -443,6 +466,16 @@ func _create_ui() -> void:
 	_music_button.pressed.connect(_toggle_music)
 	$UI.add_child(_music_button)
 	_update_music_button()
+
+	_fps_label = Label.new()
+	_fps_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_fps_label.offset_left = -145.0
+	_fps_label.offset_top = -48.0
+	_fps_label.offset_right = -20.0
+	_fps_label.offset_bottom = -18.0
+	_fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_fps_label.add_theme_color_override("font_color", Color(0.62, 0.68, 0.76, 0.85))
+	$UI.add_child(_fps_label)
 	_create_main_menu()
 	_create_game_panels()
 
@@ -1131,9 +1164,30 @@ func _update_music_button() -> void:
 		_music_button.text = "MUSIC: ON" if music_enabled else "MUSIC: OFF"
 
 
+func _monitor_performance() -> void:
+	var fps := Engine.get_frames_per_second()
+	if is_instance_valid(_fps_label):
+		_fps_label.text = "%d FPS • %s" % [fps, _effective_graphics_quality().to_upper()]
+	if graphics_quality != "auto":
+		_low_fps_seconds = 0
+		return
+	if fps > 0 and fps < 28:
+		_low_fps_seconds += 1
+	else:
+		_low_fps_seconds = maxi(0, _low_fps_seconds - 1)
+	if _low_fps_seconds >= 5:
+		var current := _effective_graphics_quality()
+		_auto_quality_override = "medium" if current == "high" else "low"
+		_low_fps_seconds = 0
+		_apply_graphics_quality()
+		_create_pieces()
+
+
 func _effective_graphics_quality() -> String:
 	if graphics_quality != "auto":
 		return graphics_quality
+	if _auto_quality_override != "":
+		return _auto_quality_override
 	var cores := OS.get_processor_count()
 	if cores <= 4:
 		return "low"
@@ -1165,7 +1219,10 @@ func _cycle_graphics_quality() -> void:
 	var levels := ["auto", "low", "medium", "high"]
 	var index := levels.find(graphics_quality)
 	graphics_quality = levels[(index + 1) % levels.size()]
+	_auto_quality_override = ""
+	_mesh_cache.clear()
 	_apply_graphics_quality()
+	_create_pieces()
 	_save_autosave()
 
 
