@@ -25,6 +25,8 @@ jobs:
         uses: actions/checkout@v5
       - name: Import resources
         run: godot --headless --editor --quit-after 10
+      - name: Run chess rules tests
+        run: godot --headless --path . --script res://tests/test_chess.gd
       - name: Validate startup scene
         run: godot --headless --path . --quit-after 2
 
