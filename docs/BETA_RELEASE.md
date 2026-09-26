@@ -4,9 +4,10 @@
 
 1. Create a private upload keystore locally; never add it to Git.
 2. Add these GitHub Actions repository secrets:
-   - `ANDROID_RELEASE_KEYSTORE_BASE64`: base64 of the complete keystore file.
-   - `ANDROID_RELEASE_KEY_ALIAS`: upload-key alias.
-   - `ANDROID_RELEASE_KEYSTORE_PASSWORD`: keystore/key password.
+   - `ANDROID_KEYSTORE_BASE64`: base64 of the complete keystore file.
+   - `ANDROID_KEYSTORE_PASSWORD`: keystore password.
+   - `ANDROID_KEY_ALIAS`: upload-key alias.
+   - `ANDROID_KEY_PASSWORD`: private-key password.
 3. Run **Android Beta Release** from GitHub Actions.
 4. Download and retain the signed AAB and SHA-256 checksum.
 5. Create the Google Play app for package `com.redxbox.chess3d`, complete Data safety using `PRIVACY.md`, and upload the AAB to Internal testing.

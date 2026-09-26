@@ -2,6 +2,9 @@ name: Android Beta Release
 
 on:
   workflow_dispatch:
+  push:
+    branches: [arena/01a0dc2e-chess-3d]
+    paths: [.github/workflows/release.yml]
 
 permissions:
   contents: read
@@ -13,18 +16,20 @@ jobs:
     container:
       image: barichello/godot-ci:4.4.1
     env:
-      KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
-      KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
-      KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+      KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
       - name: Require signing secrets
         shell: bash
         run: |
-          test -n "$KEYSTORE_BASE64" || { echo '::error::Missing ANDROID_RELEASE_KEYSTORE_BASE64'; exit 1; }
-          test -n "$KEY_ALIAS" || { echo '::error::Missing ANDROID_RELEASE_KEY_ALIAS'; exit 1; }
-          test -n "$KEYSTORE_PASSWORD" || { echo '::error::Missing ANDROID_RELEASE_KEYSTORE_PASSWORD'; exit 1; }
+          test -n "$KEYSTORE_BASE64" || { echo '::error::Missing ANDROID_KEYSTORE_BASE64'; exit 1; }
+          test -n "$KEY_ALIAS" || { echo '::error::Missing ANDROID_KEY_ALIAS'; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo '::error::Missing ANDROID_KEYSTORE_PASSWORD'; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo '::error::Missing ANDROID_KEY_PASSWORD'; exit 1; }
       - name: Configure Godot and Android SDK
         shell: bash
         run: |
@@ -41,8 +46,17 @@ jobs:
         shell: bash
         run: |
           umask 077
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
-          keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > "$RUNNER_TEMP/upload-source.keystore"
+          keytool -list -keystore "$RUNNER_TEMP/upload-source.keystore" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          # Godot exposes one release password. Normalize separate Termux store/key
+          # passwords into an ephemeral PKCS12 whose store and key passwords match.
+          keytool -importkeystore -noprompt \
+            -srckeystore "$RUNNER_TEMP/upload-source.keystore" \
+            -srcstorepass "$KEYSTORE_PASSWORD" -srckeypass "$KEY_PASSWORD" \
+            -srcalias "$KEY_ALIAS" \
+            -destkeystore "$RUNNER_TEMP/release.keystore" -deststoretype PKCS12 \
+            -deststorepass "$KEY_PASSWORD" -destkeypass "$KEY_PASSWORD" \
+            -destalias "$KEY_ALIAS"
           python3 - <<'PY'
           import os
           from pathlib import Path
@@ -52,7 +66,7 @@ jobs:
           signing = (
               f'keystore/release="{os.environ["RUNNER_TEMP"]}/release.keystore"\n'
               f'keystore/release_user="{os.environ["KEY_ALIAS"]}"\n'
-              f'keystore/release_password="{os.environ["KEYSTORE_PASSWORD"]}"\n'
+              f'keystore/release_password="{os.environ["KEY_PASSWORD"]}"\n'
           )
           # Only the ephemeral runner copy is modified; secret-bearing config is never uploaded.
           s = s.replace(marker, marker + signing)
@@ -76,7 +90,7 @@ jobs:
           sha256sum build/android/chess-3d-beta.aab > build/android/chess-3d-beta.aab.sha256
       - name: Remove private signing material
         if: always()
-        run: rm -f "$RUNNER_TEMP/release.keystore"
+        run: rm -f "$RUNNER_TEMP/release.keystore" "$RUNNER_TEMP/upload-source.keystore"
       - name: Upload signed beta bundle
         uses: actions/upload-artifact@v4
         with:
