@@ -47,10 +47,12 @@ jobs:
         run: |
           umask 077
           printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > "$RUNNER_TEMP/upload-source.keystore"
-          keytool -list -keystore "$RUNNER_TEMP/upload-source.keystore" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          KEYTOOL=/usr/lib/jvm/java-17-openjdk-amd64/bin/keytool
+          test -x "$KEYTOOL" || { echo '::error::Java keytool is unavailable'; exit 1; }
+          "$KEYTOOL" -list -keystore "$RUNNER_TEMP/upload-source.keystore" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
           # Godot exposes one release password. Normalize separate Termux store/key
           # passwords into an ephemeral PKCS12 whose store and key passwords match.
-          keytool -importkeystore -noprompt \
+          "$KEYTOOL" -importkeystore -noprompt \
             -srckeystore "$RUNNER_TEMP/upload-source.keystore" \
             -srcstorepass "$KEYSTORE_PASSWORD" -srckeypass "$KEY_PASSWORD" \
             -srcalias "$KEY_ALIAS" \
@@ -86,7 +88,7 @@ jobs:
       - name: Verify and checksum bundle
         run: |
           test -s build/android/chess-3d-beta.aab
-          jarsigner -verify build/android/chess-3d-beta.aab
+          /usr/lib/jvm/java-17-openjdk-amd64/bin/jarsigner -verify build/android/chess-3d-beta.aab
           sha256sum build/android/chess-3d-beta.aab > build/android/chess-3d-beta.aab.sha256
       - name: Remove private signing material
         if: always()
