@@ -19,6 +19,7 @@ var last_move: Dictionary = {}
 var play_vs_ai := true
 var human_color := ChessRules.WHITE
 var ai_difficulty := "medium"
+var language := "en"
 var ai_thinking := false
 var animating_move := false
 var _dragging := false
@@ -40,6 +41,10 @@ var _menu_overlay: ColorRect
 var _continue_button: Button
 var _color_button: Button
 var _difficulty_button: Button
+var _language_button: Button
+var _ai_start_button: Button
+var _local_start_button: Button
+var _close_menu_button: Button
 var _history_label: RichTextLabel
 var _captured_label: Label
 var _game_over_dialog: AcceptDialog
@@ -433,17 +438,23 @@ func _create_main_menu() -> void:
 	content.add_child(_color_button)
 	_difficulty_button = _menu_button("AI LEVEL: " + ai_difficulty.to_upper(), _cycle_ai_difficulty)
 	content.add_child(_difficulty_button)
+	_language_button = _menu_button("LANGUAGE: ENGLISH", _cycle_language)
+	content.add_child(_language_button)
 	_continue_button = _menu_button("CONTINUE GAME", _continue_game)
 	content.add_child(_continue_button)
-	content.add_child(_menu_button("NEW GAME VS AI", _start_ai_game))
-	content.add_child(_menu_button("LOCAL TWO PLAYERS", _start_local_game))
-	content.add_child(_menu_button("CLOSE MENU", _continue_game))
+	_ai_start_button = _menu_button("NEW GAME VS AI", _start_ai_game)
+	content.add_child(_ai_start_button)
+	_local_start_button = _menu_button("LOCAL TWO PLAYERS", _start_local_game)
+	content.add_child(_local_start_button)
+	_close_menu_button = _menu_button("CLOSE MENU", _continue_game)
+	content.add_child(_close_menu_button)
 
 	var version := Label.new()
 	version.text = "Android • Offline • v0.6.0"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_color_override("font_color", Color(0.65, 0.68, 0.75, 1))
 	content.add_child(version)
+	_apply_language()
 	_menu_overlay.hide()
 
 
@@ -486,6 +497,7 @@ func _create_game_panels() -> void:
 	_resign_dialog.min_size = Vector2i(440, 210)
 	_resign_dialog.confirmed.connect(_confirm_resign)
 	$UI.add_child(_resign_dialog)
+	_apply_language()
 
 
 func _menu_button(text: String, callback: Callable) -> Button:
@@ -497,21 +509,64 @@ func _menu_button(text: String, callback: Callable) -> Button:
 	return button
 
 
+func _text(key: String) -> String:
+	var fa := {
+		"continue": "ادامه بازی", "new_ai": "بازی جدید با هوش مصنوعی", "local": "بازی دونفره محلی",
+		"close": "بستن منو", "white": "سفید", "black": "سیاه", "play_as": "بازی با مهره‌های: ",
+		"level": "سطح هوش مصنوعی: ", "easy": "آسان", "medium": "متوسط", "hard": "سخت",
+		"white_turn": "نوبت سفید", "black_turn": "نوبت سیاه", "check": " — کیش", "thinking": "هوش مصنوعی در حال فکر کردن...",
+		"moves": "حرکت‌ها", "white_captured": "گرفته‌های سفید: ", "black_captured": "گرفته‌های سیاه: ",
+		"language": "زبان: فارسی", "game_over": "پایان بازی", "resign_confirm": "آیا مطمئن هستید که می‌خواهید تسلیم شوید؟"
+	}
+	var en := {
+		"continue": "CONTINUE GAME", "new_ai": "NEW GAME VS AI", "local": "LOCAL TWO PLAYERS",
+		"close": "CLOSE MENU", "white": "WHITE", "black": "BLACK", "play_as": "PLAY AS: ",
+		"level": "AI LEVEL: ", "easy": "EASY", "medium": "MEDIUM", "hard": "HARD",
+		"white_turn": "White to move", "black_turn": "Black to move", "check": " — CHECK", "thinking": "Computer thinking...",
+		"moves": "MOVES", "white_captured": "White captured: ", "black_captured": "Black captured: ",
+		"language": "LANGUAGE: ENGLISH", "game_over": "GAME OVER", "resign_confirm": "Are you sure you want to resign?"
+	}
+	return fa.get(key, key) if language == "fa" else en.get(key, key)
+
+
+func _cycle_language() -> void:
+	language = "fa" if language == "en" else "en"
+	_apply_language()
+	_save_autosave()
+
+
+func _apply_language() -> void:
+	if is_instance_valid(_menu_overlay):
+		_menu_overlay.layout_direction = Control.LAYOUT_DIRECTION_RTL if language == "fa" else Control.LAYOUT_DIRECTION_LTR
+	if is_instance_valid(_language_button): _language_button.text = _text("language")
+	if is_instance_valid(_continue_button): _continue_button.text = _text("continue")
+	if is_instance_valid(_ai_start_button): _ai_start_button.text = _text("new_ai")
+	if is_instance_valid(_local_start_button): _local_start_button.text = _text("local")
+	if is_instance_valid(_close_menu_button): _close_menu_button.text = _text("close")
+	if is_instance_valid(_color_button): _color_button.text = _text("play_as") + _text("white" if human_color == ChessRules.WHITE else "black")
+	if is_instance_valid(_difficulty_button): _difficulty_button.text = _text("level") + _text(ai_difficulty)
+	if is_instance_valid(_game_over_dialog): _game_over_dialog.title = _text("game_over")
+	if is_instance_valid(_resign_dialog): _resign_dialog.dialog_text = _text("resign_confirm")
+	_update_status()
+	_update_move_history()
+	_update_captured_pieces()
+
+
 func _cycle_player_color() -> void:
 	human_color = ChessRules.BLACK if human_color == ChessRules.WHITE else ChessRules.WHITE
-	_color_button.text = "PLAY AS: " + ("WHITE" if human_color == ChessRules.WHITE else "BLACK")
+	_color_button.text = _text("play_as") + _text("white" if human_color == ChessRules.WHITE else "black")
 
 
 func _cycle_ai_difficulty() -> void:
 	var levels := ["easy", "medium", "hard"]
 	ai_difficulty = levels[(levels.find(ai_difficulty) + 1) % levels.size()]
-	_difficulty_button.text = "AI LEVEL: " + ai_difficulty.to_upper()
+	_difficulty_button.text = _text("level") + _text(ai_difficulty)
 
 
 func _update_move_history() -> void:
 	if not is_instance_valid(_history_label):
 		return
-	var text := "[color=#d8bd82][font_size=20]MOVES[/font_size][/color]\n\n"
+	var text := "[color=#d8bd82][font_size=20]%s[/font_size][/color]\n\n" % _text("moves")
 	for index in game.move_notation.size():
 		if index % 2 == 0:
 			text += "%d. " % (index / 2 + 1)
@@ -530,7 +585,8 @@ func _update_captured_pieces() -> void:
 		white_captures += symbols.get(piece, piece) + " "
 	for piece in game.captured_by_black:
 		black_captures += symbols.get(piece, piece) + " "
-	_captured_label.text = "White captured: " + (white_captures if white_captures != "" else "—") + "\nBlack captured: " + (black_captures if black_captures != "" else "—")
+	_captured_label.text = _text("white_captured") + (white_captures if white_captures != "" else "—") + "\n" + _text("black_captured") + (black_captures if black_captures != "" else "—")
+	_captured_label.layout_direction = Control.LAYOUT_DIRECTION_RTL if language == "fa" else Control.LAYOUT_DIRECTION_LTR
 
 
 func _request_resign() -> void:
@@ -549,7 +605,7 @@ func _confirm_resign() -> void:
 func _show_game_over_if_needed() -> void:
 	if game.result == "" or not is_instance_valid(_game_over_dialog):
 		return
-	_game_over_dialog.dialog_text = game.result + "\n\nThe game has been saved to your history."
+	_game_over_dialog.dialog_text = _translate_result(game.result) + ("\n\nبازی به‌صورت خودکار ذخیره شد." if language == "fa" else "\n\nThe game was saved automatically.")
 	_game_over_dialog.popup_centered()
 	_haptic(80)
 
@@ -827,14 +883,25 @@ func _screen_to_square(screen_position: Vector2) -> Vector2i:
 	return Vector2i(file, rank) if file in range(8) and rank in range(8) else Vector2i(-1, -1)
 
 
+func _translate_result(value: String) -> String:
+	if language != "fa": return value
+	var replacements := {
+		"White wins by checkmate": "سفید با کیش‌مات برنده شد", "Black wins by checkmate": "سیاه با کیش‌مات برنده شد",
+		"White wins on time": "سفید با پایان زمان حریف برنده شد", "Black wins on time": "سیاه با پایان زمان حریف برنده شد",
+		"White wins by resignation": "سفید با تسلیم حریف برنده شد", "Black wins by resignation": "سیاه با تسلیم حریف برنده شد",
+		"Draw by stalemate": "مساوی با پات", "Draw by threefold repetition": "مساوی با تکرار سه‌باره",
+		"Draw by fifty-move rule": "مساوی با قانون پنجاه حرکت", "Draw by insufficient material": "مساوی به‌دلیل کمبود مهره"
+	}
+	return replacements.get(value, value)
+
+
 func _update_status() -> void:
 	if game.result != "":
-		_status_label.text = game.result
+		_status_label.text = _translate_result(game.result)
 	elif ai_thinking:
-		_status_label.text = "Computer thinking..."
+		_status_label.text = _text("thinking")
 	else:
-		var side := "White" if game.turn == ChessRules.WHITE else "Black"
-		_status_label.text = side + (" — CHECK" if game.is_in_check(game.turn) else " to move")
+		_status_label.text = _text("white_turn" if game.turn == ChessRules.WHITE else "black_turn") + (_text("check") if game.is_in_check(game.turn) else "")
 	_update_clock_label()
 
 
@@ -948,6 +1015,7 @@ func _save_autosave() -> void:
 		"play_vs_ai": play_vs_ai,
 		"human_color": human_color,
 		"ai_difficulty": ai_difficulty,
+		"language": language,
 		"saved_at": Time.get_unix_time_from_system()
 	}
 	var file := FileAccess.open(AUTOSAVE_PATH, FileAccess.WRITE)
@@ -988,6 +1056,8 @@ func _load_autosave() -> bool:
 	ai_difficulty = parsed.get("ai_difficulty", "medium")
 	if ai_difficulty not in ["easy", "medium", "hard"]:
 		ai_difficulty = "medium"
+	language = parsed.get("language", "en")
+	if language not in ["en", "fa"]: language = "en"
 	game.result = parsed.get("result", game.result)
 	return true
 
