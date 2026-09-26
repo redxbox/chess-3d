@@ -52,7 +52,7 @@ jobs:
       - name: Import project resources
         run: |
           godot --headless --editor --path . --quit-after 10
-          godot --headless --path . --install-android-build-template
+          godot --headless --path . --install-android-build-template --quit
       - name: Export APK
         shell: bash
         run: |
