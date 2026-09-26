@@ -17,6 +17,7 @@ func _init() -> void:
 	_test_stalemate()
 	_test_fen()
 	_test_pgn()
+	_test_pgn_import()
 	_test_threefold_repetition()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
@@ -178,6 +179,25 @@ func _test_pgn() -> void:
 	var pgn := game.to_pgn({"White": "Alice", "Black": "Offline AI"})
 	_expect(pgn.contains("[White \"Alice\"]"), "PGN contains player headers")
 	_expect(pgn.contains("1. e4 e5 2. Nf3"), "PGN contains algebraic move text")
+
+
+func _test_pgn_import() -> void:
+	var source = ChessGame.new()
+	source.play(_find_move(source, Vector2i(4, 6), Vector2i(4, 4)))
+	source.play(_find_move(source, Vector2i(4, 1), Vector2i(4, 3)))
+	source.play(_find_move(source, Vector2i(6, 7), Vector2i(5, 5)))
+	source.play(_find_move(source, Vector2i(1, 0), Vector2i(2, 2)))
+	source.play(_find_move(source, Vector2i(5, 7), Vector2i(1, 3)))
+	var exported := source.to_pgn({"White": "Importer Test"})
+	var imported = ChessGame.new()
+	var response := imported.load_pgn(exported)
+	_expect(response.ok and response.ply == 5, "exported PGN imports all moves")
+	_expect(imported.to_fen() == source.to_fen(), "PGN import recreates the exact position")
+	var annotated := "[Event \"Comments\"]\n\n1. e4 {King pawn} e5 2. Nf3 Nc6 3. Bb5 *"
+	var annotated_game = ChessGame.new()
+	_expect(annotated_game.load_pgn(annotated).ok, "PGN parser accepts comments and result tokens")
+	var invalid_game = ChessGame.new()
+	_expect(not invalid_game.load_pgn("1. e5 *").ok, "PGN parser reports illegal moves")
 
 
 func _test_threefold_repetition() -> void:

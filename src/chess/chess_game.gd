@@ -358,11 +358,92 @@ func to_pgn(headers := {}) -> String:
 	return output + result_code
 
 
+func load_pgn(pgn: String) -> Dictionary:
+	var headers: Dictionary = {}
+	var move_lines: Array[String] = []
+	for line in pgn.replace("\r", "").split("\n"):
+		var clean_line: String = line.strip_edges()
+		if clean_line.begins_with("[") and clean_line.ends_with("]"):
+			var separator := clean_line.find(" ")
+			if separator > 1:
+				var key := clean_line.substr(1, separator - 1)
+				var value := clean_line.substr(separator + 1, clean_line.length() - separator - 2).strip_edges()
+				if value.begins_with("\"") and value.ends_with("\""):
+					value = value.substr(1, value.length() - 2)
+				headers[key] = value
+		elif clean_line != "":
+			move_lines.append(clean_line)
+
+	if headers.get("SetUp", "0") == "1" and headers.has("FEN"):
+		if not load_fen(headers.FEN):
+			return {"ok": false, "error": "Invalid FEN header", "ply": 0}
+	else:
+		reset()
+
+	var move_text := " ".join(move_lines)
+	move_text = _remove_pgn_sections(move_text, "{", "}")
+	move_text = _remove_pgn_sections(move_text, "(", ")")
+	var line_comment := RegEx.new()
+	line_comment.compile(";[^\\n]*")
+	move_text = line_comment.sub(move_text, " ", true)
+	var ply := 0
+	for raw_token in move_text.split(" ", false):
+		var token: String = raw_token.strip_edges()
+		if token == "" or token.begins_with("$") or token in ["1-0", "0-1", "1/2-1/2", "*"]:
+			continue
+		if token.contains("."):
+			token = token.substr(token.rfind(".") + 1)
+			if token == "": continue
+		token = token.replace("0-0-0", "O-O-O").replace("0-0", "O-O")
+		while token.ends_with("!") or token.ends_with("?"):
+			token = token.left(-1)
+		var expected := token.trim_suffix("+").trim_suffix("#")
+		var matched: Dictionary = {}
+		for move in legal_moves():
+			if _notation_for(move) == expected:
+				matched = move
+				break
+		if matched.is_empty() or not play(matched):
+			return {"ok": false, "error": "Illegal or unsupported move: " + token, "ply": ply, "headers": headers}
+		ply += 1
+	return {"ok": true, "error": "", "ply": ply, "headers": headers}
+
+
+func _remove_pgn_sections(text: String, opening: String, closing: String) -> String:
+	var output := ""
+	var depth := 0
+	for character in text:
+		if character == opening:
+			depth += 1
+		elif character == closing and depth > 0:
+			depth -= 1
+		elif depth == 0:
+			output += character
+	return output
+
+
 func _notation_for(move: Dictionary) -> String:
 	if move.has("castle"):
 		return "O-O" if move.castle == "king" else "O-O-O"
 	var kind: String = move.piece.to_upper()
 	var notation := "" if kind == "P" else kind
+	if kind != "P":
+		var alternatives: Array[Dictionary] = []
+		for candidate in legal_moves():
+			if candidate.from != move.from and candidate.to == move.to and candidate.piece.to_upper() == kind:
+				alternatives.append(candidate)
+		if not alternatives.is_empty():
+			var same_file := false
+			var same_rank := false
+			for candidate in alternatives:
+				same_file = same_file or candidate.from.x == move.from.x
+				same_rank = same_rank or candidate.from.y == move.from.y
+			if not same_file:
+				notation += "abcdefgh"[move.from.x]
+			elif not same_rank:
+				notation += str(8 - move.from.y)
+			else:
+				notation += _square_name(move.from)
 	if move.captured != "" or move.get("en_passant", false):
 		if kind == "P": notation += "abcdefgh"[move.from.x]
 		notation += "x"
