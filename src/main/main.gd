@@ -1,21 +1,37 @@
 extends Node3D
-## Temporary visual foundation for the Android-first 3D chess board.
-## All geometry is generated at runtime, so the project is immediately runnable.
+## Android-first 3D chess presentation and touch controller.
 
+const ChessRules = preload("res://src/chess/chess_game.gd")
 const BOARD_SIZE := 8
 const SQUARE_SIZE := 1.0
 
 @onready var board: Node3D = $Board
 @onready var camera_rig: Node3D = $CameraRig
+@onready var camera: Camera3D = $CameraRig/Camera3D
 
+var game := ChessRules.new()
+var pieces_root := Node3D.new()
+var highlights_root := Node3D.new()
+var selected := Vector2i(-1, -1)
+var selected_moves: Array[Dictionary] = []
+var play_vs_ai := true
+var ai_thinking := false
 var _dragging := false
+var _pointer_moved := false
 var _last_pointer := Vector2.ZERO
+var _status_label: Label
 
 
 func _ready() -> void:
 	_setup_environment()
 	_create_board()
+	pieces_root.name = "Pieces"
+	highlights_root.name = "Highlights"
+	board.add_child(highlights_root)
+	board.add_child(pieces_root)
 	_create_pieces()
+	_create_ui()
+	_update_status()
 
 
 func _setup_environment() -> void:
@@ -57,22 +73,24 @@ func _create_board() -> void:
 
 
 func _create_pieces() -> void:
-	var ivory := _material(Color("ead9b5"), 0.2, 0.35)
-	var ruby := _material(Color("6f1832"), 0.18, 0.45)
-	var back_rank := ["rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"]
-
-	for file in BOARD_SIZE:
-		_add_piece(back_rank[file], file, 0, ruby)
-		_add_piece("pawn", file, 1, ruby)
-		_add_piece("pawn", file, 6, ivory)
-		_add_piece(back_rank[file], file, 7, ivory)
+	for child in pieces_root.get_children():
+		child.queue_free()
+	var ivory := _material(Color("d8c49a"), 0.24, 0.28)
+	var ruby := _material(Color("68172f"), 0.2, 0.38)
+	var names := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
+	for rank in BOARD_SIZE:
+		for file in BOARD_SIZE:
+			var code: String = game.board[rank][file]
+			if code != "":
+				_add_piece(names[code.to_lower()], file, rank, ivory if code == code.to_upper() else ruby)
 
 
 func _add_piece(kind: String, file: int, rank: int, material: Material) -> void:
 	var piece := Node3D.new()
 	piece.name = "%s_%d_%d" % [kind.capitalize(), file, rank]
 	piece.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.12, (rank - 3.5) * SQUARE_SIZE)
-	board.add_child(piece)
+	piece.set_meta("square", Vector2i(file, rank))
+	pieces_root.add_child(piece)
 
 	_add_cylinder(piece, 0.32, 0.42, 0.14, 0.08, material)
 	_add_cylinder(piece, 0.23, 0.29, 0.26, 0.26, material)
@@ -131,6 +149,153 @@ func _add_sphere(parent: Node3D, radius: float, y: float, material: Material, of
 	parent.add_child(mesh_instance)
 
 
+func _create_ui() -> void:
+	var panel := HBoxContainer.new()
+	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	panel.position = Vector2(-430, 20)
+	panel.size = Vector2(410, 64)
+	panel.add_theme_constant_override("separation", 12)
+	$UI.add_child(panel)
+
+	_status_label = Label.new()
+	_status_label.custom_minimum_size = Vector2(210, 50)
+	_status_label.add_theme_font_size_override("font_size", 20)
+	panel.add_child(_status_label)
+
+	var undo_button := Button.new()
+	undo_button.text = "UNDO"
+	undo_button.custom_minimum_size = Vector2(86, 48)
+	undo_button.pressed.connect(_undo)
+	panel.add_child(undo_button)
+
+	var new_button := Button.new()
+	new_button.text = "NEW"
+	new_button.custom_minimum_size = Vector2(86, 48)
+	new_button.pressed.connect(_new_game)
+	panel.add_child(new_button)
+
+
+func _select_square(square: Vector2i) -> void:
+	if ai_thinking or game.result != "":
+		return
+	for move in selected_moves:
+		if move.to == square:
+			_play_move(move)
+			return
+	var piece: String = game.board[square.y][square.x]
+	if piece != "" and game.color_of(piece) == game.turn:
+		selected = square
+		selected_moves = game.legal_moves(square)
+	else:
+		selected = Vector2i(-1, -1)
+		selected_moves.clear()
+	_draw_highlights()
+
+
+func _play_move(move: Dictionary) -> void:
+	if not game.play(move):
+		return
+	selected = Vector2i(-1, -1)
+	selected_moves.clear()
+	_draw_highlights()
+	_create_pieces()
+	_update_status()
+	if play_vs_ai and game.turn == ChessRules.BLACK and game.result == "":
+		ai_thinking = true
+		_update_status()
+		get_tree().create_timer(0.45).timeout.connect(_play_ai_move)
+
+
+func _play_ai_move() -> void:
+	var moves := game.legal_moves()
+	if not moves.is_empty():
+		var best_moves: Array[Dictionary] = []
+		var best_score := -999
+		var values := {"p": 1, "n": 3, "b": 3, "r": 5, "q": 9, "k": 0, "": 0}
+		for move in moves:
+			var score: int = values[move.captured.to_lower()] * 10 + randi_range(0, 5)
+			if score > best_score:
+				best_score = score
+				best_moves = [move]
+			elif score == best_score:
+				best_moves.append(move)
+		game.play(best_moves.pick_random())
+	ai_thinking = false
+	_create_pieces()
+	_update_status()
+
+
+func _draw_highlights() -> void:
+	for child in highlights_root.get_children():
+		child.queue_free()
+	if selected.x >= 0:
+		_add_highlight(selected, Color(0.95, 0.72, 0.18, 0.62), 0.47)
+	for move in selected_moves:
+		_add_highlight(move.to, Color(0.2, 0.85, 0.55, 0.72), 0.18 if move.captured == "" else 0.38)
+
+
+func _add_highlight(square: Vector2i, color: Color, radius: float) -> void:
+	var marker := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = 0.025
+	mesh.radial_segments = 32
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mesh.material = material
+	marker.mesh = mesh
+	marker.position = Vector3((square.x - 3.5) * SQUARE_SIZE, 0.1, (square.y - 3.5) * SQUARE_SIZE)
+	highlights_root.add_child(marker)
+
+
+func _screen_to_square(screen_position: Vector2) -> Vector2i:
+	var origin := camera.project_ray_origin(screen_position)
+	var direction := camera.project_ray_normal(screen_position)
+	var plane := Plane(Vector3.UP, 0.1)
+	var hit = plane.intersects_ray(origin, direction)
+	if hit == null:
+		return Vector2i(-1, -1)
+	var local: Vector3 = board.to_local(hit)
+	var file := floori(local.x / SQUARE_SIZE + 4.0)
+	var rank := floori(local.z / SQUARE_SIZE + 4.0)
+	return Vector2i(file, rank) if file in range(8) and rank in range(8) else Vector2i(-1, -1)
+
+
+func _update_status() -> void:
+	if game.result != "":
+		_status_label.text = game.result
+	elif ai_thinking:
+		_status_label.text = "Computer thinking..."
+	else:
+		var side := "White" if game.turn == ChessRules.WHITE else "Black"
+		_status_label.text = side + (" — CHECK" if game.is_in_check(game.turn) else " to move")
+
+
+func _undo() -> void:
+	if ai_thinking:
+		return
+	if game.undo() and play_vs_ai and game.turn == ChessRules.BLACK:
+		game.undo()
+	selected = Vector2i(-1, -1)
+	selected_moves.clear()
+	_draw_highlights()
+	_create_pieces()
+	_update_status()
+
+
+func _new_game() -> void:
+	game.reset()
+	ai_thinking = false
+	selected = Vector2i(-1, -1)
+	selected_moves.clear()
+	_draw_highlights()
+	_create_pieces()
+	_update_status()
+
+
 func _material(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
@@ -141,15 +306,38 @@ func _material(color: Color, roughness: float, metallic: float) -> StandardMater
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
-		_dragging = event.pressed
-		_last_pointer = event.position
+		if event.pressed:
+			_dragging = true
+			_pointer_moved = false
+			_last_pointer = event.position
+		else:
+			if not _pointer_moved:
+				var square := _screen_to_square(event.position)
+				if square.x >= 0:
+					_select_square(square)
+			_dragging = false
 	elif event is InputEventScreenDrag:
-		_rotate_camera(event.relative)
+		if event.relative.length() > 3.0:
+			_pointer_moved = true
+			_rotate_camera(event.relative)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_dragging = event.pressed
-		_last_pointer = event.position
+		if event.pressed:
+			_dragging = true
+			_pointer_moved = false
+			_last_pointer = event.position
+		else:
+			if not _pointer_moved:
+				var square := _screen_to_square(event.position)
+				if square.x >= 0:
+					_select_square(square)
+			_dragging = false
 	elif event is InputEventMouseMotion and _dragging:
-		_rotate_camera(event.relative)
+		if event.relative.length() > 3.0:
+			_pointer_moved = true
+			_rotate_camera(event.relative)
+	elif event is InputEventMouseButton and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and event.pressed:
+		camera.position *= 0.92 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.08
+		camera.position.y = clampf(camera.position.y, 5.8, 12.0)
 
 
 func _rotate_camera(relative: Vector2) -> void:
