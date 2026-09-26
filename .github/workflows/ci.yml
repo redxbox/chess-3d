@@ -37,20 +37,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-      - name: Install export templates for the runner user
+      - name: Configure Godot Android export
         run: |
           TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable"
-          mkdir -p "$TEMPLATE_DIR"
+          mkdir -p "$TEMPLATE_DIR" "$HOME/.config" build/android
           cp -a /root/.local/share/godot/export_templates/4.4.1.stable/. "$TEMPLATE_DIR/"
+          cp -a /root/.config/godot "$HOME/.config/godot"
           test -f "$TEMPLATE_DIR/android_debug.apk"
-      - name: Configure Android debug signing
-        run: |
-          mkdir -p "$HOME/.android" build/android
-          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android \
-            -keystore "$HOME/.android/debug.keystore" -storepass android \
-            -dname "CN=Android Debug,O=Android,C=US" -validity 9999
+          test -f /root/debug.keystore
       - name: Export APK
-        run: godot --headless --path . --export-debug "Android" build/android/chess-3d.apk
+        run: godot --headless --verbose --path . --export-debug "Android" build/android/chess-3d.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
