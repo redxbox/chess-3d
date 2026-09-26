@@ -48,9 +48,11 @@ jobs:
       - name: Install required Android SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
       - name: Import project resources
-        run: godot --headless --editor --path . --quit-after 10
+        run: |
+          godot --headless --editor --path . --quit-after 10
+          godot --headless --path . --install-android-build-template
       - name: Export APK
         shell: bash
         run: |
