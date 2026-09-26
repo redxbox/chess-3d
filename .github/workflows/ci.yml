@@ -93,10 +93,16 @@ jobs:
             done
           fi
           exit "$status"
+      - name: Verify Android permissions
+        run: |
+          AAPT="$(find /usr/lib/android-sdk/build-tools -type f -name aapt | sort -V | tail -1)"
+          test -x "$AAPT"
+          "$AAPT" dump permissions build/android/chess-3d.apk | tee build/android/permissions.log
+          grep -q 'android.permission.VIBRATE' build/android/permissions.log
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: chess-3d-v0.12.0-beta.2-build-${{ github.run_number }}
+          name: chess-3d-v0.12.0-beta.3-build-${{ github.run_number }}
           path: build/android/chess-3d.apk
           if-no-files-found: error
           retention-days: 14
