@@ -67,8 +67,9 @@ func legal_moves(from := Vector2i(-1, -1)) -> Array[Dictionary]:
 
 func play(move: Dictionary) -> bool:
 	var found := false
+	var requested_promotion: String = move.get("promotion", "")
 	for legal in legal_moves(move.from):
-		if legal.to == move.to:
+		if legal.to == move.to and (requested_promotion == "" or legal.get("promotion", "") == requested_promotion):
 			move = legal
 			found = true
 			break
@@ -208,10 +209,12 @@ func _add_if_available(moves: Array[Dictionary], from: Vector2i, to: Vector2i, p
 
 
 func _add_move(moves: Array[Dictionary], from: Vector2i, to: Vector2i, piece: String) -> void:
-	var extra := {}
 	if to.y == 0 or to.y == 7:
-		extra["promotion"] = "Q" if color_of(piece) == WHITE else "q"
-	moves.append(_move(from, to, piece, board[to.y][to.x], extra))
+		var promotion_pieces := ["Q", "R", "B", "N"] if color_of(piece) == WHITE else ["q", "r", "b", "n"]
+		for promoted in promotion_pieces:
+			moves.append(_move(from, to, piece, board[to.y][to.x], {"promotion": promoted}))
+	else:
+		moves.append(_move(from, to, piece, board[to.y][to.x]))
 
 
 func _move(from: Vector2i, to: Vector2i, piece: String, captured := "", extra := {}) -> Dictionary:
@@ -265,11 +268,23 @@ func _update_result() -> void:
 
 
 func _insufficient_material() -> bool:
-	var pieces: Array[String] = []
-	for row in board:
-		for piece in row:
-			if piece != "" and piece.to_lower() != "k": pieces.append(piece.to_lower())
-	return pieces.is_empty() or (pieces.size() == 1 and pieces[0] in ["b", "n"])
+	var minors: Array[Dictionary] = []
+	for y in 8:
+		for x in 8:
+			var piece: String = board[y][x]
+			if piece == "" or piece.to_lower() == "k":
+				continue
+			if piece.to_lower() in ["p", "r", "q"]:
+				return false
+			minors.append({"piece": piece, "square_color": (x + y) % 2})
+	if minors.is_empty() or minors.size() == 1:
+		return true
+	var only_bishops := true
+	var bishop_color: int = minors[0].square_color
+	for entry in minors:
+		if entry.piece.to_lower() != "b" or entry.square_color != bishop_color:
+			only_bishops = false
+	return only_bishops
 
 
 func to_fen() -> String:

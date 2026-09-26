@@ -12,6 +12,7 @@ func _init() -> void:
 	_test_castling()
 	_test_en_passant()
 	_test_promotion()
+	_test_insufficient_material()
 	_test_checkmate()
 	_test_stalemate()
 	_test_fen()
@@ -113,10 +114,30 @@ func _test_promotion() -> void:
 	game.board[0][4] = "k"
 	game.board[1][0] = "P"
 	game.turn = ChessGame.WHITE
-	var promotion := _find_move(game, Vector2i(0, 1), Vector2i(0, 0))
-	_expect(promotion.get("promotion", "") == "Q", "promotion move is marked")
-	game.play(promotion)
-	_expect(game.board[0][0] == "Q", "pawn promotes to queen")
+	var promotions := game.legal_moves(Vector2i(0, 1))
+	_expect(promotions.size() == 4, "promotion offers four piece choices")
+	var offered: Array[String] = []
+	for move in promotions: offered.append(move.promotion)
+	_expect(offered == ["Q", "R", "B", "N"], "promotion offers queen, rook, bishop and knight")
+	var knight_move: Dictionary = promotions[3]
+	game.play(knight_move)
+	_expect(game.board[0][0] == "N", "selected underpromotion piece is used")
+
+
+func _test_insufficient_material() -> void:
+	var game = ChessGame.new()
+	_empty_board(game)
+	game.board[7][4] = "K"
+	game.board[0][4] = "k"
+	game.board[6][2] = "B"
+	game.board[1][5] = "b"
+	game._update_result()
+	_expect(game.result == "Draw by insufficient material", "same-colored bishops are insufficient material")
+	game.result = ""
+	game.board[1][5] = ""
+	game.board[1][4] = "b"
+	game._update_result()
+	_expect(game.result == "", "opposite-colored bishops are not auto-declared insufficient")
 
 
 func _test_checkmate() -> void:

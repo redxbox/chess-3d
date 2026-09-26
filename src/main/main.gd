@@ -178,10 +178,16 @@ func _create_ui() -> void:
 func _select_square(square: Vector2i) -> void:
 	if ai_thinking or game.result != "":
 		return
+	var destination_moves: Array[Dictionary] = []
 	for move in selected_moves:
 		if move.to == square:
-			_play_move(move)
-			return
+			destination_moves.append(move)
+	if destination_moves.size() > 1 and destination_moves[0].has("promotion"):
+		_show_promotion_picker(destination_moves)
+		return
+	elif destination_moves.size() == 1:
+		_play_move(destination_moves[0])
+		return
 	var piece: String = game.board[square.y][square.x]
 	if piece != "" and game.color_of(piece) == game.turn:
 		selected = square
@@ -190,6 +196,37 @@ func _select_square(square: Vector2i) -> void:
 		selected = Vector2i(-1, -1)
 		selected_moves.clear()
 	_draw_highlights()
+
+
+func _show_promotion_picker(moves: Array[Dictionary]) -> void:
+	var popup := PopupPanel.new()
+	popup.name = "PromotionPicker"
+	var layout := VBoxContainer.new()
+	layout.custom_minimum_size = Vector2(320, 250)
+	var title := Label.new()
+	title.text = "CHOOSE PROMOTION"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 22)
+	layout.add_child(title)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	layout.add_child(row)
+	var labels := {"Q": "QUEEN", "R": "ROOK", "B": "BISHOP", "N": "KNIGHT"}
+	for move in moves:
+		var button := Button.new()
+		button.text = labels[str(move.promotion).to_upper()]
+		button.custom_minimum_size = Vector2(72, 150)
+		button.pressed.connect(_choose_promotion.bind(move, popup))
+		row.add_child(button)
+	popup.add_child(layout)
+	$UI.add_child(popup)
+	popup.popup_centered(Vector2i(420, 260))
+
+
+func _choose_promotion(move: Dictionary, popup: PopupPanel) -> void:
+	popup.hide()
+	popup.queue_free()
+	_play_move(move)
 
 
 func _play_move(move: Dictionary) -> void:
