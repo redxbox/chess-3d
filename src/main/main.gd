@@ -4,6 +4,7 @@ extends Node3D
 const ChessRules = preload("res://src/chess/chess_game.gd")
 const OfflineAI = preload("res://src/ai/offline_ai.gd")
 const ArchiveStore = preload("res://src/storage/game_archive.gd")
+const AMBIENT_MUSIC = preload("res://assets/audio/ambient.wav")
 const SOUND_STREAMS := {
 	"select": preload("res://assets/audio/select.wav"),
 	"move": preload("res://assets/audio/move.wav"),
@@ -46,10 +47,14 @@ var graphics_quality := "auto"
 var capture_effects_enabled := true
 var sound_enabled := true
 var sound_volume := 0.75
+var music_enabled := true
+var music_volume := 0.28
 var _sound_players: Dictionary = {}
+var _music_player: AudioStreamPlayer
 var _status_label: Label
 var _graphics_button: Button
 var _sound_button: Button
+var _music_button: Button
 var _clock_label: Label
 var _top_panel: HBoxContainer
 var _mode_button: Button
@@ -122,6 +127,9 @@ func _process(delta: float) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST:
 		_save_autosave()
+		if is_instance_valid(_music_player): _music_player.stream_paused = true
+	elif what == NOTIFICATION_APPLICATION_RESUMED:
+		if is_instance_valid(_music_player) and music_enabled: _music_player.stream_paused = false
 
 
 func _setup_environment() -> void:
@@ -428,6 +436,13 @@ func _create_ui() -> void:
 	_sound_button.pressed.connect(_toggle_sound)
 	$UI.add_child(_sound_button)
 	_update_sound_button()
+
+	_music_button = Button.new()
+	_music_button.position = Vector2(28, 182)
+	_music_button.size = Vector2(128, 44)
+	_music_button.pressed.connect(_toggle_music)
+	$UI.add_child(_music_button)
+	_update_music_button()
 	_create_main_menu()
 	_create_game_panels()
 
@@ -488,7 +503,7 @@ func _create_main_menu() -> void:
 
 func _create_game_panels() -> void:
 	var history_panel := PanelContainer.new()
-	history_panel.position = Vector2(24, 190)
+	history_panel.position = Vector2(24, 240)
 	history_panel.size = Vector2(235, 300)
 	$UI.add_child(history_panel)
 	_history_label = RichTextLabel.new()
@@ -500,7 +515,7 @@ func _create_game_panels() -> void:
 	_update_move_history()
 
 	_captured_label = Label.new()
-	_captured_label.position = Vector2(24, 502)
+	_captured_label.position = Vector2(24, 552)
 	_captured_label.size = Vector2(280, 86)
 	_captured_label.add_theme_font_size_override("font_size", 17)
 	$UI.add_child(_captured_label)
@@ -508,7 +523,7 @@ func _create_game_panels() -> void:
 
 	var resign_button := Button.new()
 	resign_button.text = "RESIGN"
-	resign_button.position = Vector2(24, 598)
+	resign_button.position = Vector2(24, 648)
 	resign_button.size = Vector2(120, 44)
 	resign_button.pressed.connect(_request_resign)
 	$UI.add_child(resign_button)
@@ -1066,6 +1081,17 @@ func _create_audio() -> void:
 		player.volume_db = linear_to_db(sound_volume)
 		add_child(player)
 		_sound_players[sound_name] = player
+	_music_player = AudioStreamPlayer.new()
+	_music_player.name = "AmbientMusic"
+	var music_stream = AMBIENT_MUSIC.duplicate()
+	if music_stream is AudioStreamWAV:
+		music_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		music_stream.loop_begin = 0
+		music_stream.loop_end = music_stream.data.size() / 2
+	_music_player.stream = music_stream
+	_music_player.volume_db = linear_to_db(music_volume)
+	add_child(_music_player)
+	if music_enabled: _music_player.play()
 
 
 func _play_sound(sound_name: String) -> void:
@@ -1086,6 +1112,23 @@ func _toggle_sound() -> void:
 func _update_sound_button() -> void:
 	if is_instance_valid(_sound_button):
 		_sound_button.text = "SOUND: ON" if sound_enabled else "SOUND: OFF"
+
+
+func _toggle_music() -> void:
+	music_enabled = not music_enabled
+	if is_instance_valid(_music_player):
+		if music_enabled:
+			_music_player.stream_paused = false
+			if not _music_player.playing: _music_player.play()
+		else:
+			_music_player.stream_paused = true
+	_update_music_button()
+	_save_autosave()
+
+
+func _update_music_button() -> void:
+	if is_instance_valid(_music_button):
+		_music_button.text = "MUSIC: ON" if music_enabled else "MUSIC: OFF"
 
 
 func _effective_graphics_quality() -> String:
@@ -1181,6 +1224,8 @@ func _save_autosave() -> void:
 		"graphics_quality": graphics_quality,
 		"sound_enabled": sound_enabled,
 		"sound_volume": sound_volume,
+		"music_enabled": music_enabled,
+		"music_volume": music_volume,
 		"camera_yaw": camera_rig.rotation.y,
 		"camera_distance": camera.position.length(),
 		"play_vs_ai": play_vs_ai,
@@ -1222,6 +1267,8 @@ func _load_autosave() -> bool:
 		graphics_quality = "auto"
 	sound_enabled = bool(parsed.get("sound_enabled", true))
 	sound_volume = clampf(float(parsed.get("sound_volume", 0.75)), 0.0, 1.0)
+	music_enabled = bool(parsed.get("music_enabled", true))
+	music_volume = clampf(float(parsed.get("music_volume", 0.28)), 0.0, 1.0)
 	camera_rig.rotation.y = float(parsed.get("camera_yaw", 0.0))
 	_set_camera_distance(float(parsed.get("camera_distance", camera.position.length())))
 	play_vs_ai = bool(parsed.get("play_vs_ai", true))
