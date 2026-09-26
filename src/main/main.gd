@@ -21,6 +21,8 @@ var _pointer_moved := false
 var _last_pointer := Vector2.ZERO
 var _touches: Dictionary = {}
 var _pinch_distance := 0.0
+var _drag_piece_from := Vector2i(-1, -1)
+var _drag_piece_active := false
 var haptics_enabled := true
 var _status_label: Label
 var _clock_label: Label
@@ -190,7 +192,7 @@ func _create_ui() -> void:
 	panel.add_theme_constant_override("separation", 12)
 	$UI.add_child(panel)
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.offset_left = -790.0
+	panel.offset_left = -870.0
 	panel.offset_top = 24.0
 	panel.offset_right = -20.0
 	panel.offset_bottom = 84.0
@@ -217,6 +219,12 @@ func _create_ui() -> void:
 	camera_button.custom_minimum_size = Vector2(78, 48)
 	camera_button.pressed.connect(_reset_camera)
 	panel.add_child(camera_button)
+
+	var haptic_button := Button.new()
+	haptic_button.text = "VIBE" if haptics_enabled else "VIBE OFF"
+	haptic_button.custom_minimum_size = Vector2(72, 48)
+	haptic_button.pressed.connect(_toggle_haptics.bind(haptic_button))
+	panel.add_child(haptic_button)
 
 	var undo_button := Button.new()
 	undo_button.text = "UNDO"
@@ -392,6 +400,13 @@ func _toggle_clock() -> void:
 	_save_autosave()
 
 
+func _toggle_haptics(button: Button) -> void:
+	haptics_enabled = not haptics_enabled
+	button.text = "VIBE" if haptics_enabled else "VIBE OFF"
+	_haptic(25)
+	_save_autosave()
+
+
 func _save_autosave() -> void:
 	if not is_inside_tree():
 		return
@@ -485,15 +500,29 @@ func _unhandled_input(event: InputEvent) -> void:
 			_dragging = true
 			_pointer_moved = _touches.size() > 1
 			_last_pointer = event.position
+			if _touches.size() == 1:
+				var pressed_square := _screen_to_square(event.position)
+				if pressed_square.x >= 0:
+					var pressed_piece: String = game.board[pressed_square.y][pressed_square.x]
+					if pressed_piece != "" and game.color_of(pressed_piece) == game.turn:
+						_drag_piece_from = pressed_square
+						_select_square(pressed_square)
 			if _touches.size() == 2:
+				_drag_piece_from = Vector2i(-1, -1)
+				_drag_piece_active = false
 				_pinch_distance = _current_pinch_distance()
 		else:
 			var was_single_touch := _touches.size() == 1
 			_touches.erase(event.index)
-			if was_single_touch and not _pointer_moved:
-				var square := _screen_to_square(event.position)
-				if square.x >= 0:
-					_select_square(square)
+			var released_square := _screen_to_square(event.position)
+			if _drag_piece_active:
+				_snap_dragged_piece()
+			if was_single_touch and _drag_piece_active and released_square.x >= 0:
+				_select_square(released_square)
+			elif was_single_touch and not _pointer_moved and released_square.x >= 0:
+				_select_square(released_square)
+			_drag_piece_from = Vector2i(-1, -1)
+			_drag_piece_active = false
 			_dragging = not _touches.is_empty()
 			if _touches.size() < 2:
 				_pinch_distance = 0.0
@@ -507,7 +536,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_pointer_moved = true
 		elif event.relative.length() > 3.0:
 			_pointer_moved = true
-			_rotate_camera(event.relative)
+			if _drag_piece_from.x >= 0:
+				_drag_piece_active = true
+				_update_drag_marker(event.position)
+			else:
+				_rotate_camera(event.relative)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			_dragging = true
@@ -525,6 +558,26 @@ func _unhandled_input(event: InputEvent) -> void:
 			_rotate_camera(event.relative)
 	elif event is InputEventMouseButton and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and event.pressed:
 		_zoom_camera(0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1)
+
+
+func _update_drag_marker(screen_position: Vector2) -> void:
+	var origin := camera.project_ray_origin(screen_position)
+	var direction := camera.project_ray_normal(screen_position)
+	var hit = Plane(Vector3.UP, 0.55).intersects_ray(origin, direction)
+	if hit == null:
+		return
+	var local_hit: Vector3 = board.to_local(hit)
+	for piece in pieces_root.get_children():
+		if piece.get_meta("square", Vector2i(-1, -1)) == _drag_piece_from:
+			piece.position = Vector3(local_hit.x, 0.55, local_hit.z)
+			return
+
+
+func _snap_dragged_piece() -> void:
+	for piece in pieces_root.get_children():
+		if piece.get_meta("square", Vector2i(-1, -1)) == _drag_piece_from:
+			piece.position = Vector3((_drag_piece_from.x - 3.5) * SQUARE_SIZE, 0.12, (_drag_piece_from.y - 3.5) * SQUARE_SIZE)
+			return
 
 
 func _current_pinch_distance() -> float:
