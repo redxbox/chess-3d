@@ -280,17 +280,21 @@ func _create_pieces() -> void:
 	_mesh_cache.clear()
 	for child in pieces_root.get_children():
 		child.queue_free()
-	var ivory := _material(Color("c8ad78"), 0.3, 0.2)
-	var ruby := _material(Color("591329"), 0.26, 0.32)
+	# High-contrast crystal/onyx materials inspired by luxury glass sets. The
+	# supplied reference sheet is not a tileable texture, so its visual language
+	# is reproduced with mobile-friendly PBR materials and gold accent geometry.
+	var crystal := _luxury_piece_material(Color("f2ead8"), 0.16, 0.08)
+	var onyx := _luxury_piece_material(Color("090b10"), 0.12, 0.58)
+	var gold := _luxury_piece_material(Color("d99a32"), 0.14, 0.92, true)
 	var names := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 	for rank in BOARD_SIZE:
 		for file in BOARD_SIZE:
 			var code: String = game.board[rank][file]
 			if code != "":
-				_add_piece(names[code.to_lower()], file, rank, ivory if code == code.to_upper() else ruby)
+				_add_piece(names[code.to_lower()], file, rank, crystal if code == code.to_upper() else onyx, gold)
 
 
-func _add_piece(kind: String, file: int, rank: int, material: Material) -> void:
+func _add_piece(kind: String, file: int, rank: int, material: Material, accent: Material) -> void:
 	var piece := Node3D.new()
 	piece.name = "%s_%d_%d" % [kind.capitalize(), file, rank]
 	piece.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.12, (rank - 3.5) * SQUARE_SIZE)
@@ -298,35 +302,37 @@ func _add_piece(kind: String, file: int, rank: int, material: Material) -> void:
 	pieces_root.add_child(piece)
 
 	_add_cylinder(piece, 0.32, 0.42, 0.14, 0.08, material)
+	_add_torus(piece, 0.365, 0.028, 0.145, accent)
 	_add_cylinder(piece, 0.23, 0.29, 0.26, 0.26, material)
+	_add_torus(piece, 0.255, 0.022, 0.385, accent)
 
 	match kind:
 		"pawn":
 			_add_cylinder(piece, 0.13, 0.20, 0.42, 0.50, material)
-			_add_torus(piece, 0.15, 0.04, 0.70, material)
+			_add_torus(piece, 0.15, 0.04, 0.70, accent)
 			_add_sphere(piece, 0.20, 0.84, material)
 		"rook":
 			_add_cylinder(piece, 0.21, 0.25, 0.54, 0.53, material)
-			_add_torus(piece, 0.24, 0.055, 0.79, material)
+			_add_torus(piece, 0.24, 0.055, 0.79, accent)
 			_add_cylinder(piece, 0.31, 0.27, 0.15, 0.88, material)
 			for angle in [0.0, 90.0, 180.0, 270.0]:
 				var offset := Vector3(cos(deg_to_rad(angle)) * 0.22, 1.02, sin(deg_to_rad(angle)) * 0.22)
 				_add_box(piece, Vector3(0.16, 0.18, 0.16), offset, material)
 		"knight":
 			_add_cylinder(piece, 0.16, 0.23, 0.42, 0.48, material)
-			_add_torus(piece, 0.19, 0.045, 0.70, material)
+			_add_torus(piece, 0.19, 0.045, 0.70, accent)
 			_add_cylinder(piece, 0.13, 0.19, 0.48, 0.88, material, Vector3(-22, 0, 0))
 			_add_sphere(piece, 0.22, 1.10, material, Vector3(0.0, 0.0, -0.10))
 			_add_cylinder(piece, 0.035, 0.07, 0.20, 1.29, material, Vector3(-18, 0, -12))
 			_add_cylinder(piece, 0.035, 0.07, 0.20, 1.29, material, Vector3(-18, 0, 12))
 		"bishop":
 			_add_cylinder(piece, 0.12, 0.22, 0.62, 0.54, material)
-			_add_torus(piece, 0.20, 0.045, 0.83, material)
+			_add_torus(piece, 0.20, 0.045, 0.83, accent)
 			_add_sphere(piece, 0.22, 1.00, material)
 			_add_sphere(piece, 0.065, 1.23, material)
 		"queen":
 			_add_cylinder(piece, 0.14, 0.24, 0.72, 0.58, material)
-			_add_torus(piece, 0.23, 0.05, 0.91, material)
+			_add_torus(piece, 0.23, 0.05, 0.91, accent)
 			_add_cylinder(piece, 0.27, 0.18, 0.14, 1.01, material)
 			for angle in [0.0, 60.0, 120.0, 180.0, 240.0, 300.0]:
 				var crown_offset := Vector3(cos(deg_to_rad(angle)) * 0.22, 0.0, sin(deg_to_rad(angle)) * 0.22)
@@ -334,11 +340,10 @@ func _add_piece(kind: String, file: int, rank: int, material: Material) -> void:
 			_add_sphere(piece, 0.10, 1.22, material)
 		"king":
 			_add_cylinder(piece, 0.15, 0.25, 0.78, 0.60, material)
-			_add_torus(piece, 0.23, 0.05, 0.96, material)
+			_add_torus(piece, 0.23, 0.05, 0.96, accent)
 			_add_cylinder(piece, 0.26, 0.16, 0.13, 1.06, material)
 			_add_cylinder(piece, 0.05, 0.05, 0.34, 1.29, material)
 			_add_cylinder(piece, 0.05, 0.05, 0.25, 1.39, material, Vector3(0, 0, 90))
-
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
@@ -579,7 +584,7 @@ func _create_main_menu() -> void:
 	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "ANDROID • OFFLINE • BETA 0.12.0.3"
+	version.text = "ANDROID • OFFLINE • BETA 0.12.0.4"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_font_size_override("font_size", 13)
 	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
@@ -798,7 +803,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 3[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 4[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
@@ -1577,6 +1582,20 @@ func _new_game() -> void:
 	_update_move_history()
 	_update_captured_pieces()
 	_save_autosave()
+
+
+func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.roughness = roughness
+	material.metallic = metallic
+	material.clearcoat_enabled = true
+	material.clearcoat_roughness = 0.08
+	if emissive:
+		material.emission_enabled = true
+		material.emission = color * 0.32
+		material.emission_energy_multiplier = 0.65
+	return material
 
 
 func _material(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:
