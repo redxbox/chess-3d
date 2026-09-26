@@ -509,45 +509,80 @@ func _create_main_menu() -> void:
 	_menu_overlay.add_child(center)
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(520, 850)
+	panel.custom_minimum_size = Vector2(620, 680)
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.045, 0.052, 0.07, 0.98)
+	panel_style.border_color = Color(0.55, 0.39, 0.2, 0.85)
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(18)
+	panel_style.content_margin_left = 34
+	panel_style.content_margin_right = 34
+	panel_style.content_margin_top = 24
+	panel_style.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", panel_style)
 	center.add_child(panel)
 	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 16)
+	content.add_theme_constant_override("separation", 10)
 	panel.add_child(content)
 
 	var title := Label.new()
-	title.text = "CHESS 3D"
+	title.text = "♜  CHESS 3D  ♖"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 44)
+	title.add_theme_font_size_override("font_size", 40)
 	title.add_theme_color_override("font_color", Color("e6cb8c"))
 	content.add_child(title)
 	var subtitle := Label.new()
-	subtitle.text = "A classic board. A new dimension."
+	subtitle.text = "THE CLASSIC GAME • REIMAGINED"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.add_theme_font_size_override("font_size", 17)
+	subtitle.add_theme_font_size_override("font_size", 14)
+	subtitle.add_theme_color_override("font_color", Color(0.66, 0.7, 0.78))
 	content.add_child(subtitle)
+	var rule := HSeparator.new()
+	rule.add_theme_constant_override("separation", 8)
+	content.add_child(rule)
 
-	_color_button = _menu_button("PLAY AS: " + ("WHITE" if human_color == ChessRules.WHITE else "BLACK"), _cycle_player_color)
-	content.add_child(_color_button)
-	_difficulty_button = _menu_button("AI LEVEL: " + ai_difficulty.to_upper(), _cycle_ai_difficulty)
-	content.add_child(_difficulty_button)
-	_language_button = _menu_button("LANGUAGE: ENGLISH", _cycle_language)
-	content.add_child(_language_button)
-	_continue_button = _menu_button("CONTINUE GAME", _continue_game)
+	var settings_title := Label.new()
+	settings_title.text = "MATCH SETUP"
+	settings_title.add_theme_font_size_override("font_size", 14)
+	settings_title.add_theme_color_override("font_color", Color("c5a96b"))
+	content.add_child(settings_title)
+	var settings := GridContainer.new()
+	settings.columns = 3
+	settings.add_theme_constant_override("h_separation", 10)
+	content.add_child(settings)
+	_color_button = _menu_button("PLAY AS: " + ("WHITE" if human_color == ChessRules.WHITE else "BLACK"), _cycle_player_color, Vector2(174, 50))
+	settings.add_child(_color_button)
+	_difficulty_button = _menu_button("AI: " + ai_difficulty.to_upper(), _cycle_ai_difficulty, Vector2(174, 50))
+	settings.add_child(_difficulty_button)
+	_language_button = _menu_button("ENGLISH", _cycle_language, Vector2(174, 50))
+	settings.add_child(_language_button)
+
+	var play_title := Label.new()
+	play_title.text = "PLAY"
+	play_title.add_theme_font_size_override("font_size", 14)
+	play_title.add_theme_color_override("font_color", Color("c5a96b"))
+	content.add_child(play_title)
+	_continue_button = _menu_button("▶  CONTINUE MATCH", _continue_game)
 	content.add_child(_continue_button)
-	_ai_start_button = _menu_button("NEW GAME VS AI", _start_ai_game)
+	_ai_start_button = _menu_button("♟  NEW MATCH VS COMPUTER", _start_ai_game)
 	content.add_child(_ai_start_button)
-	_local_start_button = _menu_button("LOCAL TWO PLAYERS", _start_local_game)
+	_local_start_button = _menu_button("♙  LOCAL TWO PLAYERS", _start_local_game)
 	content.add_child(_local_start_button)
-	content.add_child(_menu_button("GAME ARCHIVE", _show_archive))
-	content.add_child(_menu_button("ACCESSIBILITY", _show_accessibility))
-	_close_menu_button = _menu_button("CLOSE MENU", _continue_game)
-	content.add_child(_close_menu_button)
+
+	var tools := HBoxContainer.new()
+	tools.add_theme_constant_override("separation", 10)
+	tools.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.add_child(tools)
+	tools.add_child(_menu_button("ARCHIVE", _show_archive, Vector2(170, 48)))
+	tools.add_child(_menu_button("ACCESSIBILITY", _show_accessibility, Vector2(190, 48)))
+	_close_menu_button = _menu_button("RETURN TO BOARD", _continue_game, Vector2(190, 48))
+	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "Android • Offline • v0.6.0"
+	version.text = "ANDROID • OFFLINE • BETA 0.12.0"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	version.add_theme_color_override("font_color", Color(0.65, 0.68, 0.75, 1))
+	version.add_theme_font_size_override("font_size", 13)
+	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
 	content.add_child(version)
 	_apply_language()
 	_menu_overlay.hide()
@@ -638,11 +673,22 @@ func _create_game_panels() -> void:
 	_apply_language()
 
 
-func _menu_button(text: String, callback: Callable) -> Button:
+func _menu_button(text: String, callback: Callable, minimum_size := Vector2(540, 58)) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.custom_minimum_size = Vector2(420, 62)
-	button.add_theme_font_size_override("font_size", 20)
+	button.custom_minimum_size = minimum_size
+	button.add_theme_font_size_override("font_size", 17)
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.085, 0.095, 0.12, 0.96)
+	normal.border_color = Color(0.26, 0.28, 0.34, 1)
+	normal.set_border_width_all(1)
+	normal.set_corner_radius_all(8)
+	button.add_theme_stylebox_override("normal", normal)
+	var hover := normal.duplicate()
+	hover.bg_color = Color(0.18, 0.14, 0.11, 1)
+	hover.border_color = Color("d1ae68")
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", hover)
 	button.pressed.connect(callback)
 	return button
 
@@ -752,7 +798,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.11.1[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 2[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
@@ -761,26 +807,37 @@ func _information_window(title: String, content: String) -> Window:
 	window.size = Vector2i(720, 620)
 	window.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 	window.close_requested.connect(window.hide)
+	var layout := VBoxContainer.new()
+	layout.add_theme_constant_override("separation", 12)
+	layout.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layout.offset_left = 24
+	layout.offset_top = 20
+	layout.offset_right = -24
+	layout.offset_bottom = -20
+	window.add_child(layout)
 	var text := RichTextLabel.new()
 	text.bbcode_enabled = true
 	text.fit_content = false
 	text.text = content
+	text.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	text.add_theme_font_size_override("normal_font_size", 20)
-	text.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	text.offset_left = 24
-	text.offset_top = 20
-	text.offset_right = -24
-	text.offset_bottom = -20
-	window.add_child(text)
+	layout.add_child(text)
+	var close_button := Button.new()
+	close_button.text = "CLOSE"
+	close_button.custom_minimum_size = Vector2(0, 58)
+	close_button.pressed.connect(window.hide)
+	layout.add_child(close_button)
 	$UI.add_child(window)
 	return window
 
 
 func _show_tutorial() -> void:
+	_accessibility_window.hide()
 	_tutorial_window.popup_centered()
 
 
 func _show_about() -> void:
+	_accessibility_window.hide()
 	_about_window.popup_centered()
 
 
@@ -906,13 +963,21 @@ func _archive_completed_game() -> void:
 func _show_main_menu() -> void:
 	if not is_instance_valid(_menu_overlay):
 		return
+	_hide_secondary_windows()
 	_continue_button.disabled = not _has_resumable_game and game.move_notation.is_empty()
 	_menu_overlay.show()
 	get_tree().paused = true
 	_menu_overlay.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 
 
+func _hide_secondary_windows() -> void:
+	for window in [_archive_window, _accessibility_window, _tutorial_window, _about_window]:
+		if is_instance_valid(window):
+			window.hide()
+
+
 func _continue_game() -> void:
+	_hide_secondary_windows()
 	_menu_overlay.hide()
 	get_tree().paused = false
 
@@ -1302,11 +1367,15 @@ func _monitor_performance() -> void:
 	else:
 		_low_fps_seconds = maxi(0, _low_fps_seconds - 1)
 	if _low_fps_seconds >= 5:
+		# Never replace piece nodes while a move tween or AI handoff owns them.
+		if animating_move or ai_thinking:
+			return
 		var current := _effective_graphics_quality()
 		_auto_quality_override = "medium" if current == "high" else "low"
 		_low_fps_seconds = 0
+		# Apply renderer settings now. Piece LOD refreshes after the next completed
+		# move, avoiding node replacement during Android touch/tween dispatch.
 		_apply_graphics_quality()
-		_create_pieces()
 
 
 func _effective_graphics_quality() -> String:
