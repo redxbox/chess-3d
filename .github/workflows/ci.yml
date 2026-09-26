@@ -50,7 +50,14 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
       - name: Export APK
-        run: godot --headless --verbose --path . --export-debug "Android" build/android/chess-3d.apk
+        run: |
+          set +e
+          godot --headless --verbose --path . --export-debug "Android" build/android/chess-3d.apk 2>&1 | tee build/android/export.log
+          status=${PIPESTATUS[0]}
+          printf '## Godot Android export log\n\n```text\n' >> "$GITHUB_STEP_SUMMARY"
+          tail -120 build/android/export.log >> "$GITHUB_STEP_SUMMARY"
+          printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
