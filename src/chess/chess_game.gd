@@ -45,6 +45,20 @@ func color_of(piece: String) -> int:
 	return WHITE if piece == piece.to_upper() else BLACK
 
 
+func is_valid_position() -> bool:
+	var white_kings := 0
+	var black_kings := 0
+	var piece_count := 0
+	for row in board:
+		if not (row is Array) or row.size() != 8:
+			return false
+		for piece in row:
+			if piece != "": piece_count += 1
+			if piece == "K": white_kings += 1
+			if piece == "k": black_kings += 1
+	return board.size() == 8 and white_kings == 1 and black_kings == 1 and piece_count >= 2
+
+
 func legal_moves(from := Vector2i(-1, -1)) -> Array[Dictionary]:
 	var moves: Array[Dictionary] = []
 	if result != "":

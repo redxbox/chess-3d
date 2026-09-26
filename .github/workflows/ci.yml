@@ -28,7 +28,13 @@ jobs:
       - name: Run chess rules tests
         run: godot --headless --path . --script res://tests/test_chess.gd
       - name: Validate startup scene
-        run: godot --headless --path . --quit-after 2
+        shell: bash
+        run: |
+          godot --headless --path . --quit-after 2 2>&1 | tee /tmp/godot-startup.log
+          if grep -E "SCRIPT ERROR|Parse Error|Invalid call|Invalid set index" /tmp/godot-startup.log; then
+            echo "Godot reported a runtime error during startup"
+            exit 1
+          fi
 
   android-debug:
     name: Build Android debug APK
@@ -79,7 +85,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: chess-3d-android-debug
+          name: chess-3d-v0.3.1-build-${{ github.run_number }}
           path: build/android/chess-3d.apk
           if-no-files-found: error
           retention-days: 14

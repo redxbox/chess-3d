@@ -169,6 +169,9 @@ func _test_fen() -> void:
 	_expect(game.load_fen(custom), "valid FEN imports successfully")
 	_expect(game.to_fen() == custom, "FEN round trip preserves all six fields")
 	_expect(not game.load_fen("not a fen"), "invalid FEN is rejected")
+	var empty_game = ChessGame.new()
+	empty_game.load_fen("8/8/8/8/8/8/8/8 w - - 0 1")
+	_expect(not empty_game.is_valid_position(), "position without both kings is rejected by autosave validation")
 
 
 func _test_pgn() -> void:

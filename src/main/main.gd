@@ -35,9 +35,10 @@ func _ready() -> void:
 	highlights_root.name = "Highlights"
 	board.add_child(highlights_root)
 	board.add_child(pieces_root)
-	_create_ui()
-	_load_autosave()
+	if not _load_autosave():
+		game.reset()
 	_create_pieces()
+	_create_ui()
 	_update_status()
 
 
@@ -183,11 +184,13 @@ func _add_sphere(parent: Node3D, radius: float, y: float, material: Material, of
 
 func _create_ui() -> void:
 	var panel := HBoxContainer.new()
-	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.position = Vector2(-700, 20)
-	panel.size = Vector2(680, 64)
 	panel.add_theme_constant_override("separation", 12)
 	$UI.add_child(panel)
+	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	panel.offset_left = -700.0
+	panel.offset_top = 20.0
+	panel.offset_right = -20.0
+	panel.offset_bottom = 84.0
 
 	_status_label = Label.new()
 	_status_label.custom_minimum_size = Vector2(210, 50)
@@ -412,7 +415,9 @@ func _load_autosave() -> bool:
 		loaded = game.load_pgn(pgn).ok
 	if not loaded:
 		loaded = game.load_fen(parsed.get("fen", ""))
-	if not loaded:
+	if not loaded or not game.is_valid_position():
+		game.reset()
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(AUTOSAVE_PATH))
 		return false
 	white_time = maxf(0.0, float(parsed.get("white_time", 600.0)))
 	black_time = maxf(0.0, float(parsed.get("black_time", 600.0)))
