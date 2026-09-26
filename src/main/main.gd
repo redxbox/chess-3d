@@ -20,6 +20,12 @@ var _dragging := false
 var _pointer_moved := false
 var _last_pointer := Vector2.ZERO
 var _status_label: Label
+var _clock_label: Label
+var clock_enabled := true
+var white_time := 600.0
+var black_time := 600.0
+var _autosave_accumulator := 0.0
+const AUTOSAVE_PATH := "user://autosave.json"
 
 
 func _ready() -> void:
@@ -29,9 +35,35 @@ func _ready() -> void:
 	highlights_root.name = "Highlights"
 	board.add_child(highlights_root)
 	board.add_child(pieces_root)
-	_create_pieces()
 	_create_ui()
+	_load_autosave()
+	_create_pieces()
 	_update_status()
+
+
+func _process(delta: float) -> void:
+	if clock_enabled and game.result == "":
+		if game.turn == ChessRules.WHITE:
+			white_time = maxf(0.0, white_time - delta)
+			if white_time <= 0.0:
+				game.result = "Black wins on time"
+		else:
+			black_time = maxf(0.0, black_time - delta)
+			if black_time <= 0.0:
+				game.result = "White wins on time"
+		_update_clock_label()
+		if game.result != "":
+			_update_status()
+			_save_autosave()
+	_autosave_accumulator += delta
+	if _autosave_accumulator >= 5.0:
+		_autosave_accumulator = 0.0
+		_save_autosave()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_save_autosave()
 
 
 func _setup_environment() -> void:
@@ -152,8 +184,8 @@ func _add_sphere(parent: Node3D, radius: float, y: float, material: Material, of
 func _create_ui() -> void:
 	var panel := HBoxContainer.new()
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.position = Vector2(-430, 20)
-	panel.size = Vector2(410, 64)
+	panel.position = Vector2(-700, 20)
+	panel.size = Vector2(680, 64)
 	panel.add_theme_constant_override("separation", 12)
 	$UI.add_child(panel)
 
@@ -161,6 +193,18 @@ func _create_ui() -> void:
 	_status_label.custom_minimum_size = Vector2(210, 50)
 	_status_label.add_theme_font_size_override("font_size", 20)
 	panel.add_child(_status_label)
+
+	_clock_label = Label.new()
+	_clock_label.custom_minimum_size = Vector2(155, 50)
+	_clock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_clock_label.add_theme_font_size_override("font_size", 20)
+	panel.add_child(_clock_label)
+
+	var clock_button := Button.new()
+	clock_button.text = "CLOCK"
+	clock_button.custom_minimum_size = Vector2(86, 48)
+	clock_button.pressed.connect(_toggle_clock)
+	panel.add_child(clock_button)
 
 	var undo_button := Button.new()
 	undo_button.text = "UNDO"
@@ -237,6 +281,7 @@ func _play_move(move: Dictionary) -> void:
 	_draw_highlights()
 	_create_pieces()
 	_update_status()
+	_save_autosave()
 	if play_vs_ai and game.turn == ChessRules.BLACK and game.result == "":
 		ai_thinking = true
 		_update_status()
@@ -260,6 +305,7 @@ func _play_ai_move() -> void:
 	ai_thinking = false
 	_create_pieces()
 	_update_status()
+	_save_autosave()
 
 
 func _draw_highlights() -> void:
@@ -309,6 +355,71 @@ func _update_status() -> void:
 	else:
 		var side := "White" if game.turn == ChessRules.WHITE else "Black"
 		_status_label.text = side + (" — CHECK" if game.is_in_check(game.turn) else " to move")
+	_update_clock_label()
+
+
+func _update_clock_label() -> void:
+	if not is_instance_valid(_clock_label):
+		return
+	if not clock_enabled:
+		_clock_label.text = "Clock: OFF"
+		return
+	_clock_label.text = "W %s  •  B %s" % [_format_time(white_time), _format_time(black_time)]
+
+
+func _format_time(seconds: float) -> String:
+	var total := maxi(0, ceili(seconds))
+	return "%02d:%02d" % [total / 60, total % 60]
+
+
+func _toggle_clock() -> void:
+	clock_enabled = not clock_enabled
+	_update_clock_label()
+	_save_autosave()
+
+
+func _save_autosave() -> void:
+	if not is_inside_tree():
+		return
+	var data := {
+		"version": 1,
+		"pgn": game.to_pgn({"White": "Player", "Black": "Offline AI"}),
+		"fen": game.to_fen(),
+		"result": game.result,
+		"white_time": white_time,
+		"black_time": black_time,
+		"clock_enabled": clock_enabled,
+		"play_vs_ai": play_vs_ai,
+		"saved_at": Time.get_unix_time_from_system()
+	}
+	var file := FileAccess.open(AUTOSAVE_PATH, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(data))
+
+
+func _load_autosave() -> bool:
+	if not FileAccess.file_exists(AUTOSAVE_PATH):
+		return false
+	var file := FileAccess.open(AUTOSAVE_PATH, FileAccess.READ)
+	if not file:
+		return false
+	var parsed = JSON.parse_string(file.get_as_text())
+	if not (parsed is Dictionary) or int(parsed.get("version", 0)) != 1:
+		return false
+	var loaded := false
+	var pgn: String = parsed.get("pgn", "")
+	if pgn != "":
+		loaded = game.load_pgn(pgn).ok
+	if not loaded:
+		loaded = game.load_fen(parsed.get("fen", ""))
+	if not loaded:
+		return false
+	white_time = maxf(0.0, float(parsed.get("white_time", 600.0)))
+	black_time = maxf(0.0, float(parsed.get("black_time", 600.0)))
+	clock_enabled = bool(parsed.get("clock_enabled", true))
+	play_vs_ai = bool(parsed.get("play_vs_ai", true))
+	game.result = parsed.get("result", game.result)
+	return true
 
 
 func _undo() -> void:
@@ -321,16 +432,20 @@ func _undo() -> void:
 	_draw_highlights()
 	_create_pieces()
 	_update_status()
+	_save_autosave()
 
 
 func _new_game() -> void:
 	game.reset()
+	white_time = 600.0
+	black_time = 600.0
 	ai_thinking = false
 	selected = Vector2i(-1, -1)
 	selected_moves.clear()
 	_draw_highlights()
 	_create_pieces()
 	_update_status()
+	_save_autosave()
 
 
 func _material(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:
