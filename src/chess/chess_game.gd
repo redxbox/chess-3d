@@ -13,6 +13,8 @@ var halfmove_clock := 0
 var fullmove_number := 1
 var result := ""
 var history: Array[Dictionary] = []
+var move_notation: Array[String] = []
+var position_counts: Dictionary = {}
 
 
 func _init() -> void:
@@ -34,6 +36,9 @@ func reset() -> void:
 	fullmove_number = 1
 	result = ""
 	history.clear()
+	move_notation.clear()
+	position_counts.clear()
+	position_counts[_position_key()] = 1
 
 
 func color_of(piece: String) -> int:
@@ -69,9 +74,15 @@ func play(move: Dictionary) -> bool:
 			break
 	if not found:
 		return false
+	var notation := _notation_for(move)
 	history.append(_snapshot())
 	_apply_unchecked(move)
+	var key := _position_key()
+	position_counts[key] = position_counts.get(key, 0) + 1
 	_update_result()
+	if is_in_check(turn):
+		notation += "#" if result.contains("checkmate") else "+"
+	move_notation.append(notation)
 	return true
 
 
@@ -245,6 +256,8 @@ func _update_result() -> void:
 	var available := legal_moves()
 	if available.is_empty():
 		result = ("Black wins by checkmate" if turn == WHITE else "White wins by checkmate") if is_in_check(turn) else "Draw by stalemate"
+	elif position_counts.get(_position_key(), 0) >= 3:
+		result = "Draw by threefold repetition"
 	elif halfmove_clock >= 100:
 		result = "Draw by fifty-move rule"
 	elif _insufficient_material():
@@ -259,8 +272,108 @@ func _insufficient_material() -> bool:
 	return pieces.is_empty() or (pieces.size() == 1 and pieces[0] in ["b", "n"])
 
 
+func to_fen() -> String:
+	var ranks: Array[String] = []
+	for y in 8:
+		var rank := ""
+		var empty := 0
+		for x in 8:
+			var piece: String = board[y][x]
+			if piece == "":
+				empty += 1
+			else:
+				if empty > 0: rank += str(empty); empty = 0
+				rank += piece
+		if empty > 0: rank += str(empty)
+		ranks.append(rank)
+	var rights := ""
+	for key in ["K", "Q", "k", "q"]:
+		if castling[key]: rights += key
+	if rights == "": rights = "-"
+	return "%s %s %s %s %d %d" % ["/".join(ranks), "w" if turn == WHITE else "b", rights, _square_name(en_passant) if en_passant.x >= 0 else "-", halfmove_clock, fullmove_number]
+
+
+func load_fen(fen: String) -> bool:
+	var fields := fen.strip_edges().split(" ", false)
+	if fields.size() != 6:
+		return false
+	var ranks := fields[0].split("/")
+	if ranks.size() != 8 or fields[1] not in ["w", "b"]:
+		return false
+	var parsed: Array = []
+	for rank_text in ranks:
+		var row: Array[String] = []
+		for character in rank_text:
+			if character.is_valid_int():
+				for unused in int(character): row.append("")
+			elif "prnbqkPRNBQK".contains(character):
+				row.append(character)
+			else:
+				return false
+		if row.size() != 8: return false
+		parsed.append(row)
+	if not fields[4].is_valid_int() or not fields[5].is_valid_int(): return false
+	board = parsed
+	turn = WHITE if fields[1] == "w" else BLACK
+	castling = {"K": fields[2].contains("K"), "Q": fields[2].contains("Q"), "k": fields[2].contains("k"), "q": fields[2].contains("q")}
+	en_passant = _parse_square(fields[3]) if fields[3] != "-" else Vector2i(-1, -1)
+	if fields[3] != "-" and en_passant.x < 0: return false
+	halfmove_clock = int(fields[4])
+	fullmove_number = int(fields[5])
+	result = ""
+	history.clear()
+	move_notation.clear()
+	position_counts = {_position_key(): 1}
+	return true
+
+
+func to_pgn(headers := {}) -> String:
+	var tags := {"Event": headers.get("Event", "Casual Game"), "Site": headers.get("Site", "Chess 3D Android"), "Date": headers.get("Date", Time.get_date_string_from_system().replace("-", ".")), "Round": headers.get("Round", "-"), "White": headers.get("White", "Player"), "Black": headers.get("Black", "Computer")}
+	var output := ""
+	for key in ["Event", "Site", "Date", "Round", "White", "Black"]:
+		output += "[%s \"%s\"]\n" % [key, tags[key]]
+	var result_code := "*"
+	if result.begins_with("White wins"): result_code = "1-0"
+	elif result.begins_with("Black wins"): result_code = "0-1"
+	elif result.begins_with("Draw"): result_code = "1/2-1/2"
+	output += "[Result \"%s\"]\n\n" % result_code
+	for index in move_notation.size():
+		if index % 2 == 0: output += "%d. " % (index / 2 + 1)
+		output += move_notation[index] + " "
+	return output + result_code
+
+
+func _notation_for(move: Dictionary) -> String:
+	if move.has("castle"):
+		return "O-O" if move.castle == "king" else "O-O-O"
+	var kind: String = move.piece.to_upper()
+	var notation := "" if kind == "P" else kind
+	if move.captured != "" or move.get("en_passant", false):
+		if kind == "P": notation += "abcdefgh"[move.from.x]
+		notation += "x"
+	notation += _square_name(move.to)
+	if move.has("promotion"): notation += "=" + str(move.promotion).to_upper()
+	return notation
+
+
+func _position_key() -> String:
+	return " ".join(to_fen().split(" ").slice(0, 4))
+
+
+func _square_name(square: Vector2i) -> String:
+	return "abcdefgh"[square.x] + str(8 - square.y)
+
+
+func _parse_square(value: String) -> Vector2i:
+	if value.length() != 2: return Vector2i(-1, -1)
+	var file := "abcdefgh".find(value[0])
+	var rank := 8 - int(value[1]) if value[1].is_valid_int() else -1
+	var square := Vector2i(file, rank)
+	return square if _inside(square) else Vector2i(-1, -1)
+
+
 func _snapshot() -> Dictionary:
-	return {"board": board.duplicate(true), "turn": turn, "castling": castling.duplicate(), "en_passant": en_passant, "halfmove": halfmove_clock, "fullmove": fullmove_number, "result": result}
+	return {"board": board.duplicate(true), "turn": turn, "castling": castling.duplicate(), "en_passant": en_passant, "halfmove": halfmove_clock, "fullmove": fullmove_number, "result": result, "notation": move_notation.duplicate(), "positions": position_counts.duplicate()}
 
 
 func _restore(snapshot: Dictionary) -> void:
@@ -271,6 +384,8 @@ func _restore(snapshot: Dictionary) -> void:
 	halfmove_clock = snapshot.halfmove
 	fullmove_number = snapshot.fullmove
 	result = snapshot.result
+	move_notation = snapshot.get("notation", []).duplicate()
+	position_counts = snapshot.get("positions", {}).duplicate()
 
 
 func _inside(square: Vector2i) -> bool:

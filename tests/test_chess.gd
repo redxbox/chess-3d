@@ -14,6 +14,9 @@ func _init() -> void:
 	_test_promotion()
 	_test_checkmate()
 	_test_stalemate()
+	_test_fen()
+	_test_pgn()
+	_test_threefold_repetition()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -134,3 +137,33 @@ func _test_stalemate() -> void:
 	game.turn = ChessGame.BLACK
 	game._update_result()
 	_expect(game.result == "Draw by stalemate", "known stalemate position is recognized")
+
+
+func _test_fen() -> void:
+	var game = ChessGame.new()
+	var initial := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	_expect(game.to_fen() == initial, "initial position exports to standard FEN")
+	var custom := "r3k2r/ppp2ppp/2n1bn2/3qp3/8/2N1PN2/PPPP1PPP/R2QKB1R b KQkq - 4 9"
+	_expect(game.load_fen(custom), "valid FEN imports successfully")
+	_expect(game.to_fen() == custom, "FEN round trip preserves all six fields")
+	_expect(not game.load_fen("not a fen"), "invalid FEN is rejected")
+
+
+func _test_pgn() -> void:
+	var game = ChessGame.new()
+	game.play(_find_move(game, Vector2i(4, 6), Vector2i(4, 4)))
+	game.play(_find_move(game, Vector2i(4, 1), Vector2i(4, 3)))
+	game.play(_find_move(game, Vector2i(6, 7), Vector2i(5, 5)))
+	var pgn := game.to_pgn({"White": "Alice", "Black": "Offline AI"})
+	_expect(pgn.contains("[White \"Alice\"]"), "PGN contains player headers")
+	_expect(pgn.contains("1. e4 e5 2. Nf3"), "PGN contains algebraic move text")
+
+
+func _test_threefold_repetition() -> void:
+	var game = ChessGame.new()
+	for cycle in 2:
+		game.play(_find_move(game, Vector2i(6, 7), Vector2i(5, 5)))
+		game.play(_find_move(game, Vector2i(6, 0), Vector2i(5, 2)))
+		game.play(_find_move(game, Vector2i(5, 5), Vector2i(6, 7)))
+		game.play(_find_move(game, Vector2i(5, 2), Vector2i(6, 0)))
+	_expect(game.result == "Draw by threefold repetition", "threefold position repetition is detected")
