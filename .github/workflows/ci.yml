@@ -54,6 +54,8 @@ jobs:
           godot --headless --editor --path . --quit-after 10
           mkdir -p android/build
           unzip -q "$HOME/.local/share/godot/export_templates/4.4.1.stable/android_source.zip" -d android/build
+          printf '4.4.1.stable\n' > android/.build_version
+          touch android/build/.gdignore
           test -f android/build/build.gradle
       - name: Export APK
         shell: bash
