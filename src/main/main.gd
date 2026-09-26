@@ -113,12 +113,50 @@ func _create_board() -> void:
 	base.position.y = -0.22
 	board.add_child(base)
 
+	var wood := _material(Color("241418"), 0.3, 0.18)
+	var gold := _material(Color("9f7440"), 0.22, 0.72)
+	for rail in [
+		[Vector3(0, -0.02, -4.38), Vector3(9.15, 0.26, 0.42)],
+		[Vector3(0, -0.02, 4.38), Vector3(9.15, 0.26, 0.42)],
+		[Vector3(-4.38, -0.02, 0), Vector3(0.42, 0.26, 8.35)],
+		[Vector3(4.38, -0.02, 0), Vector3(0.42, 0.26, 8.35)]
+	]:
+		_add_board_box(rail[0], rail[1], wood)
+	for accent in [
+		[Vector3(0, 0.125, -4.12), Vector3(8.2, 0.035, 0.045)],
+		[Vector3(0, 0.125, 4.12), Vector3(8.2, 0.035, 0.045)],
+		[Vector3(-4.12, 0.125, 0), Vector3(0.045, 0.035, 8.2)],
+		[Vector3(4.12, 0.125, 0), Vector3(0.045, 0.035, 8.2)]
+	]:
+		_add_board_box(accent[0], accent[1], gold)
+
+	var table := MeshInstance3D.new()
+	var table_mesh := CylinderMesh.new()
+	table_mesh.top_radius = 5.8
+	table_mesh.bottom_radius = 6.4
+	table_mesh.height = 0.45
+	table_mesh.radial_segments = 64
+	table_mesh.material = wood
+	table.mesh = table_mesh
+	table.position.y = -0.58
+	board.add_child(table)
+
+
+func _add_board_box(position: Vector3, size: Vector3, material: Material) -> void:
+	var instance := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	mesh.material = material
+	instance.mesh = mesh
+	instance.position = position
+	board.add_child(instance)
+
 
 func _create_pieces() -> void:
 	for child in pieces_root.get_children():
 		child.queue_free()
-	var ivory := _material(Color("d8c49a"), 0.24, 0.28)
-	var ruby := _material(Color("68172f"), 0.2, 0.38)
+	var ivory := _material(Color("c8ad78"), 0.3, 0.2)
+	var ruby := _material(Color("591329"), 0.26, 0.32)
 	var names := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 	for rank in BOARD_SIZE:
 		for file in BOARD_SIZE:
@@ -522,6 +560,8 @@ func _material(color: Color, roughness: float, metallic: float) -> StandardMater
 	material.albedo_color = color
 	material.roughness = roughness
 	material.metallic = metallic
+	material.clearcoat_enabled = true
+	material.clearcoat_roughness = minf(0.65, roughness + 0.12)
 	return material
 
 
