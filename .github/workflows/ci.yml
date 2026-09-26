@@ -49,10 +49,12 @@ jobs:
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
-      - name: Import project resources
+      - name: Import project resources and install Android template
         run: |
           godot --headless --editor --path . --quit-after 10
-          godot --headless --path . --install-android-build-template --quit
+          mkdir -p android/build
+          unzip -q "$HOME/.local/share/godot/export_templates/4.4.1.stable/android_source.zip" -d android/build
+          test -f android/build/build.gradle
       - name: Export APK
         shell: bash
         run: |
