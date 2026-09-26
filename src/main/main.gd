@@ -12,6 +12,7 @@ const SQUARE_SIZE := 1.0
 var game := ChessRules.new()
 var pieces_root := Node3D.new()
 var highlights_root := Node3D.new()
+var decor_root := Node3D.new()
 var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
 var last_move: Dictionary = {}
@@ -26,7 +27,10 @@ var _pinch_distance := 0.0
 var _drag_piece_from := Vector2i(-1, -1)
 var _drag_piece_active := false
 var haptics_enabled := true
+var graphics_quality := "auto"
+var capture_effects_enabled := true
 var _status_label: Label
+var _graphics_button: Button
 var _clock_label: Label
 var _top_panel: HBoxContainer
 var _mode_button: Button
@@ -39,6 +43,8 @@ const AUTOSAVE_PATH := "user://autosave.json"
 
 func _ready() -> void:
 	_setup_environment()
+	decor_root.name = "EnvironmentDetails"
+	board.add_child(decor_root)
 	_create_board()
 	pieces_root.name = "Pieces"
 	highlights_root.name = "Highlights"
@@ -48,6 +54,7 @@ func _ready() -> void:
 		game.reset()
 	_create_pieces()
 	_create_ui()
+	_apply_graphics_quality()
 	get_viewport().size_changed.connect(_apply_safe_area)
 	_apply_safe_area()
 	_update_status()
@@ -149,7 +156,7 @@ func _create_board() -> void:
 	floor_mesh.material = _material(Color("090d16"), 0.72, 0.06)
 	floor.mesh = floor_mesh
 	floor.position.y = -0.82
-	board.add_child(floor)
+	decor_root.add_child(floor)
 	_add_board_coordinates()
 	_create_room_details(wood, gold)
 
@@ -177,7 +184,7 @@ func _create_room_details(wood: Material, gold: Material) -> void:
 	for corner in [Vector3(-8.5, -0.8, -8.5), Vector3(8.5, -0.8, -8.5), Vector3(-8.5, -0.8, 8.5), Vector3(8.5, -0.8, 8.5)]:
 		var column := Node3D.new()
 		column.position = corner
-		board.add_child(column)
+		decor_root.add_child(column)
 		_add_cylinder(column, 0.72, 0.9, 0.28, 0.14, gold)
 		_add_cylinder(column, 0.42, 0.55, 4.8, 2.65, wood)
 		_add_torus(column, 0.48, 0.08, 0.45, gold)
@@ -363,6 +370,13 @@ func _create_ui() -> void:
 	new_button.pressed.connect(_new_game)
 	panel.add_child(new_button)
 
+	_graphics_button = Button.new()
+	_graphics_button.position = Vector2(28, 78)
+	_graphics_button.size = Vector2(128, 44)
+	_graphics_button.pressed.connect(_cycle_graphics_quality)
+	$UI.add_child(_graphics_button)
+	_update_graphics_button()
+
 
 func _select_square(square: Vector2i) -> void:
 	if ai_thinking or animating_move or game.result != "":
@@ -507,6 +521,8 @@ func _animate_board_move(move: Dictionary, finished: Callable) -> void:
 
 
 func _spawn_capture_effect(position: Vector3, captured_code: String) -> void:
+	if not capture_effects_enabled:
+		return
 	var particles := CPUParticles3D.new()
 	particles.amount = 14
 	particles.lifetime = 0.55
@@ -613,6 +629,49 @@ func _format_time(seconds: float) -> String:
 	return "%02d:%02d" % [total / 60, total % 60]
 
 
+func _effective_graphics_quality() -> String:
+	if graphics_quality != "auto":
+		return graphics_quality
+	var cores := OS.get_processor_count()
+	if cores <= 4:
+		return "low"
+	elif cores <= 6:
+		return "medium"
+	return "high"
+
+
+func _apply_graphics_quality() -> void:
+	var quality := _effective_graphics_quality()
+	capture_effects_enabled = quality != "low"
+	decor_root.visible = quality != "low"
+	$KeyLight.shadow_enabled = quality != "low"
+	$FillLight.shadow_enabled = quality == "high"
+	match quality:
+		"high":
+			get_viewport().msaa_3d = Viewport.MSAA_2X
+			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+		"medium":
+			get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+		_:
+			get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+	_update_graphics_button()
+
+
+func _cycle_graphics_quality() -> void:
+	var levels := ["auto", "low", "medium", "high"]
+	var index := levels.find(graphics_quality)
+	graphics_quality = levels[(index + 1) % levels.size()]
+	_apply_graphics_quality()
+	_save_autosave()
+
+
+func _update_graphics_button() -> void:
+	if is_instance_valid(_graphics_button):
+		_graphics_button.text = "GFX: " + graphics_quality.to_upper()
+
+
 func _apply_safe_area() -> void:
 	if not is_instance_valid(_top_panel):
 		return
@@ -660,6 +719,7 @@ func _save_autosave() -> void:
 		"black_time": black_time,
 		"clock_enabled": clock_enabled,
 		"haptics_enabled": haptics_enabled,
+		"graphics_quality": graphics_quality,
 		"camera_yaw": camera_rig.rotation.y,
 		"camera_distance": camera.position.length(),
 		"play_vs_ai": play_vs_ai,
@@ -693,6 +753,9 @@ func _load_autosave() -> bool:
 	black_time = maxf(0.0, float(parsed.get("black_time", 600.0)))
 	clock_enabled = bool(parsed.get("clock_enabled", true))
 	haptics_enabled = bool(parsed.get("haptics_enabled", true))
+	graphics_quality = parsed.get("graphics_quality", "auto")
+	if graphics_quality not in ["auto", "low", "medium", "high"]:
+		graphics_quality = "auto"
 	camera_rig.rotation.y = float(parsed.get("camera_yaw", 0.0))
 	_set_camera_distance(float(parsed.get("camera_distance", camera.position.length())))
 	play_vs_ai = bool(parsed.get("play_vs_ai", true))
