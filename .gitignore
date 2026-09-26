@@ -16,3 +16,6 @@ exports/
 Thumbs.db
 .idea/
 .vscode/
+
+# Local release signing credentials (never commit)
+.private-release/
