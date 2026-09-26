@@ -25,7 +25,10 @@ var archive := ArchiveStore.new()
 var pieces_root := Node3D.new()
 var highlights_root := Node3D.new()
 var decor_root := Node3D.new()
+var coordinates_root := Node3D.new()
 var _mesh_cache: Dictionary = {}
+var _board_light_material: StandardMaterial3D
+var _board_dark_material: StandardMaterial3D
 var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
 var last_move: Dictionary = {}
@@ -50,6 +53,10 @@ var _low_fps_seconds := 0
 var _fps_accumulator := 0.0
 var _fps_label: Label
 var capture_effects_enabled := true
+var high_contrast_enabled := false
+var reduced_motion_enabled := false
+var coordinates_enabled := true
+var colorblind_enabled := false
 var sound_enabled := true
 var sound_volume := 0.75
 var music_enabled := true
@@ -77,6 +84,8 @@ var _game_over_dialog: AcceptDialog
 var _resign_dialog: ConfirmationDialog
 var _archive_window: Window
 var _archive_list: VBoxContainer
+var _accessibility_window: Window
+var _accessibility_buttons: Dictionary = {}
 var _archived_current_game := false
 var _has_resumable_game := false
 var clock_enabled := true
@@ -89,7 +98,9 @@ const AUTOSAVE_PATH := "user://autosave.json"
 func _ready() -> void:
 	_setup_environment()
 	decor_root.name = "EnvironmentDetails"
+	coordinates_root.name = "BoardCoordinates"
 	board.add_child(decor_root)
+	board.add_child(coordinates_root)
 	_create_board()
 	pieces_root.name = "Pieces"
 	highlights_root.name = "Highlights"
@@ -102,6 +113,7 @@ func _ready() -> void:
 	_create_ui()
 	_create_audio()
 	_apply_graphics_quality()
+	_apply_accessibility()
 	get_viewport().size_changed.connect(_apply_safe_area)
 	_apply_safe_area()
 	_update_status()
@@ -153,8 +165,10 @@ func _setup_environment() -> void:
 
 
 func _create_board() -> void:
-	var light_material := _material(Color("d7c4a2"), 0.42, 0.0)
-	var dark_material := _material(Color("4b2633"), 0.34, 0.1)
+	_board_light_material = _material(Color("d7c4a2"), 0.42, 0.0)
+	_board_dark_material = _material(Color("4b2633"), 0.34, 0.1)
+	var light_material := _board_light_material
+	var dark_material := _board_dark_material
 
 	for rank in BOARD_SIZE:
 		for file in BOARD_SIZE:
@@ -233,7 +247,7 @@ func _add_board_coordinates() -> void:
 			label.position = data[1]
 			label.rotation_degrees.x = -90.0
 			label.pixel_size = 0.005
-			board.add_child(label)
+			coordinates_root.add_child(label)
 
 
 func _create_room_details(wood: Material, gold: Material) -> void:
@@ -491,7 +505,7 @@ func _create_main_menu() -> void:
 	_menu_overlay.add_child(center)
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(520, 780)
+	panel.custom_minimum_size = Vector2(520, 850)
 	center.add_child(panel)
 	var content := VBoxContainer.new()
 	content.add_theme_constant_override("separation", 16)
@@ -522,6 +536,7 @@ func _create_main_menu() -> void:
 	_local_start_button = _menu_button("LOCAL TWO PLAYERS", _start_local_game)
 	content.add_child(_local_start_button)
 	content.add_child(_menu_button("GAME ARCHIVE", _show_archive))
+	content.add_child(_menu_button("ACCESSIBILITY", _show_accessibility))
 	_close_menu_button = _menu_button("CLOSE MENU", _continue_game)
 	content.add_child(_close_menu_button)
 
@@ -587,6 +602,24 @@ func _create_game_panels() -> void:
 	_archive_list.add_theme_constant_override("separation", 10)
 	scroll.add_child(_archive_list)
 	$UI.add_child(_archive_window)
+
+	_accessibility_window = Window.new()
+	_accessibility_window.title = "ACCESSIBILITY"
+	_accessibility_window.size = Vector2i(560, 470)
+	_accessibility_window.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	_accessibility_window.close_requested.connect(_accessibility_window.hide)
+	var accessibility_list := VBoxContainer.new()
+	accessibility_list.add_theme_constant_override("separation", 14)
+	_accessibility_window.add_child(accessibility_list)
+	accessibility_list.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for setting in ["contrast", "colorblind", "motion", "coordinates"]:
+		var button := Button.new()
+		button.custom_minimum_size = Vector2(500, 72)
+		button.pressed.connect(_toggle_accessibility.bind(setting))
+		accessibility_list.add_child(button)
+		_accessibility_buttons[setting] = button
+	$UI.add_child(_accessibility_window)
+	_update_accessibility_buttons()
 	_apply_language()
 
 
@@ -700,6 +733,39 @@ func _show_game_over_if_needed() -> void:
 	_game_over_dialog.popup_centered()
 	_play_sound("game_over")
 	_haptic(80)
+
+
+func _show_accessibility() -> void:
+	_update_accessibility_buttons()
+	_accessibility_window.popup_centered()
+
+
+func _toggle_accessibility(setting: String) -> void:
+	match setting:
+		"contrast": high_contrast_enabled = not high_contrast_enabled
+		"colorblind": colorblind_enabled = not colorblind_enabled
+		"motion": reduced_motion_enabled = not reduced_motion_enabled
+		"coordinates": coordinates_enabled = not coordinates_enabled
+	_apply_accessibility()
+	_update_accessibility_buttons()
+	_save_autosave()
+
+
+func _update_accessibility_buttons() -> void:
+	if _accessibility_buttons.is_empty(): return
+	_accessibility_buttons.contrast.text = "HIGH CONTRAST: " + ("ON" if high_contrast_enabled else "OFF")
+	_accessibility_buttons.colorblind.text = "COLORBLIND PALETTE: " + ("ON" if colorblind_enabled else "OFF")
+	_accessibility_buttons.motion.text = "REDUCED MOTION: " + ("ON" if reduced_motion_enabled else "OFF")
+	_accessibility_buttons.coordinates.text = "BOARD COORDINATES: " + ("ON" if coordinates_enabled else "OFF")
+
+
+func _apply_accessibility() -> void:
+	if is_instance_valid(_board_light_material):
+		_board_light_material.albedo_color = Color("f3ead8") if high_contrast_enabled else Color("d7c4a2")
+	if is_instance_valid(_board_dark_material):
+		_board_dark_material.albedo_color = Color("171b33") if colorblind_enabled else (Color("2a1730") if high_contrast_enabled else Color("4b2633"))
+	coordinates_root.visible = coordinates_enabled
+	_draw_highlights()
 
 
 func _show_archive() -> void:
@@ -976,18 +1042,21 @@ func _animate_board_move(move: Dictionary, finished: Callable) -> void:
 	midpoint.y = 0.75
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
-	tween.tween_property(moving_piece, "position", midpoint, 0.13)
-	tween.tween_property(moving_piece, "position", target, 0.15)
+	var first_duration := 0.01 if reduced_motion_enabled else 0.13
+	var second_duration := 0.01 if reduced_motion_enabled else 0.15
+	tween.tween_property(moving_piece, "position", midpoint, first_duration)
+	tween.tween_property(moving_piece, "position", target, second_duration)
 	if is_instance_valid(captured_piece):
 		_spawn_capture_effect(captured_piece.position, move.captured)
 		var capture_tween := create_tween().set_parallel(true)
-		capture_tween.tween_property(captured_piece, "scale", Vector3.ZERO, 0.2)
-		capture_tween.tween_property(captured_piece, "position:y", -0.25, 0.2)
+		var capture_duration := 0.01 if reduced_motion_enabled else 0.2
+		capture_tween.tween_property(captured_piece, "scale", Vector3.ZERO, capture_duration)
+		capture_tween.tween_property(captured_piece, "position:y", -0.25, capture_duration)
 	tween.finished.connect(finished)
 
 
 func _spawn_capture_effect(position: Vector3, captured_code: String) -> void:
-	if not capture_effects_enabled:
+	if not capture_effects_enabled or reduced_motion_enabled:
 		return
 	var particles := CPUParticles3D.new()
 	particles.amount = 14
@@ -1028,16 +1097,18 @@ func _draw_highlights() -> void:
 	if not last_move.is_empty():
 		_add_highlight(last_move.from, Color(0.22, 0.52, 0.9, 0.32), 0.44)
 		_add_highlight(last_move.to, Color(0.22, 0.52, 0.9, 0.48), 0.44)
+	var check_color := Color(1.0, 0.48, 0.05, 0.82) if colorblind_enabled else Color(0.95, 0.1, 0.12, 0.72)
+	var move_color := Color(0.05, 0.65, 1.0, 0.82) if colorblind_enabled else Color(0.2, 0.85, 0.55, 0.72)
 	if game.result == "" and game.is_in_check(game.turn):
 		var king_code := "K" if game.turn == ChessRules.WHITE else "k"
 		for rank in BOARD_SIZE:
 			for file in BOARD_SIZE:
 				if game.board[rank][file] == king_code:
-					_add_highlight(Vector2i(file, rank), Color(0.95, 0.1, 0.12, 0.72), 0.46)
+					_add_highlight(Vector2i(file, rank), check_color, 0.46)
 	if selected.x >= 0:
-		_add_highlight(selected, Color(0.95, 0.72, 0.18, 0.62), 0.47)
+		_add_highlight(selected, Color(1.0, 0.72, 0.05, 0.78 if high_contrast_enabled else 0.62), 0.47)
 	for move in selected_moves:
-		_add_highlight(move.to, Color(0.2, 0.85, 0.55, 0.72), 0.18 if move.captured == "" else 0.38)
+		_add_highlight(move.to, move_color, 0.18 if move.captured == "" else 0.38)
 
 
 func _add_highlight(square: Vector2i, color: Color, radius: float) -> void:
@@ -1283,6 +1354,10 @@ func _save_autosave() -> void:
 		"sound_volume": sound_volume,
 		"music_enabled": music_enabled,
 		"music_volume": music_volume,
+		"high_contrast": high_contrast_enabled,
+		"reduced_motion": reduced_motion_enabled,
+		"coordinates": coordinates_enabled,
+		"colorblind": colorblind_enabled,
 		"camera_yaw": camera_rig.rotation.y,
 		"camera_distance": camera.position.length(),
 		"play_vs_ai": play_vs_ai,
@@ -1326,6 +1401,10 @@ func _load_autosave() -> bool:
 	sound_volume = clampf(float(parsed.get("sound_volume", 0.75)), 0.0, 1.0)
 	music_enabled = bool(parsed.get("music_enabled", true))
 	music_volume = clampf(float(parsed.get("music_volume", 0.28)), 0.0, 1.0)
+	high_contrast_enabled = bool(parsed.get("high_contrast", false))
+	reduced_motion_enabled = bool(parsed.get("reduced_motion", false))
+	coordinates_enabled = bool(parsed.get("coordinates", true))
+	colorblind_enabled = bool(parsed.get("colorblind", false))
 	camera_rig.rotation.y = float(parsed.get("camera_yaw", 0.0))
 	_set_camera_distance(float(parsed.get("camera_distance", camera.position.length())))
 	play_vs_ai = bool(parsed.get("play_vs_ai", true))
@@ -1494,14 +1573,15 @@ func _flip_camera_for_local_turn() -> void:
 	var target_yaw := 0.0 if game.turn == ChessRules.WHITE else PI
 	var tween := create_tween()
 	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	tween.tween_property(camera_rig, "rotation:y", target_yaw, 0.55)
+	tween.tween_property(camera_rig, "rotation:y", target_yaw, 0.01 if reduced_motion_enabled else 0.55)
 
 
 func _reset_camera() -> void:
 	var tween := create_tween().set_parallel(true)
 	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tween.tween_property(camera_rig, "rotation:y", 0.0, 0.35)
-	tween.tween_property(camera, "position", Vector3(0, 8.5, 9.5), 0.35)
+	var duration := 0.01 if reduced_motion_enabled else 0.35
+	tween.tween_property(camera_rig, "rotation:y", 0.0, duration)
+	tween.tween_property(camera, "position", Vector3(0, 8.5, 9.5), duration)
 	_haptic(20)
 
 
