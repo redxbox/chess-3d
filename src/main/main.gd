@@ -26,6 +26,8 @@ var _drag_piece_active := false
 var haptics_enabled := true
 var _status_label: Label
 var _clock_label: Label
+var _top_panel: HBoxContainer
+var _mode_button: Button
 var clock_enabled := true
 var white_time := 600.0
 var black_time := 600.0
@@ -44,6 +46,8 @@ func _ready() -> void:
 		game.reset()
 	_create_pieces()
 	_create_ui()
+	get_viewport().size_changed.connect(_apply_safe_area)
+	_apply_safe_area()
 	_update_status()
 
 
@@ -188,14 +192,11 @@ func _add_sphere(parent: Node3D, radius: float, y: float, material: Material, of
 
 
 func _create_ui() -> void:
-	var panel := HBoxContainer.new()
-	panel.add_theme_constant_override("separation", 12)
+	_top_panel = HBoxContainer.new()
+	var panel := _top_panel
+	panel.add_theme_constant_override("separation", 10)
 	$UI.add_child(panel)
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.offset_left = -870.0
-	panel.offset_top = 24.0
-	panel.offset_right = -20.0
-	panel.offset_bottom = 84.0
 
 	_status_label = Label.new()
 	_status_label.custom_minimum_size = Vector2(210, 50)
@@ -207,6 +208,12 @@ func _create_ui() -> void:
 	_clock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_clock_label.add_theme_font_size_override("font_size", 20)
 	panel.add_child(_clock_label)
+
+	_mode_button = Button.new()
+	_mode_button.text = "VS AI" if play_vs_ai else "LOCAL"
+	_mode_button.custom_minimum_size = Vector2(82, 48)
+	_mode_button.pressed.connect(_toggle_game_mode)
+	panel.add_child(_mode_button)
 
 	var clock_button := Button.new()
 	clock_button.text = "CLOCK"
@@ -308,6 +315,8 @@ func _play_move(move: Dictionary) -> void:
 		ai_thinking = true
 		_update_status()
 		get_tree().create_timer(0.45).timeout.connect(_play_ai_move)
+	elif not play_vs_ai and game.result == "":
+		_flip_camera_for_local_turn()
 
 
 func _play_ai_move() -> void:
@@ -394,6 +403,28 @@ func _format_time(seconds: float) -> String:
 	return "%02d:%02d" % [total / 60, total % 60]
 
 
+func _apply_safe_area() -> void:
+	if not is_instance_valid(_top_panel):
+		return
+	var window_size := Vector2(DisplayServer.window_get_size())
+	var viewport_size := get_viewport().get_visible_rect().size
+	var safe := DisplayServer.get_display_safe_area()
+	var scale_x := viewport_size.x / maxf(window_size.x, 1.0)
+	var scale_y := viewport_size.y / maxf(window_size.y, 1.0)
+	var right_inset := maxf(20.0, (window_size.x - safe.end.x) * scale_x + 20.0)
+	var top_inset := maxf(20.0, safe.position.y * scale_y + 20.0)
+	_top_panel.offset_left = -970.0 - right_inset
+	_top_panel.offset_top = top_inset
+	_top_panel.offset_right = -right_inset
+	_top_panel.offset_bottom = top_inset + 64.0
+
+
+func _toggle_game_mode() -> void:
+	play_vs_ai = not play_vs_ai
+	_mode_button.text = "VS AI" if play_vs_ai else "LOCAL"
+	_new_game()
+
+
 func _toggle_clock() -> void:
 	clock_enabled = not clock_enabled
 	_update_clock_label()
@@ -474,6 +505,7 @@ func _undo() -> void:
 
 func _new_game() -> void:
 	game.reset()
+	camera_rig.rotation.y = 0.0
 	white_time = 600.0
 	black_time = 600.0
 	ai_thinking = false
@@ -597,6 +629,13 @@ func _set_camera_distance(distance: float) -> void:
 func _rotate_camera(relative: Vector2) -> void:
 	camera_rig.rotate_y(-relative.x * 0.006)
 	camera_rig.rotation.y = wrapf(camera_rig.rotation.y, -PI, PI)
+
+
+func _flip_camera_for_local_turn() -> void:
+	var target_yaw := 0.0 if game.turn == ChessRules.WHITE else PI
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(camera_rig, "rotation:y", target_yaw, 0.55)
 
 
 func _reset_camera() -> void:
