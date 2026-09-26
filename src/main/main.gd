@@ -163,9 +163,25 @@ func _setup_environment() -> void:
 	environment.background_color = Color("111725")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color("7180a0")
-	environment.ambient_light_energy = 0.42
+	environment.ambient_light_energy = 0.32
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	$WorldEnvironment.environment = environment
+	# Warm/cool studio rim lights create readable silhouettes without expensive
+	# real-time shadows on the secondary lights.
+	var warm_rim := OmniLight3D.new()
+	warm_rim.name = "WarmRimLight"
+	warm_rim.position = Vector3(5.5, 4.2, -4.0)
+	warm_rim.light_color = Color("ffb35f")
+	warm_rim.light_energy = 1.55
+	warm_rim.omni_range = 11.0
+	add_child(warm_rim)
+	var cool_rim := OmniLight3D.new()
+	cool_rim.name = "CoolRimLight"
+	cool_rim.position = Vector3(-5.0, 3.2, -3.5)
+	cool_rim.light_color = Color("789cff")
+	cool_rim.light_energy = 0.72
+	cool_rim.omni_range = 10.0
+	add_child(cool_rim)
 
 
 func _create_board() -> void:
@@ -283,8 +299,8 @@ func _create_pieces() -> void:
 	# High-contrast crystal/onyx materials inspired by luxury glass sets. The
 	# supplied reference sheet is not a tileable texture, so its visual language
 	# is reproduced with mobile-friendly PBR materials and gold accent geometry.
-	var crystal := _luxury_piece_material(Color("f2ead8"), 0.16, 0.08)
-	var onyx := _luxury_piece_material(Color("090b10"), 0.12, 0.58)
+	var crystal := _luxury_piece_material(Color(0.96, 0.93, 0.84, 0.91), 0.22, 0.06)
+	var onyx := _luxury_piece_material(Color("070910"), 0.10, 0.68)
 	var gold := _luxury_piece_material(Color("d99a32"), 0.14, 0.92, true)
 	var names := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 	for rank in BOARD_SIZE:
@@ -300,6 +316,7 @@ func _add_piece(kind: String, file: int, rank: int, material: Material, accent: 
 	piece.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.12, (rank - 3.5) * SQUARE_SIZE)
 	piece.set_meta("square", Vector2i(file, rank))
 	pieces_root.add_child(piece)
+	_add_contact_shadow(piece)
 
 	_add_cylinder(piece, 0.32, 0.42, 0.14, 0.08, material)
 	_add_torus(piece, 0.365, 0.028, 0.145, accent)
@@ -344,6 +361,25 @@ func _add_piece(kind: String, file: int, rank: int, material: Material, accent: 
 			_add_cylinder(piece, 0.26, 0.16, 0.13, 1.06, material)
 			_add_cylinder(piece, 0.05, 0.05, 0.34, 1.29, material)
 			_add_cylinder(piece, 0.05, 0.05, 0.25, 1.39, material, Vector3(0, 0, 90))
+
+func _add_contact_shadow(piece: Node3D) -> void:
+	var shadow := MeshInstance3D.new()
+	shadow.name = "ContactShadow"
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.38
+	mesh.bottom_radius = 0.38
+	mesh.height = 0.008
+	mesh.radial_segments = 20
+	var shadow_material := StandardMaterial3D.new()
+	shadow_material.albedo_color = Color(0.0, 0.0, 0.0, 0.42)
+	shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mesh.material = shadow_material
+	shadow.mesh = mesh
+	shadow.position.y = -0.04
+	shadow.scale = Vector3(1.18, 1.0, 0.82)
+	piece.add_child(shadow)
+
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
@@ -584,7 +620,7 @@ func _create_main_menu() -> void:
 	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "ANDROID • OFFLINE • BETA 0.12.0.4"
+	version.text = "ANDROID • OFFLINE • BETA 0.12.0.5"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_font_size_override("font_size", 13)
 	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
@@ -803,7 +839,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 4[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 5[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
@@ -1011,6 +1047,7 @@ func _start_local_game() -> void:
 func _select_square(square: Vector2i) -> void:
 	if ai_thinking or animating_move or game.result != "":
 		return
+	var previous_selected := selected
 	var destination_moves: Array[Dictionary] = []
 	for move in selected_moves:
 		if move.to == square:
@@ -1023,14 +1060,34 @@ func _select_square(square: Vector2i) -> void:
 		return
 	var piece: String = game.board[square.y][square.x]
 	if piece != "" and game.color_of(piece) == game.turn:
+		if previous_selected != square:
+			_set_piece_selected(previous_selected, false)
 		selected = square
 		selected_moves = game.legal_moves(square)
+		_set_piece_selected(selected, true)
 		_haptic(18)
 		_play_sound("select")
 	else:
+		_set_piece_selected(previous_selected, false)
 		selected = Vector2i(-1, -1)
 		selected_moves.clear()
 	_draw_highlights()
+
+
+func _set_piece_selected(square: Vector2i, lifted: bool) -> void:
+	if square.x < 0:
+		return
+	for piece in pieces_root.get_children():
+		if piece.get_meta("square", Vector2i(-1, -1)) == square:
+			var tween := create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			var duration := 0.01 if reduced_motion_enabled else 0.14
+			tween.tween_property(piece, "position:y", 0.30 if lifted else 0.12, duration)
+			var contact_shadow := piece.get_node_or_null("ContactShadow")
+			if is_instance_valid(contact_shadow):
+				# Keep the contact patch visually attached to the board while the
+				# selected piece rises above it.
+				contact_shadow.position.y = -0.22 if lifted else -0.04
+			return
 
 
 func _show_promotion_picker(moves: Array[Dictionary]) -> void:
@@ -1591,6 +1648,8 @@ func _luxury_piece_material(color: Color, roughness: float, metallic: float, emi
 	material.metallic = metallic
 	material.clearcoat_enabled = true
 	material.clearcoat_roughness = 0.08
+	if color.a < 0.99:
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	if emissive:
 		material.emission_enabled = true
 		material.emission = color * 0.32
@@ -1685,13 +1744,17 @@ func _update_drag_marker(screen_position: Vector2) -> void:
 	for piece in pieces_root.get_children():
 		if piece.get_meta("square", Vector2i(-1, -1)) == _drag_piece_from:
 			piece.position = Vector3(local_hit.x, 0.55, local_hit.z)
+			var shadow := piece.get_node_or_null("ContactShadow")
+			if is_instance_valid(shadow): shadow.position.y = -0.475
 			return
 
 
 func _snap_dragged_piece() -> void:
 	for piece in pieces_root.get_children():
 		if piece.get_meta("square", Vector2i(-1, -1)) == _drag_piece_from:
-			piece.position = Vector3((_drag_piece_from.x - 3.5) * SQUARE_SIZE, 0.12, (_drag_piece_from.y - 3.5) * SQUARE_SIZE)
+			piece.position = Vector3((_drag_piece_from.x - 3.5) * SQUARE_SIZE, 0.30, (_drag_piece_from.y - 3.5) * SQUARE_SIZE)
+			var shadow := piece.get_node_or_null("ContactShadow")
+			if is_instance_valid(shadow): shadow.position.y = -0.22
 			return
 
 
