@@ -310,11 +310,15 @@ func _add_piece(kind: String, file: int, rank: int, material: Material, accent: 
 	piece.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.12, (rank - 3.5) * SQUARE_SIZE)
 	piece.set_meta("square", Vector2i(file, rank))
 	pieces_root.add_child(piece)
+	# Leave breathing room inside every square and establish a clear hierarchy.
+	var footprint := 0.84 if kind == "pawn" else (0.90 if kind in ["rook", "knight", "bishop"] else 0.94)
+	var height_scale := 0.86 if kind == "pawn" else (0.96 if kind in ["rook", "knight", "bishop"] else 1.04)
+	piece.scale = Vector3(footprint, height_scale, footprint)
 
-	_add_cylinder(piece, 0.32, 0.42, 0.14, 0.08, material)
-	_add_torus(piece, 0.365, 0.028, 0.145, accent)
-	_add_cylinder(piece, 0.23, 0.29, 0.26, 0.26, material)
-	_add_torus(piece, 0.255, 0.022, 0.385, accent)
+	_add_cylinder(piece, 0.29, 0.37, 0.13, 0.075, material)
+	_add_torus(piece, 0.325, 0.024, 0.135, accent)
+	_add_cylinder(piece, 0.21, 0.26, 0.25, 0.25, material)
+	_add_torus(piece, 0.23, 0.020, 0.375, accent)
 
 	match kind:
 		"pawn":
@@ -322,38 +326,43 @@ func _add_piece(kind: String, file: int, rank: int, material: Material, accent: 
 			_add_torus(piece, 0.15, 0.04, 0.70, accent)
 			_add_sphere(piece, 0.20, 0.84, material)
 		"rook":
-			_add_cylinder(piece, 0.21, 0.25, 0.54, 0.53, material)
-			_add_torus(piece, 0.24, 0.055, 0.79, accent)
-			_add_cylinder(piece, 0.31, 0.27, 0.15, 0.88, material)
+			_add_cylinder(piece, 0.20, 0.24, 0.52, 0.52, material)
+			_add_torus(piece, 0.235, 0.045, 0.78, accent)
+			_add_cylinder(piece, 0.30, 0.26, 0.14, 0.87, material)
 			for angle in [0.0, 90.0, 180.0, 270.0]:
-				var offset := Vector3(cos(deg_to_rad(angle)) * 0.22, 1.02, sin(deg_to_rad(angle)) * 0.22)
-				_add_box(piece, Vector3(0.16, 0.18, 0.16), offset, material)
+				var offset := Vector3(cos(deg_to_rad(angle)) * 0.22, 1.01, sin(deg_to_rad(angle)) * 0.22)
+				_add_box(piece, Vector3(0.14, 0.20, 0.14), offset, accent)
 		"knight":
-			_add_cylinder(piece, 0.16, 0.23, 0.42, 0.48, material)
-			_add_torus(piece, 0.19, 0.045, 0.70, accent)
-			_add_cylinder(piece, 0.13, 0.19, 0.48, 0.88, material, Vector3(-22, 0, 0))
-			_add_sphere(piece, 0.22, 1.10, material, Vector3(0.0, 0.0, -0.10))
-			_add_cylinder(piece, 0.035, 0.07, 0.20, 1.29, material, Vector3(-18, 0, -12))
-			_add_cylinder(piece, 0.035, 0.07, 0.20, 1.29, material, Vector3(-18, 0, 12))
+			_add_cylinder(piece, 0.15, 0.22, 0.40, 0.47, material)
+			_add_torus(piece, 0.185, 0.038, 0.68, accent)
+			_add_cylinder(piece, 0.12, 0.18, 0.47, 0.87, material, Vector3(-28, 0, 0))
+			_add_sphere(piece, 0.21, 1.08, material, Vector3(0.0, 0.0, -0.12))
+			_add_sphere(piece, 0.14, 1.04, material, Vector3(0.0, -0.02, -0.29))
+			_add_sphere(piece, 0.035, 1.10, accent, Vector3(0.11, 0.02, -0.28))
+			_add_cylinder(piece, 0.028, 0.065, 0.22, 1.29, material, Vector3(-20, 0, -14))
+			_add_cylinder(piece, 0.028, 0.065, 0.22, 1.29, material, Vector3(-20, 0, 14))
+			for mane_y in [0.82, 0.94, 1.06, 1.18]:
+				_add_sphere(piece, 0.055, mane_y, accent, Vector3(0.0, 0.0, 0.13))
 		"bishop":
-			_add_cylinder(piece, 0.12, 0.22, 0.62, 0.54, material)
-			_add_torus(piece, 0.20, 0.045, 0.83, accent)
-			_add_sphere(piece, 0.22, 1.00, material)
-			_add_sphere(piece, 0.065, 1.23, material)
+			_add_cylinder(piece, 0.11, 0.21, 0.62, 0.54, material)
+			_add_torus(piece, 0.195, 0.040, 0.82, accent)
+			_add_sphere(piece, 0.205, 1.00, material)
+			_add_sphere(piece, 0.075, 1.22, accent)
+			_add_box(piece, Vector3(0.035, 0.28, 0.075), Vector3(0.0, 1.04, -0.17), accent)
 		"queen":
-			_add_cylinder(piece, 0.14, 0.24, 0.72, 0.58, material)
-			_add_torus(piece, 0.23, 0.05, 0.91, accent)
-			_add_cylinder(piece, 0.27, 0.18, 0.14, 1.01, material)
+			_add_cylinder(piece, 0.13, 0.23, 0.72, 0.58, material)
+			_add_torus(piece, 0.225, 0.045, 0.91, accent)
+			_add_cylinder(piece, 0.265, 0.17, 0.14, 1.01, material)
 			for angle in [0.0, 60.0, 120.0, 180.0, 240.0, 300.0]:
 				var crown_offset := Vector3(cos(deg_to_rad(angle)) * 0.22, 0.0, sin(deg_to_rad(angle)) * 0.22)
-				_add_sphere(piece, 0.065, 1.16, material, crown_offset)
-			_add_sphere(piece, 0.10, 1.22, material)
+				_add_sphere(piece, 0.060, 1.17, accent, crown_offset)
+			_add_sphere(piece, 0.095, 1.24, material)
 		"king":
-			_add_cylinder(piece, 0.15, 0.25, 0.78, 0.60, material)
-			_add_torus(piece, 0.23, 0.05, 0.96, accent)
-			_add_cylinder(piece, 0.26, 0.16, 0.13, 1.06, material)
-			_add_cylinder(piece, 0.05, 0.05, 0.34, 1.29, material)
-			_add_cylinder(piece, 0.05, 0.05, 0.25, 1.39, material, Vector3(0, 0, 90))
+			_add_cylinder(piece, 0.14, 0.24, 0.80, 0.61, material)
+			_add_torus(piece, 0.225, 0.045, 0.98, accent)
+			_add_cylinder(piece, 0.25, 0.15, 0.13, 1.08, material)
+			_add_cylinder(piece, 0.045, 0.045, 0.36, 1.31, accent)
+			_add_cylinder(piece, 0.045, 0.045, 0.27, 1.42, accent, Vector3(0, 0, 90))
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
@@ -594,7 +603,7 @@ func _create_main_menu() -> void:
 	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "ANDROID • OFFLINE • BETA 0.12.0.6"
+	version.text = "ANDROID • OFFLINE • BETA 0.12.0.7"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_font_size_override("font_size", 13)
 	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
@@ -813,7 +822,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 6[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 7[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
