@@ -61,10 +61,11 @@ jobs:
           tail -120 build/android/export.log >> "$GITHUB_STEP_SUMMARY"
           printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
           if [ "$status" -ne 0 ]; then
-            tail -20 build/android/export.log | while IFS= read -r line; do
+            encoded_log=$(base64 -w0 build/android/export.log | cut -c1-6000)
+            echo "::error title=Godot export log base64::$encoded_log"
+            tail -12 build/android/export.log | while IFS= read -r line; do
               echo "::error title=Godot Android export::$line"
             done
-            echo "::error title=Godot export log (base64)::$(base64 -w0 build/android/export.log)"
           fi
           exit "$status"
       - name: Upload APK
