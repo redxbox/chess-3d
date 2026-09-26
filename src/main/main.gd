@@ -143,6 +143,14 @@ func _create_board() -> void:
 	table.position.y = -0.58
 	board.add_child(table)
 
+	var floor := MeshInstance3D.new()
+	var floor_mesh := PlaneMesh.new()
+	floor_mesh.size = Vector2(36.0, 36.0)
+	floor_mesh.material = _material(Color("090d16"), 0.72, 0.06)
+	floor.mesh = floor_mesh
+	floor.position.y = -0.82
+	board.add_child(floor)
+
 
 func _add_board_box(position: Vector3, size: Vector3, material: Material) -> void:
 	var instance := MeshInstance3D.new()
@@ -180,27 +188,41 @@ func _add_piece(kind: String, file: int, rank: int, material: Material) -> void:
 	match kind:
 		"pawn":
 			_add_cylinder(piece, 0.13, 0.20, 0.42, 0.50, material)
-			_add_sphere(piece, 0.20, 0.82, material)
+			_add_torus(piece, 0.15, 0.04, 0.70, material)
+			_add_sphere(piece, 0.20, 0.84, material)
 		"rook":
 			_add_cylinder(piece, 0.21, 0.25, 0.54, 0.53, material)
-			_add_cylinder(piece, 0.32, 0.25, 0.16, 0.88, material)
+			_add_torus(piece, 0.24, 0.055, 0.79, material)
+			_add_cylinder(piece, 0.31, 0.27, 0.15, 0.88, material)
+			for angle in [0.0, 90.0, 180.0, 270.0]:
+				var offset := Vector3(cos(deg_to_rad(angle)) * 0.22, 1.02, sin(deg_to_rad(angle)) * 0.22)
+				_add_box(piece, Vector3(0.16, 0.18, 0.16), offset, material)
 		"knight":
-			_add_cylinder(piece, 0.16, 0.23, 0.48, 0.50, material)
-			_add_sphere(piece, 0.24, 0.88, material, Vector3(0.08, 0.0, -0.05))
-			_add_cylinder(piece, 0.08, 0.16, 0.32, 1.04, material, Vector3(22, 0, 0))
+			_add_cylinder(piece, 0.16, 0.23, 0.42, 0.48, material)
+			_add_torus(piece, 0.19, 0.045, 0.70, material)
+			_add_cylinder(piece, 0.13, 0.19, 0.48, 0.88, material, Vector3(-22, 0, 0))
+			_add_sphere(piece, 0.22, 1.10, material, Vector3(0.0, 0.0, -0.10))
+			_add_cylinder(piece, 0.035, 0.07, 0.20, 1.29, material, Vector3(-18, 0, -12))
+			_add_cylinder(piece, 0.035, 0.07, 0.20, 1.29, material, Vector3(-18, 0, 12))
 		"bishop":
 			_add_cylinder(piece, 0.12, 0.22, 0.62, 0.54, material)
-			_add_sphere(piece, 0.22, 0.96, material)
-			_add_sphere(piece, 0.07, 1.19, material)
+			_add_torus(piece, 0.20, 0.045, 0.83, material)
+			_add_sphere(piece, 0.22, 1.00, material)
+			_add_sphere(piece, 0.065, 1.23, material)
 		"queen":
 			_add_cylinder(piece, 0.14, 0.24, 0.72, 0.58, material)
-			_add_cylinder(piece, 0.28, 0.15, 0.16, 1.00, material)
-			_add_sphere(piece, 0.11, 1.19, material)
+			_add_torus(piece, 0.23, 0.05, 0.91, material)
+			_add_cylinder(piece, 0.27, 0.18, 0.14, 1.01, material)
+			for angle in [0.0, 60.0, 120.0, 180.0, 240.0, 300.0]:
+				var crown_offset := Vector3(cos(deg_to_rad(angle)) * 0.22, 0.0, sin(deg_to_rad(angle)) * 0.22)
+				_add_sphere(piece, 0.065, 1.16, material, crown_offset)
+			_add_sphere(piece, 0.10, 1.22, material)
 		"king":
 			_add_cylinder(piece, 0.15, 0.25, 0.78, 0.60, material)
-			_add_cylinder(piece, 0.26, 0.16, 0.13, 1.05, material)
-			_add_cylinder(piece, 0.055, 0.055, 0.34, 1.28, material)
-			_add_cylinder(piece, 0.055, 0.055, 0.25, 1.38, material, Vector3(0, 0, 90))
+			_add_torus(piece, 0.23, 0.05, 0.96, material)
+			_add_cylinder(piece, 0.26, 0.16, 0.13, 1.06, material)
+			_add_cylinder(piece, 0.05, 0.05, 0.34, 1.29, material)
+			_add_cylinder(piece, 0.05, 0.05, 0.25, 1.39, material, Vector3(0, 0, 90))
 
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
@@ -215,6 +237,29 @@ func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, heig
 	mesh_instance.mesh = mesh
 	mesh_instance.position.y = y
 	mesh_instance.rotation_degrees = rotation
+	parent.add_child(mesh_instance)
+
+
+func _add_torus(parent: Node3D, radius: float, tube: float, y: float, material: Material) -> void:
+	var mesh_instance := MeshInstance3D.new()
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = maxf(0.01, radius - tube)
+	mesh.outer_radius = radius + tube
+	mesh.rings = 24
+	mesh.ring_segments = 8
+	mesh.material = material
+	mesh_instance.mesh = mesh
+	mesh_instance.position.y = y
+	parent.add_child(mesh_instance)
+
+
+func _add_box(parent: Node3D, size: Vector3, position: Vector3, material: Material) -> void:
+	var mesh_instance := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	mesh.material = material
+	mesh_instance.mesh = mesh
+	mesh_instance.position = position
 	parent.add_child(mesh_instance)
 
 
