@@ -178,12 +178,12 @@ func _is_attacked(square: Vector2i, by_color: int) -> bool:
 	var pawn := "P" if by_color == WHITE else "p"
 	var pawn_dir := -1 if by_color == WHITE else 1
 	for dx in [-1, 1]:
-		var origin := square - Vector2i(dx, pawn_dir)
+		var origin: Vector2i = square - Vector2i(int(dx), pawn_dir)
 		if _inside(origin) and board[origin.y][origin.x] == pawn:
 			return true
 	var knight := "N" if by_color == WHITE else "n"
 	for delta in [Vector2i(1, 2), Vector2i(2, 1), Vector2i(-1, 2), Vector2i(-2, 1), Vector2i(1, -2), Vector2i(2, -1), Vector2i(-1, -2), Vector2i(-2, -1)]:
-		var origin := square + delta
+		var origin: Vector2i = square + Vector2i(delta)
 		if _inside(origin) and board[origin.y][origin.x] == knight:
 			return true
 	for data in [[Vector2i(1, 0), "rq"], [Vector2i(-1, 0), "rq"], [Vector2i(0, 1), "rq"], [Vector2i(0, -1), "rq"], [Vector2i(1, 1), "bq"], [Vector2i(-1, 1), "bq"], [Vector2i(1, -1), "bq"], [Vector2i(-1, -1), "bq"]]:
