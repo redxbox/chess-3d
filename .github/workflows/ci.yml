@@ -96,7 +96,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: chess-3d-v0.6.1-build-${{ github.run_number }}
+          name: chess-3d-v0.6.2-build-${{ github.run_number }}
           path: build/android/chess-3d.apk
           if-no-files-found: error
           retention-days: 14

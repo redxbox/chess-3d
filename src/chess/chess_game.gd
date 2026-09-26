@@ -15,6 +15,8 @@ var result := ""
 var history: Array[Dictionary] = []
 var move_notation: Array[String] = []
 var position_counts: Dictionary = {}
+var captured_by_white: Array[String] = []
+var captured_by_black: Array[String] = []
 
 
 func _init() -> void:
@@ -38,6 +40,8 @@ func reset() -> void:
 	history.clear()
 	move_notation.clear()
 	position_counts.clear()
+	captured_by_white.clear()
+	captured_by_black.clear()
 	position_counts[_position_key()] = 1
 
 
@@ -92,6 +96,11 @@ func play(move: Dictionary) -> bool:
 		return false
 	var notation := _notation_for(move)
 	history.append(_snapshot())
+	if move.captured != "":
+		if color_of(move.piece) == WHITE:
+			captured_by_white.append(move.captured)
+		else:
+			captured_by_black.append(move.captured)
 	_apply_unchecked(move)
 	var key := _position_key()
 	position_counts[key] = position_counts.get(key, 0) + 1
@@ -353,6 +362,8 @@ func load_fen(fen: String) -> bool:
 	result = ""
 	history.clear()
 	move_notation.clear()
+	captured_by_white.clear()
+	captured_by_black.clear()
 	position_counts = {_position_key(): 1}
 	return true
 
@@ -484,7 +495,7 @@ func _parse_square(value: String) -> Vector2i:
 
 
 func _snapshot() -> Dictionary:
-	return {"board": board.duplicate(true), "turn": turn, "castling": castling.duplicate(), "en_passant": en_passant, "halfmove": halfmove_clock, "fullmove": fullmove_number, "result": result, "notation": move_notation.duplicate(), "positions": position_counts.duplicate()}
+	return {"board": board.duplicate(true), "turn": turn, "castling": castling.duplicate(), "en_passant": en_passant, "halfmove": halfmove_clock, "fullmove": fullmove_number, "result": result, "notation": move_notation.duplicate(), "positions": position_counts.duplicate(), "captured_white": captured_by_white.duplicate(), "captured_black": captured_by_black.duplicate()}
 
 
 func _restore(snapshot: Dictionary) -> void:
@@ -497,6 +508,8 @@ func _restore(snapshot: Dictionary) -> void:
 	result = snapshot.result
 	move_notation = snapshot.get("notation", []).duplicate()
 	position_counts = snapshot.get("positions", {}).duplicate()
+	captured_by_white = snapshot.get("captured_white", []).duplicate()
+	captured_by_black = snapshot.get("captured_black", []).duplicate()
 
 
 func _inside(square: Vector2i) -> bool:

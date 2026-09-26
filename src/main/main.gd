@@ -41,7 +41,9 @@ var _continue_button: Button
 var _color_button: Button
 var _difficulty_button: Button
 var _history_label: RichTextLabel
+var _captured_label: Label
 var _game_over_dialog: AcceptDialog
+var _resign_dialog: ConfirmationDialog
 var _has_resumable_game := false
 var clock_enabled := true
 var white_time := 600.0
@@ -458,11 +460,32 @@ func _create_game_panels() -> void:
 	history_panel.add_child(_history_label)
 	_update_move_history()
 
+	_captured_label = Label.new()
+	_captured_label.position = Vector2(24, 452)
+	_captured_label.size = Vector2(280, 86)
+	_captured_label.add_theme_font_size_override("font_size", 17)
+	$UI.add_child(_captured_label)
+	_update_captured_pieces()
+
+	var resign_button := Button.new()
+	resign_button.text = "RESIGN"
+	resign_button.position = Vector2(24, 548)
+	resign_button.size = Vector2(120, 44)
+	resign_button.pressed.connect(_request_resign)
+	$UI.add_child(resign_button)
+
 	_game_over_dialog = AcceptDialog.new()
 	_game_over_dialog.title = "GAME OVER"
 	_game_over_dialog.min_size = Vector2i(460, 240)
 	_game_over_dialog.confirmed.connect(_show_main_menu)
 	$UI.add_child(_game_over_dialog)
+
+	_resign_dialog = ConfirmationDialog.new()
+	_resign_dialog.title = "RESIGN GAME"
+	_resign_dialog.dialog_text = "Are you sure you want to resign?"
+	_resign_dialog.min_size = Vector2i(440, 210)
+	_resign_dialog.confirmed.connect(_confirm_resign)
+	$UI.add_child(_resign_dialog)
 
 
 func _menu_button(text: String, callback: Callable) -> Button:
@@ -495,6 +518,32 @@ func _update_move_history() -> void:
 		text += game.move_notation[index] + ("\n" if index % 2 == 1 else "    ")
 	_history_label.text = text
 	_history_label.scroll_to_line(maxi(0, game.move_notation.size() / 2 - 1))
+
+
+func _update_captured_pieces() -> void:
+	if not is_instance_valid(_captured_label):
+		return
+	var symbols := {"p": "♟", "n": "♞", "b": "♝", "r": "♜", "q": "♛", "P": "♙", "N": "♘", "B": "♗", "R": "♖", "Q": "♕"}
+	var white_captures := ""
+	var black_captures := ""
+	for piece in game.captured_by_white:
+		white_captures += symbols.get(piece, piece) + " "
+	for piece in game.captured_by_black:
+		black_captures += symbols.get(piece, piece) + " "
+	_captured_label.text = "White captured: " + (white_captures if white_captures != "" else "—") + "\nBlack captured: " + (black_captures if black_captures != "" else "—")
+
+
+func _request_resign() -> void:
+	if game.result == "" and not ai_thinking and not animating_move:
+		_resign_dialog.popup_centered()
+
+
+func _confirm_resign() -> void:
+	var resigning_color := human_color if play_vs_ai else game.turn
+	game.result = "Black wins by resignation" if resigning_color == ChessRules.WHITE else "White wins by resignation"
+	_update_status()
+	_save_autosave()
+	_show_game_over_if_needed()
 
 
 func _show_game_over_if_needed() -> void:
@@ -612,6 +661,7 @@ func _finish_player_move() -> void:
 	_draw_highlights()
 	_update_status()
 	_update_move_history()
+	_update_captured_pieces()
 	_show_game_over_if_needed()
 	_save_autosave()
 	if play_vs_ai and game.turn != human_color and game.result == "":
@@ -657,6 +707,7 @@ func _finish_ai_move() -> void:
 	_draw_highlights()
 	_update_status()
 	_update_move_history()
+	_update_captured_pieces()
 	_show_game_over_if_needed()
 	_save_autosave()
 
@@ -953,6 +1004,7 @@ func _undo() -> void:
 	_create_pieces()
 	_update_status()
 	_update_move_history()
+	_update_captured_pieces()
 	_save_autosave()
 
 
@@ -969,6 +1021,7 @@ func _new_game() -> void:
 	_create_pieces()
 	_update_status()
 	_update_move_history()
+	_update_captured_pieces()
 	_save_autosave()
 
 

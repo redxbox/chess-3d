@@ -8,6 +8,7 @@ var failed := 0
 func _init() -> void:
 	_test_initial_position()
 	_test_basic_moves()
+	_test_captured_piece_tracking()
 	_test_illegal_move_and_check()
 	_test_castling()
 	_test_en_passant()
@@ -61,6 +62,16 @@ func _test_basic_moves() -> void:
 	_expect(not e2e4.is_empty() and game.play(e2e4), "white pawn can play e2-e4")
 	_expect(game.board[4][4] == "P" and game.turn == ChessGame.BLACK, "board and turn update after move")
 	_expect(game.undo() and game.board[6][4] == "P", "undo restores the position")
+
+
+func _test_captured_piece_tracking() -> void:
+	var game = ChessGame.new()
+	game.play(_find_move(game, Vector2i(4, 6), Vector2i(4, 4)))
+	game.play(_find_move(game, Vector2i(3, 1), Vector2i(3, 3)))
+	game.play(_find_move(game, Vector2i(4, 4), Vector2i(3, 3)))
+	_expect(game.captured_by_white == ["p"], "captured pieces are tracked by the capturing side")
+	game.undo()
+	_expect(game.captured_by_white.is_empty(), "undo restores captured piece history")
 
 
 func _test_illegal_move_and_check() -> void:
