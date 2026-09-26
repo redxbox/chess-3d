@@ -22,7 +22,7 @@ jobs:
       image: barichello/godot-ci:4.4.1
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Import resources
         run: godot --headless --editor --quit-after 10
       - name: Validate startup scene
@@ -36,9 +36,13 @@ jobs:
       image: barichello/godot-ci:4.4.1
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Verify export templates
-        run: test -d "$HOME/.local/share/godot/export_templates/4.4.1.stable"
+        uses: actions/checkout@v5
+      - name: Install export templates for the runner user
+        run: |
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable"
+          mkdir -p "$TEMPLATE_DIR"
+          cp -a /root/.local/share/godot/export_templates/4.4.1.stable/. "$TEMPLATE_DIR/"
+          test -f "$TEMPLATE_DIR/android_debug.apk"
       - name: Configure Android debug signing
         run: |
           mkdir -p "$HOME/.android" build/android
