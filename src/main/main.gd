@@ -14,6 +14,7 @@ var pieces_root := Node3D.new()
 var highlights_root := Node3D.new()
 var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
+var last_move: Dictionary = {}
 var play_vs_ai := true
 var ai_thinking := false
 var animating_move := false
@@ -343,6 +344,7 @@ func _choose_promotion(move: Dictionary, popup: PopupPanel) -> void:
 func _play_move(move: Dictionary) -> void:
 	if not game.play(move):
 		return
+	last_move = move.duplicate(true)
 	_haptic(35 if move.captured != "" else 22)
 	selected = Vector2i(-1, -1)
 	selected_moves.clear()
@@ -353,6 +355,7 @@ func _play_move(move: Dictionary) -> void:
 func _finish_player_move() -> void:
 	animating_move = false
 	_create_pieces()
+	_draw_highlights()
 	_update_status()
 	_save_autosave()
 	if play_vs_ai and game.turn == ChessRules.BLACK and game.result == "":
@@ -381,6 +384,7 @@ func _play_ai_move() -> void:
 			best_moves.append(move)
 	var chosen: Dictionary = best_moves.pick_random()
 	game.play(chosen)
+	last_move = chosen.duplicate(true)
 	_animate_board_move(chosen, _finish_ai_move)
 
 
@@ -388,6 +392,7 @@ func _finish_ai_move() -> void:
 	animating_move = false
 	ai_thinking = false
 	_create_pieces()
+	_draw_highlights()
 	_update_status()
 	_save_autosave()
 
@@ -425,6 +430,15 @@ func _animate_board_move(move: Dictionary, finished: Callable) -> void:
 func _draw_highlights() -> void:
 	for child in highlights_root.get_children():
 		child.queue_free()
+	if not last_move.is_empty():
+		_add_highlight(last_move.from, Color(0.22, 0.52, 0.9, 0.32), 0.44)
+		_add_highlight(last_move.to, Color(0.22, 0.52, 0.9, 0.48), 0.44)
+	if game.result == "" and game.is_in_check(game.turn):
+		var king_code := "K" if game.turn == ChessRules.WHITE else "k"
+		for rank in BOARD_SIZE:
+			for file in BOARD_SIZE:
+				if game.board[rank][file] == king_code:
+					_add_highlight(Vector2i(file, rank), Color(0.95, 0.1, 0.12, 0.72), 0.46)
 	if selected.x >= 0:
 		_add_highlight(selected, Color(0.95, 0.72, 0.18, 0.62), 0.47)
 	for move in selected_moves:
@@ -574,8 +588,9 @@ func _load_autosave() -> bool:
 
 
 func _undo() -> void:
-	if ai_thinking:
+	if ai_thinking or animating_move:
 		return
+	last_move.clear()
 	if game.undo() and play_vs_ai and game.turn == ChessRules.BLACK:
 		game.undo()
 	selected = Vector2i(-1, -1)
@@ -588,6 +603,7 @@ func _undo() -> void:
 
 func _new_game() -> void:
 	game.reset()
+	last_move.clear()
 	camera_rig.rotation.y = 0.0
 	white_time = 600.0
 	black_time = 600.0
