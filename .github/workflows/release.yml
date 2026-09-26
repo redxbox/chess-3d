@@ -59,21 +59,16 @@ jobs:
             -destkeystore "$RUNNER_TEMP/release.keystore" -deststoretype PKCS12 \
             -deststorepass "$KEY_PASSWORD" -destkeypass "$KEY_PASSWORD" \
             -destalias "$KEY_ALIAS"
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-          p = Path('export_presets.cfg')
-          s = p.read_text()
-          marker = 'custom_template/release=""\n'
-          signing = (
-              f'keystore/release="{os.environ["RUNNER_TEMP"]}/release.keystore"\n'
-              f'keystore/release_user="{os.environ["KEY_ALIAS"]}"\n'
-              f'keystore/release_password="{os.environ["KEY_PASSWORD"]}"\n'
-          )
           # Only the ephemeral runner copy is modified; secret-bearing config is never uploaded.
-          s = s.replace(marker, marker + signing)
-          p.write_text(s)
-          PY
+          awk -v keyfile="$RUNNER_TEMP/release.keystore" -v alias="$KEY_ALIAS" -v password="$KEY_PASSWORD" '
+            { print }
+            $0 == "custom_template/release=\"\"" {
+              print "keystore/release=\"" keyfile "\""
+              print "keystore/release_user=\"" alias "\""
+              print "keystore/release_password=\"" password "\""
+            }
+          ' export_presets.cfg > "$RUNNER_TEMP/export_presets.cfg"
+          mv "$RUNNER_TEMP/export_presets.cfg" export_presets.cfg
       - name: Import and validate project
         run: |
           godot --headless --editor --path . --quit-after 10
