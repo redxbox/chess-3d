@@ -9,10 +9,10 @@ const VALUES := {"p": 100, "n": 320, "b": 330, "r": 500, "q": 900, "k": 20_000}
 
 
 static func choose_move(fen: String, difficulty: String) -> Dictionary:
-	var game = ChessGame.new()
+	var game: ChessGame = ChessGame.new()
 	if not game.load_fen(fen) or not game.is_valid_position():
 		return {}
-	var moves := game.legal_moves()
+	var moves: Array[Dictionary] = game.legal_moves()
 	if moves.is_empty():
 		return {}
 	if difficulty == "easy":
@@ -23,7 +23,7 @@ static func choose_move(fen: String, difficulty: String) -> Dictionary:
 	var best_score := -INF
 	var best_moves: Array[Dictionary] = []
 	for move in _ordered_moves(moves):
-		var snapshot := game._snapshot()
+		var snapshot: Dictionary = game._snapshot()
 		game._apply_unchecked(move)
 		var score := -_negamax(game, depth - 1, -INF, INF, 1 - ai_color)
 		game._restore(snapshot)
@@ -47,7 +47,7 @@ static func _easy_move(moves: Array[Dictionary]) -> Dictionary:
 static func _negamax(game, depth: int, alpha: int, beta: int, perspective: int) -> int:
 	if depth <= 0:
 		return _evaluate(game, perspective)
-	var moves := game.legal_moves()
+	var moves: Array[Dictionary] = game.legal_moves()
 	if moves.is_empty():
 		if game.is_in_check(game.turn):
 			return -INF + depth
@@ -55,7 +55,7 @@ static func _negamax(game, depth: int, alpha: int, beta: int, perspective: int) 
 	var best := -INF
 	var local_alpha := alpha
 	for move in _ordered_moves(moves):
-		var snapshot := game._snapshot()
+		var snapshot: Dictionary = game._snapshot()
 		game._apply_unchecked(move)
 		var score := -_negamax(game, depth - 1, -beta, -local_alpha, 1 - perspective)
 		game._restore(snapshot)
@@ -81,7 +81,7 @@ static func _evaluate(game, perspective: int) -> int:
 
 
 static func _ordered_moves(moves: Array[Dictionary]) -> Array[Dictionary]:
-	var ordered := moves.duplicate()
+	var ordered: Array[Dictionary] = moves.duplicate()
 	ordered.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var a_value: int = VALUES.get(a.captured.to_lower(), 0)
 		var b_value: int = VALUES.get(b.captured.to_lower(), 0)
