@@ -3,6 +3,7 @@ extends Node3D
 
 const ChessRules = preload("res://src/chess/chess_game.gd")
 const OfflineAI = preload("res://src/ai/offline_ai.gd")
+const ArchiveStore = preload("res://src/storage/game_archive.gd")
 const BOARD_SIZE := 8
 const SQUARE_SIZE := 1.0
 
@@ -11,6 +12,7 @@ const SQUARE_SIZE := 1.0
 @onready var camera: Camera3D = $CameraRig/Camera3D
 
 var game := ChessRules.new()
+var archive := ArchiveStore.new()
 var pieces_root := Node3D.new()
 var highlights_root := Node3D.new()
 var decor_root := Node3D.new()
@@ -51,6 +53,9 @@ var _history_label: RichTextLabel
 var _captured_label: Label
 var _game_over_dialog: AcceptDialog
 var _resign_dialog: ConfirmationDialog
+var _archive_window: Window
+var _archive_list: VBoxContainer
+var _archived_current_game := false
 var _has_resumable_game := false
 var clock_enabled := true
 var white_time := 600.0
@@ -418,7 +423,7 @@ func _create_main_menu() -> void:
 	_menu_overlay.add_child(center)
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(520, 700)
+	panel.custom_minimum_size = Vector2(520, 780)
 	center.add_child(panel)
 	var content := VBoxContainer.new()
 	content.add_theme_constant_override("separation", 16)
@@ -448,6 +453,7 @@ func _create_main_menu() -> void:
 	content.add_child(_ai_start_button)
 	_local_start_button = _menu_button("LOCAL TWO PLAYERS", _start_local_game)
 	content.add_child(_local_start_button)
+	content.add_child(_menu_button("GAME ARCHIVE", _show_archive))
 	_close_menu_button = _menu_button("CLOSE MENU", _continue_game)
 	content.add_child(_close_menu_button)
 
@@ -499,6 +505,20 @@ func _create_game_panels() -> void:
 	_resign_dialog.min_size = Vector2i(440, 210)
 	_resign_dialog.confirmed.connect(_confirm_resign)
 	$UI.add_child(_resign_dialog)
+
+	_archive_window = Window.new()
+	_archive_window.title = "GAME ARCHIVE"
+	_archive_window.size = Vector2i(720, 620)
+	_archive_window.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	_archive_window.close_requested.connect(_archive_window.hide)
+	var scroll := ScrollContainer.new()
+	_archive_window.add_child(scroll)
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_archive_list = VBoxContainer.new()
+	_archive_list.custom_minimum_size = Vector2(680, 0)
+	_archive_list.add_theme_constant_override("separation", 10)
+	scroll.add_child(_archive_list)
+	$UI.add_child(_archive_window)
 	_apply_language()
 
 
@@ -607,9 +627,90 @@ func _confirm_resign() -> void:
 func _show_game_over_if_needed() -> void:
 	if game.result == "" or not is_instance_valid(_game_over_dialog):
 		return
+	_archive_completed_game()
 	_game_over_dialog.dialog_text = _translate_result(game.result) + ("\n\nبازی به‌صورت خودکار ذخیره شد." if language == "fa" else "\n\nThe game was saved automatically.")
 	_game_over_dialog.popup_centered()
 	_haptic(80)
+
+
+func _show_archive() -> void:
+	_refresh_archive_list()
+	_archive_window.popup_centered()
+
+
+func _refresh_archive_list() -> void:
+	if not is_instance_valid(_archive_list):
+		return
+	for child in _archive_list.get_children():
+		child.queue_free()
+	var heading := Label.new()
+	heading.text = "Saved games (%d/%d)" % [archive.games.size(), ArchiveStore.MAX_GAMES]
+	heading.add_theme_font_size_override("font_size", 24)
+	_archive_list.add_child(heading)
+	if archive.games.is_empty():
+		var empty := Label.new()
+		empty.text = "No archived games yet. Completed games are saved automatically."
+		_archive_list.add_child(empty)
+		return
+	for entry in archive.games:
+		var row := HBoxContainer.new()
+		var info := Label.new()
+		info.text = "%s  •  %s  •  %s" % [entry.date, entry.result, entry.mode.to_upper()]
+		info.custom_minimum_size = Vector2(390, 50)
+		row.add_child(info)
+		var load_button := Button.new()
+		load_button.text = "LOAD"
+		load_button.pressed.connect(_load_archived_game.bind(entry))
+		row.add_child(load_button)
+		var copy_button := Button.new()
+		copy_button.text = "COPY PGN"
+		copy_button.pressed.connect(_copy_archived_pgn.bind(entry.pgn))
+		row.add_child(copy_button)
+		var delete_button := Button.new()
+		delete_button.text = "DELETE"
+		delete_button.pressed.connect(_delete_archived_game.bind(entry.id))
+		row.add_child(delete_button)
+		_archive_list.add_child(row)
+
+
+func _load_archived_game(entry: Dictionary) -> void:
+	var response := game.load_pgn(entry.pgn)
+	if not response.ok:
+		return
+	white_time = float(entry.get("white_time", 600.0))
+	black_time = float(entry.get("black_time", 600.0))
+	play_vs_ai = entry.get("mode", "ai") == "ai"
+	ai_difficulty = entry.get("difficulty", "medium")
+	_archived_current_game = true
+	_has_resumable_game = true
+	_archive_window.hide()
+	_menu_overlay.hide()
+	get_tree().paused = false
+	_create_pieces()
+	_draw_highlights()
+	_update_status()
+	_update_move_history()
+	_update_captured_pieces()
+	_save_autosave()
+
+
+func _copy_archived_pgn(pgn: String) -> void:
+	DisplayServer.clipboard_set(pgn)
+
+
+func _delete_archived_game(id: String) -> void:
+	archive.remove_game(id)
+	_refresh_archive_list()
+
+
+func _archive_completed_game() -> void:
+	if _archived_current_game or game.result == "":
+		return
+	archive.add_game(game.to_pgn({"White": "Player", "Black": "Offline AI"}), game.result, {
+		"white_time": white_time, "black_time": black_time,
+		"mode": "ai" if play_vs_ai else "local", "difficulty": ai_difficulty
+	})
+	_archived_current_game = true
 
 
 func _show_main_menu() -> void:
@@ -1080,6 +1181,7 @@ func _undo() -> void:
 
 func _new_game() -> void:
 	game.reset()
+	_archived_current_game = false
 	last_move.clear()
 	camera_rig.rotation.y = 0.0
 	white_time = 600.0

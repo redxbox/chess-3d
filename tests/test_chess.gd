@@ -2,6 +2,7 @@ extends SceneTree
 
 const ChessGame = preload("res://src/chess/chess_game.gd")
 const OfflineAI = preload("res://src/ai/offline_ai.gd")
+const GameArchive = preload("res://src/storage/game_archive.gd")
 var passed := 0
 var failed := 0
 
@@ -22,6 +23,7 @@ func _init() -> void:
 	_test_pgn_import()
 	_test_threefold_repetition()
 	_test_offline_ai()
+	_test_game_archive()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -232,3 +234,15 @@ func _test_offline_ai() -> void:
 	_expect(not easy_move.is_empty() and not _find_move(game, easy_move.from, easy_move.to).is_empty(), "easy offline AI returns a legal move")
 	var medium_move := OfflineAI.choose_move(game.to_fen(), "medium")
 	_expect(not medium_move.is_empty() and not _find_move(game, medium_move.from, medium_move.to).is_empty(), "alpha-beta offline AI returns a legal move")
+
+
+func _test_game_archive() -> void:
+	var test_path := "user://test_game_archive.json"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(test_path))
+	var store = GameArchive.new(test_path)
+	var id: String = store.add_game("[Result \"1-0\"]\n\n1. e4 1-0", "White wins", {"mode": "ai"})
+	_expect(store.games.size() == 1 and store.games[0].id == id, "completed game is added to local archive")
+	var reloaded = GameArchive.new(test_path)
+	_expect(reloaded.games.size() == 1 and reloaded.games[0].pgn.contains("e4"), "game archive persists to disk")
+	_expect(reloaded.remove_game(id) and reloaded.games.is_empty(), "archived game can be deleted")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(test_path))
