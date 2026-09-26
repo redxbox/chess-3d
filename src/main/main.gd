@@ -172,21 +172,21 @@ func _setup_environment() -> void:
 	warm_rim.name = "WarmRimLight"
 	warm_rim.position = Vector3(5.5, 4.2, -4.0)
 	warm_rim.light_color = Color("ffb35f")
-	warm_rim.light_energy = 1.55
+	warm_rim.light_energy = 0.62
 	warm_rim.omni_range = 11.0
 	add_child(warm_rim)
 	var cool_rim := OmniLight3D.new()
 	cool_rim.name = "CoolRimLight"
 	cool_rim.position = Vector3(-5.0, 3.2, -3.5)
 	cool_rim.light_color = Color("789cff")
-	cool_rim.light_energy = 0.72
+	cool_rim.light_energy = 0.38
 	cool_rim.omni_range = 10.0
 	add_child(cool_rim)
 
 
 func _create_board() -> void:
-	_board_light_material = _material(Color("d7c4a2"), 0.42, 0.0)
-	_board_dark_material = _material(Color("4b2633"), 0.34, 0.1)
+	_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
+	_board_dark_material = _material(Color("542536"), 0.43, 0.06)
 	var light_material := _board_light_material
 	var dark_material := _board_dark_material
 
@@ -270,16 +270,10 @@ func _add_board_coordinates() -> void:
 			coordinates_root.add_child(label)
 
 
-func _create_room_details(wood: Material, gold: Material) -> void:
-	for corner in [Vector3(-8.5, -0.8, -8.5), Vector3(8.5, -0.8, -8.5), Vector3(-8.5, -0.8, 8.5), Vector3(8.5, -0.8, 8.5)]:
-		var column := Node3D.new()
-		column.position = corner
-		decor_root.add_child(column)
-		_add_cylinder(column, 0.72, 0.9, 0.28, 0.14, gold)
-		_add_cylinder(column, 0.42, 0.55, 4.8, 2.65, wood)
-		_add_torus(column, 0.48, 0.08, 0.45, gold)
-		_add_torus(column, 0.48, 0.08, 4.88, gold)
-		_add_cylinder(column, 0.9, 0.72, 0.28, 5.04, gold)
+func _create_room_details(_wood: Material, _gold: Material) -> void:
+	# Keep the stage intentionally restrained. Earlier oversized columns competed
+	# with the board, obscured silhouettes and consumed mobile draw calls.
+	pass
 
 
 func _add_board_box(position: Vector3, size: Vector3, material: Material) -> void:
@@ -299,9 +293,9 @@ func _create_pieces() -> void:
 	# High-contrast crystal/onyx materials inspired by luxury glass sets. The
 	# supplied reference sheet is not a tileable texture, so its visual language
 	# is reproduced with mobile-friendly PBR materials and gold accent geometry.
-	var crystal := _luxury_piece_material(Color(0.96, 0.93, 0.84, 0.91), 0.22, 0.06)
-	var onyx := _luxury_piece_material(Color("070910"), 0.10, 0.68)
-	var gold := _luxury_piece_material(Color("d99a32"), 0.14, 0.92, true)
+	var crystal := _luxury_piece_material(Color("d8d1c2"), 0.28, 0.04)
+	var onyx := _luxury_piece_material(Color("202631"), 0.18, 0.38)
+	var gold := _luxury_piece_material(Color("c58a32"), 0.20, 0.82, false)
 	var names := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 	for rank in BOARD_SIZE:
 		for file in BOARD_SIZE:
@@ -316,7 +310,6 @@ func _add_piece(kind: String, file: int, rank: int, material: Material, accent: 
 	piece.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.12, (rank - 3.5) * SQUARE_SIZE)
 	piece.set_meta("square", Vector2i(file, rank))
 	pieces_root.add_child(piece)
-	_add_contact_shadow(piece)
 
 	_add_cylinder(piece, 0.32, 0.42, 0.14, 0.08, material)
 	_add_torus(piece, 0.365, 0.028, 0.145, accent)
@@ -361,25 +354,6 @@ func _add_piece(kind: String, file: int, rank: int, material: Material, accent: 
 			_add_cylinder(piece, 0.26, 0.16, 0.13, 1.06, material)
 			_add_cylinder(piece, 0.05, 0.05, 0.34, 1.29, material)
 			_add_cylinder(piece, 0.05, 0.05, 0.25, 1.39, material, Vector3(0, 0, 90))
-
-func _add_contact_shadow(piece: Node3D) -> void:
-	var shadow := MeshInstance3D.new()
-	shadow.name = "ContactShadow"
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = 0.38
-	mesh.bottom_radius = 0.38
-	mesh.height = 0.008
-	mesh.radial_segments = 20
-	var shadow_material := StandardMaterial3D.new()
-	shadow_material.albedo_color = Color(0.0, 0.0, 0.0, 0.42)
-	shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mesh.material = shadow_material
-	shadow.mesh = mesh
-	shadow.position.y = -0.04
-	shadow.scale = Vector3(1.18, 1.0, 0.82)
-	piece.add_child(shadow)
-
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
@@ -620,7 +594,7 @@ func _create_main_menu() -> void:
 	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "ANDROID • OFFLINE • BETA 0.12.0.5"
+	version.text = "ANDROID • OFFLINE • BETA 0.12.0.6"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_font_size_override("font_size", 13)
 	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
@@ -839,7 +813,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 5[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 6[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
@@ -910,9 +884,9 @@ func _update_accessibility_buttons() -> void:
 
 func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
-		_board_light_material.albedo_color = Color("f3ead8") if high_contrast_enabled else Color("d7c4a2")
+		_board_light_material.albedo_color = Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d")
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color("171b33") if colorblind_enabled else (Color("2a1730") if high_contrast_enabled else Color("4b2633"))
+		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536"))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	for child in $UI.get_children():
@@ -1279,8 +1253,8 @@ func _draw_highlights() -> void:
 	if not last_move.is_empty():
 		_add_highlight(last_move.from, Color(0.22, 0.52, 0.9, 0.32), 0.44)
 		_add_highlight(last_move.to, Color(0.22, 0.52, 0.9, 0.48), 0.44)
-	var check_color := Color(1.0, 0.48, 0.05, 0.82) if colorblind_enabled else Color(0.95, 0.1, 0.12, 0.72)
-	var move_color := Color(0.05, 0.65, 1.0, 0.82) if colorblind_enabled else Color(0.2, 0.85, 0.55, 0.72)
+	var check_color := Color(0.95, 0.46, 0.10, 0.70) if colorblind_enabled else Color(0.82, 0.16, 0.12, 0.64)
+	var move_color := Color(0.20, 0.56, 0.85, 0.66) if colorblind_enabled else Color(0.72, 0.56, 0.25, 0.58)
 	if game.result == "" and game.is_in_check(game.turn):
 		var king_code := "K" if game.turn == ChessRules.WHITE else "k"
 		for rank in BOARD_SIZE:
