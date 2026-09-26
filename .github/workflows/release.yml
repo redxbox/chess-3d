@@ -1,0 +1,88 @@
+name: Android Beta Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signed-aab:
+    name: Build signed release AAB
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.4.1
+    env:
+      KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+      KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+      KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Require signing secrets
+        shell: bash
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo '::error::Missing ANDROID_RELEASE_KEYSTORE_BASE64'; exit 1; }
+          test -n "$KEY_ALIAS" || { echo '::error::Missing ANDROID_RELEASE_KEY_ALIAS'; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo '::error::Missing ANDROID_RELEASE_KEYSTORE_PASSWORD'; exit 1; }
+      - name: Configure Godot and Android SDK
+        shell: bash
+        run: |
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable"
+          mkdir -p "$TEMPLATE_DIR" "$HOME/.config" build/android android/build
+          cp -a /root/.local/share/godot/export_templates/4.4.1.stable/. "$TEMPLATE_DIR/"
+          cp -a /root/.config/godot "$HOME/.config/godot"
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+          unzip -q "$TEMPLATE_DIR/android_source.zip" -d android/build
+          printf '4.4.1.stable\n' > android/.build_version
+          touch android/build/.gdignore
+      - name: Install private signing configuration
+        shell: bash
+        run: |
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          p = Path('export_presets.cfg')
+          s = p.read_text()
+          marker = 'custom_template/release=""\n'
+          signing = (
+              f'keystore/release="{os.environ["RUNNER_TEMP"]}/release.keystore"\n'
+              f'keystore/release_user="{os.environ["KEY_ALIAS"]}"\n'
+              f'keystore/release_password="{os.environ["KEYSTORE_PASSWORD"]}"\n'
+          )
+          # Only the ephemeral runner copy is modified; secret-bearing config is never uploaded.
+          s = s.replace(marker, marker + signing)
+          p.write_text(s)
+          PY
+      - name: Import and validate project
+        run: |
+          godot --headless --editor --path . --quit-after 10
+          godot --headless --path . --script res://tests/test_chess.gd
+      - name: Export signed AAB
+        shell: bash
+        run: |
+          set +e
+          godot --headless --verbose --path . --export-release "Android Release AAB" build/android/chess-3d-beta.aab 2>&1 | sed -E 's/(password|pass):?[^ ]*/[REDACTED]/Ig' | tee build/android/release-export.log
+          status=${PIPESTATUS[0]}
+          exit "$status"
+      - name: Verify and checksum bundle
+        run: |
+          test -s build/android/chess-3d-beta.aab
+          jarsigner -verify build/android/chess-3d-beta.aab
+          sha256sum build/android/chess-3d-beta.aab > build/android/chess-3d-beta.aab.sha256
+      - name: Remove private signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.keystore"
+      - name: Upload signed beta bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess-3d-v0.12.0-beta-aab-${{ github.run_number }}
+          path: |
+            build/android/chess-3d-beta.aab
+            build/android/chess-3d-beta.aab.sha256
+          if-no-files-found: error
+          retention-days: 30

@@ -50,3 +50,8 @@ Workflow موجود در `.github/workflows/ci.yml` در هر Push و Pull Reque
 - دوربین لمسی کامل (چرخش، زوم و بازنشانی)
 - پروفایل‌های گرافیکی Low / Medium / High
 - هوش مصنوعی آفلاین
+
+
+## انتشار Beta
+
+سیاست حریم خصوصی در [`PRIVACY.md`](PRIVACY.md)، اطلاعات فروشگاه در `store/` و راهنمای انتشار امضاشده در [`docs/BETA_RELEASE.md`](docs/BETA_RELEASE.md) قرار دارد. Workflow دستی `Android Beta Release` فقط با GitHub Secrets خصوصی، AAB امضاشده تولید می‌کند.
