@@ -2,6 +2,7 @@ extends Node3D
 ## Android-first 3D chess presentation and touch controller.
 
 const ChessRules = preload("res://src/chess/chess_game.gd")
+const OfflineAI = preload("res://src/ai/offline_ai.gd")
 const BOARD_SIZE := 8
 const SQUARE_SIZE := 1.0
 
@@ -21,6 +22,7 @@ var human_color := ChessRules.WHITE
 var ai_difficulty := "medium"
 var language := "en"
 var ai_thinking := false
+var ai_generation := 0
 var animating_move := false
 var _dragging := false
 var _pointer_moved := false
@@ -729,29 +731,27 @@ func _finish_player_move() -> void:
 
 
 func _play_ai_move() -> void:
-	var moves := game.legal_moves()
-	if moves.is_empty():
+	if game.result != "" or game.turn == human_color:
 		ai_thinking = false
 		_update_status()
 		return
-	var best_moves: Array[Dictionary] = []
-	var best_score := -999
-	var values := {"p": 1, "n": 3, "b": 3, "r": 5, "q": 9, "k": 0, "": 0}
-	for move in moves:
-		var capture_score: int = values[move.captured.to_lower()] * 10
-		var center_score: int = 4 - int(absf(move.to.x - 3.5) + absf(move.to.y - 3.5))
-		var score := 0
-		match ai_difficulty:
-			"easy": score = randi_range(0, 20)
-			"hard": score = capture_score * 2 + center_score * 2 + randi_range(0, 2)
-			_: score = capture_score + center_score + randi_range(0, 6)
-		if score > best_score:
-			best_score = score
-			best_moves = [move]
-		elif score == best_score:
-			best_moves.append(move)
-	var chosen: Dictionary = best_moves.pick_random()
-	game.play(chosen)
+	ai_generation += 1
+	var request_generation := ai_generation
+	var fen := game.to_fen()
+	var difficulty := ai_difficulty
+	WorkerThreadPool.add_task(func() -> void:
+		var chosen := OfflineAI.choose_move(fen, difficulty)
+		call_deferred("_apply_ai_choice", chosen, request_generation)
+	)
+
+
+func _apply_ai_choice(chosen: Dictionary, request_generation: int) -> void:
+	if request_generation != ai_generation or not ai_thinking:
+		return
+	if chosen.is_empty() or not game.play(chosen):
+		ai_thinking = false
+		_update_status()
+		return
 	last_move = chosen.duplicate(true)
 	_animate_board_move(chosen, _finish_ai_move)
 
@@ -1084,6 +1084,7 @@ func _new_game() -> void:
 	camera_rig.rotation.y = 0.0
 	white_time = 600.0
 	black_time = 600.0
+	ai_generation += 1
 	ai_thinking = false
 	selected = Vector2i(-1, -1)
 	selected_moves.clear()

@@ -1,6 +1,7 @@
 extends SceneTree
 
 const ChessGame = preload("res://src/chess/chess_game.gd")
+const OfflineAI = preload("res://src/ai/offline_ai.gd")
 var passed := 0
 var failed := 0
 
@@ -20,6 +21,7 @@ func _init() -> void:
 	_test_pgn()
 	_test_pgn_import()
 	_test_threefold_repetition()
+	_test_offline_ai()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -222,3 +224,11 @@ func _test_threefold_repetition() -> void:
 		game.play(_find_move(game, Vector2i(5, 5), Vector2i(6, 7)))
 		game.play(_find_move(game, Vector2i(5, 2), Vector2i(6, 0)))
 	_expect(game.result == "Draw by threefold repetition", "threefold position repetition is detected")
+
+
+func _test_offline_ai() -> void:
+	var game = ChessGame.new()
+	var easy_move := OfflineAI.choose_move(game.to_fen(), "easy")
+	_expect(not easy_move.is_empty() and not _find_move(game, easy_move.from, easy_move.to).is_empty(), "easy offline AI returns a legal move")
+	var medium_move := OfflineAI.choose_move(game.to_fen(), "medium")
+	_expect(not medium_move.is_empty() and not _find_move(game, medium_move.from, medium_move.to).is_empty(), "alpha-beta offline AI returns a legal move")
