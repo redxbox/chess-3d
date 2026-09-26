@@ -17,6 +17,8 @@ var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
 var last_move: Dictionary = {}
 var play_vs_ai := true
+var human_color := ChessRules.WHITE
+var ai_difficulty := "medium"
 var ai_thinking := false
 var animating_move := false
 var _dragging := false
@@ -36,6 +38,10 @@ var _top_panel: HBoxContainer
 var _mode_button: Button
 var _menu_overlay: ColorRect
 var _continue_button: Button
+var _color_button: Button
+var _difficulty_button: Button
+var _history_label: RichTextLabel
+var _game_over_dialog: AcceptDialog
 var _has_resumable_game := false
 var clock_enabled := true
 var white_time := 600.0
@@ -78,6 +84,7 @@ func _process(delta: float) -> void:
 		_update_clock_label()
 		if game.result != "":
 			_update_status()
+			_show_game_over_if_needed()
 			_save_autosave()
 	_autosave_accumulator += delta
 	if _autosave_accumulator >= 5.0:
@@ -388,6 +395,7 @@ func _create_ui() -> void:
 	$UI.add_child(_graphics_button)
 	_update_graphics_button()
 	_create_main_menu()
+	_create_game_panels()
 
 
 func _create_main_menu() -> void:
@@ -401,7 +409,7 @@ func _create_main_menu() -> void:
 	_menu_overlay.add_child(center)
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(500, 560)
+	panel.custom_minimum_size = Vector2(520, 700)
 	center.add_child(panel)
 	var content := VBoxContainer.new()
 	content.add_theme_constant_override("separation", 16)
@@ -419,6 +427,10 @@ func _create_main_menu() -> void:
 	subtitle.add_theme_font_size_override("font_size", 17)
 	content.add_child(subtitle)
 
+	_color_button = _menu_button("PLAY AS: " + ("WHITE" if human_color == ChessRules.WHITE else "BLACK"), _cycle_player_color)
+	content.add_child(_color_button)
+	_difficulty_button = _menu_button("AI LEVEL: " + ai_difficulty.to_upper(), _cycle_ai_difficulty)
+	content.add_child(_difficulty_button)
 	_continue_button = _menu_button("CONTINUE GAME", _continue_game)
 	content.add_child(_continue_button)
 	content.add_child(_menu_button("NEW GAME VS AI", _start_ai_game))
@@ -433,6 +445,26 @@ func _create_main_menu() -> void:
 	_menu_overlay.hide()
 
 
+func _create_game_panels() -> void:
+	var history_panel := PanelContainer.new()
+	history_panel.position = Vector2(24, 140)
+	history_panel.size = Vector2(235, 300)
+	$UI.add_child(history_panel)
+	_history_label = RichTextLabel.new()
+	_history_label.bbcode_enabled = true
+	_history_label.fit_content = false
+	_history_label.scroll_following = true
+	_history_label.add_theme_font_size_override("normal_font_size", 16)
+	history_panel.add_child(_history_label)
+	_update_move_history()
+
+	_game_over_dialog = AcceptDialog.new()
+	_game_over_dialog.title = "GAME OVER"
+	_game_over_dialog.min_size = Vector2i(460, 240)
+	_game_over_dialog.confirmed.connect(_show_main_menu)
+	$UI.add_child(_game_over_dialog)
+
+
 func _menu_button(text: String, callback: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
@@ -440,6 +472,37 @@ func _menu_button(text: String, callback: Callable) -> Button:
 	button.add_theme_font_size_override("font_size", 20)
 	button.pressed.connect(callback)
 	return button
+
+
+func _cycle_player_color() -> void:
+	human_color = ChessRules.BLACK if human_color == ChessRules.WHITE else ChessRules.WHITE
+	_color_button.text = "PLAY AS: " + ("WHITE" if human_color == ChessRules.WHITE else "BLACK")
+
+
+func _cycle_ai_difficulty() -> void:
+	var levels := ["easy", "medium", "hard"]
+	ai_difficulty = levels[(levels.find(ai_difficulty) + 1) % levels.size()]
+	_difficulty_button.text = "AI LEVEL: " + ai_difficulty.to_upper()
+
+
+func _update_move_history() -> void:
+	if not is_instance_valid(_history_label):
+		return
+	var text := "[color=#d8bd82][font_size=20]MOVES[/font_size][/color]\n\n"
+	for index in game.move_notation.size():
+		if index % 2 == 0:
+			text += "%d. " % (index / 2 + 1)
+		text += game.move_notation[index] + ("\n" if index % 2 == 1 else "    ")
+	_history_label.text = text
+	_history_label.scroll_to_line(maxi(0, game.move_notation.size() / 2 - 1))
+
+
+func _show_game_over_if_needed() -> void:
+	if game.result == "" or not is_instance_valid(_game_over_dialog):
+		return
+	_game_over_dialog.dialog_text = game.result + "\n\nThe game has been saved to your history."
+	_game_over_dialog.popup_centered()
+	_haptic(80)
 
 
 func _show_main_menu() -> void:
@@ -460,8 +523,13 @@ func _start_ai_game() -> void:
 	play_vs_ai = true
 	_mode_button.text = "VS AI"
 	_new_game()
+	camera_rig.rotation.y = 0.0 if human_color == ChessRules.WHITE else PI
 	_has_resumable_game = true
 	_continue_game()
+	if game.turn != human_color:
+		ai_thinking = true
+		_update_status()
+		get_tree().create_timer(0.35).timeout.connect(_play_ai_move)
 
 
 func _start_local_game() -> void:
@@ -543,8 +611,10 @@ func _finish_player_move() -> void:
 	_create_pieces()
 	_draw_highlights()
 	_update_status()
+	_update_move_history()
+	_show_game_over_if_needed()
 	_save_autosave()
-	if play_vs_ai and game.turn == ChessRules.BLACK and game.result == "":
+	if play_vs_ai and game.turn != human_color and game.result == "":
 		ai_thinking = true
 		_update_status()
 		get_tree().create_timer(0.45).timeout.connect(_play_ai_move)
@@ -562,7 +632,13 @@ func _play_ai_move() -> void:
 	var best_score := -999
 	var values := {"p": 1, "n": 3, "b": 3, "r": 5, "q": 9, "k": 0, "": 0}
 	for move in moves:
-		var score: int = values[move.captured.to_lower()] * 10 + randi_range(0, 5)
+		var capture_score: int = values[move.captured.to_lower()] * 10
+		var center_score: int = 4 - int(absf(move.to.x - 3.5) + absf(move.to.y - 3.5))
+		var score := 0
+		match ai_difficulty:
+			"easy": score = randi_range(0, 20)
+			"hard": score = capture_score * 2 + center_score * 2 + randi_range(0, 2)
+			_: score = capture_score + center_score + randi_range(0, 6)
 		if score > best_score:
 			best_score = score
 			best_moves = [move]
@@ -580,6 +656,8 @@ func _finish_ai_move() -> void:
 	_create_pieces()
 	_draw_highlights()
 	_update_status()
+	_update_move_history()
+	_show_game_over_if_needed()
 	_save_autosave()
 
 
@@ -817,6 +895,8 @@ func _save_autosave() -> void:
 		"camera_yaw": camera_rig.rotation.y,
 		"camera_distance": camera.position.length(),
 		"play_vs_ai": play_vs_ai,
+		"human_color": human_color,
+		"ai_difficulty": ai_difficulty,
 		"saved_at": Time.get_unix_time_from_system()
 	}
 	var file := FileAccess.open(AUTOSAVE_PATH, FileAccess.WRITE)
@@ -853,6 +933,10 @@ func _load_autosave() -> bool:
 	camera_rig.rotation.y = float(parsed.get("camera_yaw", 0.0))
 	_set_camera_distance(float(parsed.get("camera_distance", camera.position.length())))
 	play_vs_ai = bool(parsed.get("play_vs_ai", true))
+	human_color = int(parsed.get("human_color", ChessRules.WHITE))
+	ai_difficulty = parsed.get("ai_difficulty", "medium")
+	if ai_difficulty not in ["easy", "medium", "hard"]:
+		ai_difficulty = "medium"
 	game.result = parsed.get("result", game.result)
 	return true
 
@@ -861,13 +945,14 @@ func _undo() -> void:
 	if ai_thinking or animating_move:
 		return
 	last_move.clear()
-	if game.undo() and play_vs_ai and game.turn == ChessRules.BLACK:
+	if game.undo() and play_vs_ai and game.turn != human_color:
 		game.undo()
 	selected = Vector2i(-1, -1)
 	selected_moves.clear()
 	_draw_highlights()
 	_create_pieces()
 	_update_status()
+	_update_move_history()
 	_save_autosave()
 
 
@@ -883,6 +968,7 @@ func _new_game() -> void:
 	_draw_highlights()
 	_create_pieces()
 	_update_status()
+	_update_move_history()
 	_save_autosave()
 
 
