@@ -70,9 +70,10 @@ func legal_moves(from := Vector2i(-1, -1)) -> Array[Dictionary]:
 			if piece == "" or color_of(piece) != turn or (from.x >= 0 and origin != from):
 				continue
 			for move in _pseudo_moves(origin):
+				var moving_color := turn
 				var snapshot := _snapshot()
 				_apply_unchecked(move)
-				var legal := not is_in_check(turn)
+				var legal := not is_in_check(moving_color)
 				_restore(snapshot)
 				if legal:
 					moves.append(move)
