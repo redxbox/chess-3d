@@ -50,6 +50,7 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
       - name: Export APK
+        shell: bash
         run: |
           set +e
           godot --headless --verbose --path . --export-debug "Android" build/android/chess-3d.apk 2>&1 | tee build/android/export.log
