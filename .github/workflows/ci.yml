@@ -32,6 +32,8 @@ jobs:
         run: |
           godot --headless --path . --quit-after 2 2>&1 | tee /tmp/godot-startup.log
           if grep -E "SCRIPT ERROR|Parse Error|Invalid call|Invalid set index" /tmp/godot-startup.log; then
+            encoded_log=$(base64 -w0 /tmp/godot-startup.log | cut -c1-6000)
+            echo "::error title=Godot startup log base64::$encoded_log"
             echo "Godot reported a runtime error during startup"
             exit 1
           fi
