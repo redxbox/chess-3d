@@ -57,6 +57,7 @@ var high_contrast_enabled := false
 var reduced_motion_enabled := false
 var coordinates_enabled := true
 var colorblind_enabled := false
+var large_text_enabled := false
 var sound_enabled := true
 var sound_volume := 0.75
 var music_enabled := true
@@ -86,6 +87,9 @@ var _archive_window: Window
 var _archive_list: VBoxContainer
 var _accessibility_window: Window
 var _accessibility_buttons: Dictionary = {}
+var _tutorial_window: Window
+var _about_window: Window
+var _ui_theme := Theme.new()
 var _archived_current_game := false
 var _has_resumable_game := false
 var clock_enabled := true
@@ -605,20 +609,31 @@ func _create_game_panels() -> void:
 
 	_accessibility_window = Window.new()
 	_accessibility_window.title = "ACCESSIBILITY"
-	_accessibility_window.size = Vector2i(560, 470)
+	_accessibility_window.size = Vector2i(560, 650)
 	_accessibility_window.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 	_accessibility_window.close_requested.connect(_accessibility_window.hide)
 	var accessibility_list := VBoxContainer.new()
 	accessibility_list.add_theme_constant_override("separation", 14)
 	_accessibility_window.add_child(accessibility_list)
 	accessibility_list.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for setting in ["contrast", "colorblind", "motion", "coordinates"]:
+	for setting in ["contrast", "colorblind", "motion", "coordinates", "text"]:
 		var button := Button.new()
-		button.custom_minimum_size = Vector2(500, 72)
+		button.custom_minimum_size = Vector2(500, 68)
 		button.pressed.connect(_toggle_accessibility.bind(setting))
 		accessibility_list.add_child(button)
 		_accessibility_buttons[setting] = button
+	var tutorial_button := Button.new()
+	tutorial_button.text = "HOW TO PLAY"
+	tutorial_button.custom_minimum_size = Vector2(500, 68)
+	tutorial_button.pressed.connect(_show_tutorial)
+	accessibility_list.add_child(tutorial_button)
+	var about_button := Button.new()
+	about_button.text = "ABOUT & LICENSES"
+	about_button.custom_minimum_size = Vector2(500, 68)
+	about_button.pressed.connect(_show_about)
+	accessibility_list.add_child(about_button)
 	$UI.add_child(_accessibility_window)
+	_create_information_windows()
 	_update_accessibility_buttons()
 	_apply_language()
 
@@ -735,6 +750,40 @@ func _show_game_over_if_needed() -> void:
 	_haptic(80)
 
 
+func _create_information_windows() -> void:
+	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.11.1[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+
+
+func _information_window(title: String, content: String) -> Window:
+	var window := Window.new()
+	window.title = title
+	window.size = Vector2i(720, 620)
+	window.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	window.close_requested.connect(window.hide)
+	var text := RichTextLabel.new()
+	text.bbcode_enabled = true
+	text.fit_content = false
+	text.text = content
+	text.add_theme_font_size_override("normal_font_size", 20)
+	text.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	text.offset_left = 24
+	text.offset_top = 20
+	text.offset_right = -24
+	text.offset_bottom = -20
+	window.add_child(text)
+	$UI.add_child(window)
+	return window
+
+
+func _show_tutorial() -> void:
+	_tutorial_window.popup_centered()
+
+
+func _show_about() -> void:
+	_about_window.popup_centered()
+
+
 func _show_accessibility() -> void:
 	_update_accessibility_buttons()
 	_accessibility_window.popup_centered()
@@ -746,6 +795,7 @@ func _toggle_accessibility(setting: String) -> void:
 		"colorblind": colorblind_enabled = not colorblind_enabled
 		"motion": reduced_motion_enabled = not reduced_motion_enabled
 		"coordinates": coordinates_enabled = not coordinates_enabled
+		"text": large_text_enabled = not large_text_enabled
 	_apply_accessibility()
 	_update_accessibility_buttons()
 	_save_autosave()
@@ -757,6 +807,7 @@ func _update_accessibility_buttons() -> void:
 	_accessibility_buttons.colorblind.text = "COLORBLIND PALETTE: " + ("ON" if colorblind_enabled else "OFF")
 	_accessibility_buttons.motion.text = "REDUCED MOTION: " + ("ON" if reduced_motion_enabled else "OFF")
 	_accessibility_buttons.coordinates.text = "BOARD COORDINATES: " + ("ON" if coordinates_enabled else "OFF")
+	_accessibility_buttons.text.text = "LARGE TEXT: " + ("ON" if large_text_enabled else "OFF")
 
 
 func _apply_accessibility() -> void:
@@ -765,6 +816,10 @@ func _apply_accessibility() -> void:
 	if is_instance_valid(_board_dark_material):
 		_board_dark_material.albedo_color = Color("171b33") if colorblind_enabled else (Color("2a1730") if high_contrast_enabled else Color("4b2633"))
 	coordinates_root.visible = coordinates_enabled
+	_ui_theme.default_font_size = 21 if large_text_enabled else 16
+	for child in $UI.get_children():
+		if child is Control:
+			child.theme = _ui_theme
 	_draw_highlights()
 
 
@@ -1358,6 +1413,7 @@ func _save_autosave() -> void:
 		"reduced_motion": reduced_motion_enabled,
 		"coordinates": coordinates_enabled,
 		"colorblind": colorblind_enabled,
+		"large_text": large_text_enabled,
 		"camera_yaw": camera_rig.rotation.y,
 		"camera_distance": camera.position.length(),
 		"play_vs_ai": play_vs_ai,
@@ -1405,6 +1461,7 @@ func _load_autosave() -> bool:
 	reduced_motion_enabled = bool(parsed.get("reduced_motion", false))
 	coordinates_enabled = bool(parsed.get("coordinates", true))
 	colorblind_enabled = bool(parsed.get("colorblind", false))
+	large_text_enabled = bool(parsed.get("large_text", false))
 	camera_rig.rotation.y = float(parsed.get("camera_yaw", 0.0))
 	_set_camera_distance(float(parsed.get("camera_distance", camera.position.length())))
 	play_vs_ai = bool(parsed.get("play_vs_ai", true))
