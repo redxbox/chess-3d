@@ -4,6 +4,14 @@ extends Node3D
 const ChessRules = preload("res://src/chess/chess_game.gd")
 const OfflineAI = preload("res://src/ai/offline_ai.gd")
 const ArchiveStore = preload("res://src/storage/game_archive.gd")
+const SOUND_STREAMS := {
+	"select": preload("res://assets/audio/select.wav"),
+	"move": preload("res://assets/audio/move.wav"),
+	"capture": preload("res://assets/audio/capture.wav"),
+	"check": preload("res://assets/audio/check.wav"),
+	"castle": preload("res://assets/audio/castle.wav"),
+	"game_over": preload("res://assets/audio/game_over.wav")
+}
 const BOARD_SIZE := 8
 const SQUARE_SIZE := 1.0
 
@@ -36,8 +44,12 @@ var _drag_piece_active := false
 var haptics_enabled := true
 var graphics_quality := "auto"
 var capture_effects_enabled := true
+var sound_enabled := true
+var sound_volume := 0.75
+var _sound_players: Dictionary = {}
 var _status_label: Label
 var _graphics_button: Button
+var _sound_button: Button
 var _clock_label: Label
 var _top_panel: HBoxContainer
 var _mode_button: Button
@@ -78,6 +90,7 @@ func _ready() -> void:
 		game.reset()
 	_create_pieces()
 	_create_ui()
+	_create_audio()
 	_apply_graphics_quality()
 	get_viewport().size_changed.connect(_apply_safe_area)
 	_apply_safe_area()
@@ -408,6 +421,13 @@ func _create_ui() -> void:
 	_graphics_button.pressed.connect(_cycle_graphics_quality)
 	$UI.add_child(_graphics_button)
 	_update_graphics_button()
+
+	_sound_button = Button.new()
+	_sound_button.position = Vector2(28, 130)
+	_sound_button.size = Vector2(128, 44)
+	_sound_button.pressed.connect(_toggle_sound)
+	$UI.add_child(_sound_button)
+	_update_sound_button()
 	_create_main_menu()
 	_create_game_panels()
 
@@ -468,7 +488,7 @@ func _create_main_menu() -> void:
 
 func _create_game_panels() -> void:
 	var history_panel := PanelContainer.new()
-	history_panel.position = Vector2(24, 140)
+	history_panel.position = Vector2(24, 190)
 	history_panel.size = Vector2(235, 300)
 	$UI.add_child(history_panel)
 	_history_label = RichTextLabel.new()
@@ -480,7 +500,7 @@ func _create_game_panels() -> void:
 	_update_move_history()
 
 	_captured_label = Label.new()
-	_captured_label.position = Vector2(24, 452)
+	_captured_label.position = Vector2(24, 502)
 	_captured_label.size = Vector2(280, 86)
 	_captured_label.add_theme_font_size_override("font_size", 17)
 	$UI.add_child(_captured_label)
@@ -488,7 +508,7 @@ func _create_game_panels() -> void:
 
 	var resign_button := Button.new()
 	resign_button.text = "RESIGN"
-	resign_button.position = Vector2(24, 548)
+	resign_button.position = Vector2(24, 598)
 	resign_button.size = Vector2(120, 44)
 	resign_button.pressed.connect(_request_resign)
 	$UI.add_child(resign_button)
@@ -630,6 +650,7 @@ func _show_game_over_if_needed() -> void:
 	_archive_completed_game()
 	_game_over_dialog.dialog_text = _translate_result(game.result) + ("\n\nبازی به‌صورت خودکار ذخیره شد." if language == "fa" else "\n\nThe game was saved automatically.")
 	_game_over_dialog.popup_centered()
+	_play_sound("game_over")
 	_haptic(80)
 
 
@@ -766,6 +787,7 @@ func _select_square(square: Vector2i) -> void:
 		selected = square
 		selected_moves = game.legal_moves(square)
 		_haptic(18)
+		_play_sound("select")
 	else:
 		selected = Vector2i(-1, -1)
 		selected_moves.clear()
@@ -808,6 +830,14 @@ func _play_move(move: Dictionary) -> void:
 		return
 	last_move = move.duplicate(true)
 	_haptic(35 if move.captured != "" else 22)
+	if move.has("castle"):
+		_play_sound("castle")
+	elif move.captured != "":
+		_play_sound("capture")
+	else:
+		_play_sound("move")
+	if game.is_in_check(game.turn):
+		_play_sound("check")
 	selected = Vector2i(-1, -1)
 	selected_moves.clear()
 	_draw_highlights()
@@ -854,6 +884,14 @@ func _apply_ai_choice(chosen: Dictionary, request_generation: int) -> void:
 		_update_status()
 		return
 	last_move = chosen.duplicate(true)
+	if chosen.has("castle"):
+		_play_sound("castle")
+	elif chosen.captured != "":
+		_play_sound("capture")
+	else:
+		_play_sound("move")
+	if game.is_in_check(game.turn):
+		_play_sound("check")
 	_animate_board_move(chosen, _finish_ai_move)
 
 
@@ -1020,6 +1058,36 @@ func _format_time(seconds: float) -> String:
 	return "%02d:%02d" % [total / 60, total % 60]
 
 
+func _create_audio() -> void:
+	for sound_name in SOUND_STREAMS:
+		var player := AudioStreamPlayer.new()
+		player.name = "Sound_" + sound_name.capitalize()
+		player.stream = SOUND_STREAMS[sound_name]
+		player.volume_db = linear_to_db(sound_volume)
+		add_child(player)
+		_sound_players[sound_name] = player
+
+
+func _play_sound(sound_name: String) -> void:
+	if not sound_enabled or not _sound_players.has(sound_name):
+		return
+	var player: AudioStreamPlayer = _sound_players[sound_name]
+	player.stop()
+	player.play()
+
+
+func _toggle_sound() -> void:
+	sound_enabled = not sound_enabled
+	_update_sound_button()
+	if sound_enabled: _play_sound("select")
+	_save_autosave()
+
+
+func _update_sound_button() -> void:
+	if is_instance_valid(_sound_button):
+		_sound_button.text = "SOUND: ON" if sound_enabled else "SOUND: OFF"
+
+
 func _effective_graphics_quality() -> String:
 	if graphics_quality != "auto":
 		return graphics_quality
@@ -1111,6 +1179,8 @@ func _save_autosave() -> void:
 		"clock_enabled": clock_enabled,
 		"haptics_enabled": haptics_enabled,
 		"graphics_quality": graphics_quality,
+		"sound_enabled": sound_enabled,
+		"sound_volume": sound_volume,
 		"camera_yaw": camera_rig.rotation.y,
 		"camera_distance": camera.position.length(),
 		"play_vs_ai": play_vs_ai,
@@ -1150,6 +1220,8 @@ func _load_autosave() -> bool:
 	graphics_quality = parsed.get("graphics_quality", "auto")
 	if graphics_quality not in ["auto", "low", "medium", "high"]:
 		graphics_quality = "auto"
+	sound_enabled = bool(parsed.get("sound_enabled", true))
+	sound_volume = clampf(float(parsed.get("sound_volume", 0.75)), 0.0, 1.0)
 	camera_rig.rotation.y = float(parsed.get("camera_yaw", 0.0))
 	_set_camera_distance(float(parsed.get("camera_distance", camera.position.length())))
 	play_vs_ai = bool(parsed.get("play_vs_ai", true))
