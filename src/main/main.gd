@@ -19,6 +19,9 @@ var ai_thinking := false
 var _dragging := false
 var _pointer_moved := false
 var _last_pointer := Vector2.ZERO
+var _touches: Dictionary = {}
+var _pinch_distance := 0.0
+var haptics_enabled := true
 var _status_label: Label
 var _clock_label: Label
 var clock_enabled := true
@@ -187,8 +190,8 @@ func _create_ui() -> void:
 	panel.add_theme_constant_override("separation", 12)
 	$UI.add_child(panel)
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.offset_left = -700.0
-	panel.offset_top = 20.0
+	panel.offset_left = -790.0
+	panel.offset_top = 24.0
 	panel.offset_right = -20.0
 	panel.offset_bottom = 84.0
 
@@ -208,6 +211,12 @@ func _create_ui() -> void:
 	clock_button.custom_minimum_size = Vector2(86, 48)
 	clock_button.pressed.connect(_toggle_clock)
 	panel.add_child(clock_button)
+
+	var camera_button := Button.new()
+	camera_button.text = "VIEW"
+	camera_button.custom_minimum_size = Vector2(78, 48)
+	camera_button.pressed.connect(_reset_camera)
+	panel.add_child(camera_button)
 
 	var undo_button := Button.new()
 	undo_button.text = "UNDO"
@@ -239,6 +248,7 @@ func _select_square(square: Vector2i) -> void:
 	if piece != "" and game.color_of(piece) == game.turn:
 		selected = square
 		selected_moves = game.legal_moves(square)
+		_haptic(18)
 	else:
 		selected = Vector2i(-1, -1)
 		selected_moves.clear()
@@ -279,6 +289,7 @@ func _choose_promotion(move: Dictionary, popup: PopupPanel) -> void:
 func _play_move(move: Dictionary) -> void:
 	if not game.play(move):
 		return
+	_haptic(35 if move.captured != "" else 22)
 	selected = Vector2i(-1, -1)
 	selected_moves.clear()
 	_draw_highlights()
@@ -392,6 +403,9 @@ func _save_autosave() -> void:
 		"white_time": white_time,
 		"black_time": black_time,
 		"clock_enabled": clock_enabled,
+		"haptics_enabled": haptics_enabled,
+		"camera_yaw": camera_rig.rotation.y,
+		"camera_distance": camera.position.length(),
 		"play_vs_ai": play_vs_ai,
 		"saved_at": Time.get_unix_time_from_system()
 	}
@@ -422,6 +436,9 @@ func _load_autosave() -> bool:
 	white_time = maxf(0.0, float(parsed.get("white_time", 600.0)))
 	black_time = maxf(0.0, float(parsed.get("black_time", 600.0)))
 	clock_enabled = bool(parsed.get("clock_enabled", true))
+	haptics_enabled = bool(parsed.get("haptics_enabled", true))
+	camera_rig.rotation.y = float(parsed.get("camera_yaw", 0.0))
+	_set_camera_distance(float(parsed.get("camera_distance", camera.position.length())))
 	play_vs_ai = bool(parsed.get("play_vs_ai", true))
 	game.result = parsed.get("result", game.result)
 	return true
@@ -464,17 +481,31 @@ func _material(color: Color, roughness: float, metallic: float) -> StandardMater
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
+			_touches[event.index] = event.position
 			_dragging = true
-			_pointer_moved = false
+			_pointer_moved = _touches.size() > 1
 			_last_pointer = event.position
+			if _touches.size() == 2:
+				_pinch_distance = _current_pinch_distance()
 		else:
-			if not _pointer_moved:
+			var was_single_touch := _touches.size() == 1
+			_touches.erase(event.index)
+			if was_single_touch and not _pointer_moved:
 				var square := _screen_to_square(event.position)
 				if square.x >= 0:
 					_select_square(square)
-			_dragging = false
+			_dragging = not _touches.is_empty()
+			if _touches.size() < 2:
+				_pinch_distance = 0.0
 	elif event is InputEventScreenDrag:
-		if event.relative.length() > 3.0:
+		_touches[event.index] = event.position
+		if _touches.size() >= 2:
+			var new_distance := _current_pinch_distance()
+			if _pinch_distance > 0.0 and new_distance > 10.0:
+				_zoom_camera(_pinch_distance / new_distance)
+			_pinch_distance = new_distance
+			_pointer_moved = true
+		elif event.relative.length() > 3.0:
 			_pointer_moved = true
 			_rotate_camera(event.relative)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -493,9 +524,36 @@ func _unhandled_input(event: InputEvent) -> void:
 			_pointer_moved = true
 			_rotate_camera(event.relative)
 	elif event is InputEventMouseButton and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and event.pressed:
-		camera.position *= 0.92 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.08
-		camera.position.y = clampf(camera.position.y, 5.8, 12.0)
+		_zoom_camera(0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1)
+
+
+func _current_pinch_distance() -> float:
+	var positions := _touches.values()
+	return positions[0].distance_to(positions[1]) if positions.size() >= 2 else 0.0
+
+
+func _zoom_camera(factor: float) -> void:
+	_set_camera_distance(camera.position.length() * factor)
+
+
+func _set_camera_distance(distance: float) -> void:
+	var target_distance := clampf(distance, 8.0, 16.0)
+	camera.position = camera.position.normalized() * target_distance
 
 
 func _rotate_camera(relative: Vector2) -> void:
 	camera_rig.rotate_y(-relative.x * 0.006)
+	camera_rig.rotation.y = wrapf(camera_rig.rotation.y, -PI, PI)
+
+
+func _reset_camera() -> void:
+	var tween := create_tween().set_parallel(true)
+	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(camera_rig, "rotation:y", 0.0, 0.35)
+	tween.tween_property(camera, "position", Vector3(0, 8.5, 9.5), 0.35)
+	_haptic(20)
+
+
+func _haptic(duration_ms: int) -> void:
+	if haptics_enabled:
+		Input.vibrate_handheld(duration_ms)
