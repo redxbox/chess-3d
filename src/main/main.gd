@@ -16,6 +16,7 @@ var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
 var play_vs_ai := true
 var ai_thinking := false
+var animating_move := false
 var _dragging := false
 var _pointer_moved := false
 var _last_pointer := Vector2.ZERO
@@ -285,7 +286,7 @@ func _create_ui() -> void:
 
 
 func _select_square(square: Vector2i) -> void:
-	if ai_thinking or game.result != "":
+	if ai_thinking or animating_move or game.result != "":
 		return
 	var destination_moves: Array[Dictionary] = []
 	for move in selected_moves:
@@ -346,6 +347,11 @@ func _play_move(move: Dictionary) -> void:
 	selected = Vector2i(-1, -1)
 	selected_moves.clear()
 	_draw_highlights()
+	_animate_board_move(move, _finish_player_move)
+
+
+func _finish_player_move() -> void:
+	animating_move = false
 	_create_pieces()
 	_update_status()
 	_save_autosave()
@@ -359,22 +365,61 @@ func _play_move(move: Dictionary) -> void:
 
 func _play_ai_move() -> void:
 	var moves := game.legal_moves()
-	if not moves.is_empty():
-		var best_moves: Array[Dictionary] = []
-		var best_score := -999
-		var values := {"p": 1, "n": 3, "b": 3, "r": 5, "q": 9, "k": 0, "": 0}
-		for move in moves:
-			var score: int = values[move.captured.to_lower()] * 10 + randi_range(0, 5)
-			if score > best_score:
-				best_score = score
-				best_moves = [move]
-			elif score == best_score:
-				best_moves.append(move)
-		game.play(best_moves.pick_random())
+	if moves.is_empty():
+		ai_thinking = false
+		_update_status()
+		return
+	var best_moves: Array[Dictionary] = []
+	var best_score := -999
+	var values := {"p": 1, "n": 3, "b": 3, "r": 5, "q": 9, "k": 0, "": 0}
+	for move in moves:
+		var score: int = values[move.captured.to_lower()] * 10 + randi_range(0, 5)
+		if score > best_score:
+			best_score = score
+			best_moves = [move]
+		elif score == best_score:
+			best_moves.append(move)
+	var chosen: Dictionary = best_moves.pick_random()
+	game.play(chosen)
+	_animate_board_move(chosen, _finish_ai_move)
+
+
+func _finish_ai_move() -> void:
+	animating_move = false
 	ai_thinking = false
 	_create_pieces()
 	_update_status()
 	_save_autosave()
+
+
+func _animate_board_move(move: Dictionary, finished: Callable) -> void:
+	animating_move = true
+	var moving_piece: Node3D
+	var captured_piece: Node3D
+	var captured_square: Vector2i = move.to
+	if move.get("en_passant", false):
+		captured_square = Vector2i(move.to.x, move.from.y)
+	for piece in pieces_root.get_children():
+		var square: Vector2i = piece.get_meta("square", Vector2i(-1, -1))
+		if square == move.from:
+			moving_piece = piece
+		elif square == captured_square:
+			captured_piece = piece
+	if not is_instance_valid(moving_piece):
+		finished.call()
+		return
+	var target := Vector3((move.to.x - 3.5) * SQUARE_SIZE, 0.12, (move.to.y - 3.5) * SQUARE_SIZE)
+	var midpoint := (moving_piece.position + target) * 0.5
+	midpoint.y = 0.75
+	var tween := create_tween()
+	tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(moving_piece, "position", midpoint, 0.13)
+	tween.tween_property(moving_piece, "position", target, 0.15)
+	if is_instance_valid(captured_piece):
+		var capture_tween := create_tween().set_parallel(true)
+		capture_tween.tween_property(captured_piece, "scale", Vector3.ZERO, 0.2)
+		capture_tween.tween_property(captured_piece, "position:y", -0.25, 0.2)
+	tween.finished.connect(finished)
 
 
 func _draw_highlights() -> void:
