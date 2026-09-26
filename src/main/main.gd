@@ -34,6 +34,9 @@ var _graphics_button: Button
 var _clock_label: Label
 var _top_panel: HBoxContainer
 var _mode_button: Button
+var _menu_overlay: ColorRect
+var _continue_button: Button
+var _has_resumable_game := false
 var clock_enabled := true
 var white_time := 600.0
 var black_time := 600.0
@@ -50,7 +53,8 @@ func _ready() -> void:
 	highlights_root.name = "Highlights"
 	board.add_child(highlights_root)
 	board.add_child(pieces_root)
-	if not _load_autosave():
+	_has_resumable_game = _load_autosave()
+	if not _has_resumable_game:
 		game.reset()
 	_create_pieces()
 	_create_ui()
@@ -58,6 +62,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_apply_safe_area)
 	_apply_safe_area()
 	_update_status()
+	_show_main_menu()
 
 
 func _process(delta: float) -> void:
@@ -370,12 +375,101 @@ func _create_ui() -> void:
 	new_button.pressed.connect(_new_game)
 	panel.add_child(new_button)
 
+	var menu_button := Button.new()
+	menu_button.text = "MENU"
+	menu_button.custom_minimum_size = Vector2(82, 48)
+	menu_button.pressed.connect(_show_main_menu)
+	panel.add_child(menu_button)
+
 	_graphics_button = Button.new()
 	_graphics_button.position = Vector2(28, 78)
 	_graphics_button.size = Vector2(128, 44)
 	_graphics_button.pressed.connect(_cycle_graphics_quality)
 	$UI.add_child(_graphics_button)
 	_update_graphics_button()
+	_create_main_menu()
+
+
+func _create_main_menu() -> void:
+	_menu_overlay = ColorRect.new()
+	_menu_overlay.color = Color(0.025, 0.035, 0.055, 0.94)
+	$UI.add_child(_menu_overlay)
+	_menu_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_menu_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var center := CenterContainer.new()
+	_menu_overlay.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(500, 560)
+	center.add_child(panel)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 16)
+	panel.add_child(content)
+
+	var title := Label.new()
+	title.text = "CHESS 3D"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 44)
+	title.add_theme_color_override("font_color", Color("e6cb8c"))
+	content.add_child(title)
+	var subtitle := Label.new()
+	subtitle.text = "A classic board. A new dimension."
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_font_size_override("font_size", 17)
+	content.add_child(subtitle)
+
+	_continue_button = _menu_button("CONTINUE GAME", _continue_game)
+	content.add_child(_continue_button)
+	content.add_child(_menu_button("NEW GAME VS AI", _start_ai_game))
+	content.add_child(_menu_button("LOCAL TWO PLAYERS", _start_local_game))
+	content.add_child(_menu_button("CLOSE MENU", _continue_game))
+
+	var version := Label.new()
+	version.text = "Android • Offline • v0.6.0"
+	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	version.add_theme_color_override("font_color", Color(0.65, 0.68, 0.75, 1))
+	content.add_child(version)
+	_menu_overlay.hide()
+
+
+func _menu_button(text: String, callback: Callable) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(420, 62)
+	button.add_theme_font_size_override("font_size", 20)
+	button.pressed.connect(callback)
+	return button
+
+
+func _show_main_menu() -> void:
+	if not is_instance_valid(_menu_overlay):
+		return
+	_continue_button.disabled = not _has_resumable_game and game.move_notation.is_empty()
+	_menu_overlay.show()
+	get_tree().paused = true
+	_menu_overlay.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+
+
+func _continue_game() -> void:
+	_menu_overlay.hide()
+	get_tree().paused = false
+
+
+func _start_ai_game() -> void:
+	play_vs_ai = true
+	_mode_button.text = "VS AI"
+	_new_game()
+	_has_resumable_game = true
+	_continue_game()
+
+
+func _start_local_game() -> void:
+	play_vs_ai = false
+	_mode_button.text = "LOCAL"
+	_new_game()
+	_has_resumable_game = true
+	_continue_game()
 
 
 func _select_square(square: Vector2i) -> void:
@@ -682,7 +776,7 @@ func _apply_safe_area() -> void:
 	var scale_y := viewport_size.y / maxf(window_size.y, 1.0)
 	var right_inset := maxf(20.0, (window_size.x - safe.end.x) * scale_x + 20.0)
 	var top_inset := maxf(20.0, safe.position.y * scale_y + 20.0)
-	_top_panel.offset_left = -970.0 - right_inset
+	_top_panel.offset_left = -1060.0 - right_inset
 	_top_panel.offset_top = top_inset
 	_top_panel.offset_right = -right_inset
 	_top_panel.offset_bottom = top_inset + 64.0
