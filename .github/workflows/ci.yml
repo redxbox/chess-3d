@@ -45,6 +45,10 @@ jobs:
           cp -a /root/.config/godot "$HOME/.config/godot"
           test -f "$TEMPLATE_DIR/android_debug.apk"
           test -f /root/debug.keystore
+      - name: Install required Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
       - name: Export APK
         run: godot --headless --verbose --path . --export-debug "Android" build/android/chess-3d.apk
       - name: Upload APK
