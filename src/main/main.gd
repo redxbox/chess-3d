@@ -178,22 +178,8 @@ func _setup_environment() -> void:
 	environment.ambient_light_energy = 0.36
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	$WorldEnvironment.environment = environment
-	# Warm/cool studio rim lights create readable silhouettes without expensive
-	# real-time shadows on the secondary lights.
-	var warm_rim := OmniLight3D.new()
-	warm_rim.name = "WarmRimLight"
-	warm_rim.position = Vector3(5.5, 4.2, -4.0)
-	warm_rim.light_color = Color("ffb35f")
-	warm_rim.light_energy = 0.16
-	warm_rim.omni_range = 11.0
-	add_child(warm_rim)
-	var cool_rim := OmniLight3D.new()
-	cool_rim.name = "CoolRimLight"
-	cool_rim.position = Vector3(-5.0, 3.2, -3.5)
-	cool_rim.light_color = Color("789cff")
-	cool_rim.light_energy = 0.13
-	cool_rim.omni_range = 10.0
-	add_child(cool_rim)
+	# Keep illumination spatially uniform: local Omni rim lights created visible
+	# hotspots on the board and table. Key and fill are directional and cached.
 
 
 func _setup_piece_materials() -> void:
@@ -340,12 +326,13 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 	_add_torus(piece, base_radius, 0.020, 0.095, accent)
 	# A restrained second inlay follows an existing sculpted collar and makes the
 	# six silhouettes readable at gameplay distance without recoloring the body.
-	var collar_data: Vector2 = {
-		"pawn": Vector2(0.125, 0.59), "rook": Vector2(0.225, 0.88),
-		"knight": Vector2(0.19, 0.70), "bishop": Vector2(0.17, 0.93),
-		"queen": Vector2(0.20, 1.08), "king": Vector2(0.205, 1.19)
-	}[kind]
-	_add_torus(piece, collar_data.x, 0.014, collar_data.y, accent)
+	if kind in ["bishop", "queen", "king"]:
+		var collar_data: Vector2 = {
+			"bishop": Vector2(0.18, 0.93),
+			"queen": Vector2(0.215, 1.08),
+			"king": Vector2(0.215, 1.19)
+		}[kind]
+		_add_torus(piece, collar_data.x, 0.012, collar_data.y, accent)
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
@@ -586,7 +573,7 @@ func _create_main_menu() -> void:
 	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "ANDROID • OFFLINE • BETA 0.12.0.15"
+	version.text = "ANDROID • OFFLINE • BETA 0.12.0.16"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_font_size_override("font_size", 13)
 	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
@@ -805,7 +792,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 15[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 16[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
