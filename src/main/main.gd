@@ -37,6 +37,9 @@ var coordinates_root := Node3D.new()
 var _mesh_cache: Dictionary = {}
 var _board_light_material: StandardMaterial3D
 var _board_dark_material: StandardMaterial3D
+var _piece_ivory_material: StandardMaterial3D
+var _piece_obsidian_material: StandardMaterial3D
+var _piece_gold_material: StandardMaterial3D
 var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
 var last_move: Dictionary = {}
@@ -109,6 +112,7 @@ const AUTOSAVE_PATH := "user://autosave.json"
 
 func _ready() -> void:
 	_setup_environment()
+	_setup_piece_materials()
 	decor_root.name = "EnvironmentDetails"
 	coordinates_root.name = "BoardCoordinates"
 	board.add_child(decor_root)
@@ -170,8 +174,8 @@ func _setup_environment() -> void:
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color("111725")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("7180a0")
-	environment.ambient_light_energy = 0.32
+	environment.ambient_light_color = Color("8993a4")
+	environment.ambient_light_energy = 0.38
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	$WorldEnvironment.environment = environment
 	# Warm/cool studio rim lights create readable silhouettes without expensive
@@ -179,17 +183,31 @@ func _setup_environment() -> void:
 	var warm_rim := OmniLight3D.new()
 	warm_rim.name = "WarmRimLight"
 	warm_rim.position = Vector3(5.5, 4.2, -4.0)
-	warm_rim.light_color = Color("ffb35f")
-	warm_rim.light_energy = 0.62
+	warm_rim.light_color = Color("e9bb82")
+	warm_rim.light_energy = 0.40
 	warm_rim.omni_range = 11.0
 	add_child(warm_rim)
 	var cool_rim := OmniLight3D.new()
 	cool_rim.name = "CoolRimLight"
 	cool_rim.position = Vector3(-5.0, 3.2, -3.5)
-	cool_rim.light_color = Color("789cff")
-	cool_rim.light_energy = 0.38
+	cool_rim.light_color = Color("9aacca")
+	cool_rim.light_energy = 0.27
 	cool_rim.omni_range = 10.0
 	add_child(cool_rim)
+
+
+func _setup_piece_materials() -> void:
+	# Create the three premium materials once. All 32 ModelInstances share these
+	# resources, preventing per-move allocations and shader recompilation.
+	_piece_ivory_material = _luxury_piece_material(Color("d8c9aa"), 0.31, 0.02)
+	_piece_ivory_material.metallic_specular = 0.46
+	_piece_ivory_material.clearcoat_roughness = 0.18
+	_piece_obsidian_material = _luxury_piece_material(Color("171d27"), 0.24, 0.16)
+	_piece_obsidian_material.metallic_specular = 0.72
+	_piece_obsidian_material.clearcoat_roughness = 0.13
+	_piece_gold_material = _luxury_piece_material(Color("c3a064"), 0.30, 0.88)
+	_piece_gold_material.metallic_specular = 0.58
+	_piece_gold_material.clearcoat_roughness = 0.22
 
 
 func _create_board() -> void:
@@ -295,22 +313,15 @@ func _add_board_box(position: Vector3, size: Vector3, material: Material) -> voi
 
 
 func _create_pieces() -> void:
-	_mesh_cache.clear()
 	for child in pieces_root.get_children():
 		child.queue_free()
-	# High-contrast crystal/onyx materials inspired by luxury glass sets. The
-	# supplied reference sheet is not a tileable texture, so its visual language
-	# is reproduced with mobile-friendly PBR materials and gold accent geometry.
-	var crystal := _luxury_piece_material(Color("d8d1c2"), 0.28, 0.04)
-	var onyx := _luxury_piece_material(Color("202631"), 0.18, 0.38)
-	var gold := _luxury_piece_material(Color("c58a32"), 0.20, 0.82, false)
 	var names := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 	for rank in BOARD_SIZE:
 		for file in BOARD_SIZE:
 			var code: String = game.board[rank][file]
 			if code != "":
 				var is_white := code == code.to_upper()
-				_add_piece(names[code.to_lower()], file, rank, is_white, crystal if is_white else onyx, gold)
+				_add_piece(names[code.to_lower()], file, rank, is_white, _piece_ivory_material if is_white else _piece_obsidian_material, _piece_gold_material)
 
 
 func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Material, accent: Material) -> void:
@@ -355,7 +366,7 @@ func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, heig
 
 func _add_torus(parent: Node3D, radius: float, tube: float, y: float, material: Material) -> void:
 	var mesh_instance := MeshInstance3D.new()
-	var segments := 12 if _effective_graphics_quality() == "low" else (18 if _effective_graphics_quality() == "medium" else 24)
+	var segments := 16 if _effective_graphics_quality() == "low" else (24 if _effective_graphics_quality() == "medium" else 32)
 	var key := "torus:%s:%s:%d:%d" % [radius, tube, segments, material.get_instance_id()]
 	if not _mesh_cache.has(key):
 		var created := TorusMesh.new()
@@ -573,7 +584,7 @@ func _create_main_menu() -> void:
 	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "ANDROID • OFFLINE • BETA 0.12.0.10"
+	version.text = "ANDROID • OFFLINE • BETA 0.12.0.11"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_font_size_override("font_size", 13)
 	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
@@ -792,7 +803,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 10[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 11[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
