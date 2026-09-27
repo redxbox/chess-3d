@@ -377,9 +377,24 @@ func _add_lathed_profile(parent: Node3D, kind: String, profile: Array[Vector2], 
 				var p1 := Vector3(cos(a1) * profile[ring].x, profile[ring].y, sin(a1) * profile[ring].x)
 				var p2 := Vector3(cos(a1) * profile[ring + 1].x, profile[ring + 1].y, sin(a1) * profile[ring + 1].x)
 				var p3 := Vector3(cos(a0) * profile[ring + 1].x, profile[ring + 1].y, sin(a0) * profile[ring + 1].x)
-				for vertex in [p0, p2, p1, p0, p3, p2]:
+				# Counter-clockwise winding keeps the sculpted exterior visible with
+				# normal back-face culling on Android.
+				for vertex in [p0, p1, p2, p0, p2, p3]:
 					surface.set_uv(Vector2.ZERO)
 					surface.add_vertex(vertex)
+		# Close both ends so overhead camera angles never reveal hollow bodies.
+		for segment in segments:
+			var next_segment := (segment + 1) % segments
+			var a0 := TAU * float(segment) / segments
+			var a1 := TAU * float(next_segment) / segments
+			var bottom0 := Vector3(cos(a0) * profile[0].x, profile[0].y, sin(a0) * profile[0].x)
+			var bottom1 := Vector3(cos(a1) * profile[0].x, profile[0].y, sin(a1) * profile[0].x)
+			var last := profile.size() - 1
+			var top0 := Vector3(cos(a0) * profile[last].x, profile[last].y, sin(a0) * profile[last].x)
+			var top1 := Vector3(cos(a1) * profile[last].x, profile[last].y, sin(a1) * profile[last].x)
+			for vertex in [Vector3(0, profile[0].y, 0), bottom1, bottom0, Vector3(0, profile[last].y, 0), top0, top1]:
+				surface.set_uv(Vector2.ZERO)
+				surface.add_vertex(vertex)
 		surface.generate_normals()
 		var created := surface.commit()
 		created.surface_set_material(0, material)
@@ -627,7 +642,7 @@ func _create_main_menu() -> void:
 	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "ANDROID • OFFLINE • BETA 0.12.0.8"
+	version.text = "ANDROID • OFFLINE • BETA 0.12.0.9"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_font_size_override("font_size", 13)
 	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
@@ -846,7 +861,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 8[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 9[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
