@@ -13,6 +13,14 @@ const SOUND_STREAMS := {
 	"castle": preload("res://assets/audio/castle.wav"),
 	"game_over": preload("res://assets/audio/game_over.wav")
 }
+const PIECE_MODELS := {
+	"pawn": preload("res://assets/models/staunton/pawn.obj"),
+	"rook": preload("res://assets/models/staunton/rook.obj"),
+	"knight": preload("res://assets/models/staunton/knight.obj"),
+	"bishop": preload("res://assets/models/staunton/bishop.obj"),
+	"queen": preload("res://assets/models/staunton/queen.obj"),
+	"king": preload("res://assets/models/staunton/king.obj")
+}
 const BOARD_SIZE := 8
 const SQUARE_SIZE := 1.0
 
@@ -301,107 +309,30 @@ func _create_pieces() -> void:
 		for file in BOARD_SIZE:
 			var code: String = game.board[rank][file]
 			if code != "":
-				_add_piece(names[code.to_lower()], file, rank, crystal if code == code.to_upper() else onyx, gold)
+				var is_white := code == code.to_upper()
+				_add_piece(names[code.to_lower()], file, rank, is_white, crystal if is_white else onyx, gold)
 
 
-func _add_piece(kind: String, file: int, rank: int, material: Material, accent: Material) -> void:
+func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Material, accent: Material) -> void:
 	var piece := Node3D.new()
 	piece.name = "%s_%d_%d" % [kind.capitalize(), file, rank]
-	piece.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.12, (rank - 3.5) * SQUARE_SIZE)
+	piece.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.11, (rank - 3.5) * SQUARE_SIZE)
 	piece.set_meta("square", Vector2i(file, rank))
 	pieces_root.add_child(piece)
 
-	# A continuous turned profile reads much more clearly than stacked primitive
-	# rings. Each class gets a deliberately different height and shoulder line.
-	var profile: Array[Vector2]
-	match kind:
-		"pawn":
-			profile = [Vector2(0.34, 0.00), Vector2(0.37, 0.06), Vector2(0.34, 0.13), Vector2(0.25, 0.18), Vector2(0.20, 0.28), Vector2(0.13, 0.48), Vector2(0.14, 0.61)]
-		"rook":
-			profile = [Vector2(0.36, 0.00), Vector2(0.39, 0.07), Vector2(0.34, 0.15), Vector2(0.24, 0.23), Vector2(0.20, 0.67), Vector2(0.29, 0.76), Vector2(0.30, 0.86)]
-		"knight":
-			profile = [Vector2(0.36, 0.00), Vector2(0.39, 0.07), Vector2(0.34, 0.15), Vector2(0.24, 0.23), Vector2(0.17, 0.53), Vector2(0.20, 0.66)]
-		"bishop":
-			profile = [Vector2(0.36, 0.00), Vector2(0.39, 0.07), Vector2(0.34, 0.15), Vector2(0.23, 0.24), Vector2(0.13, 0.69), Vector2(0.20, 0.82)]
-		"queen":
-			profile = [Vector2(0.38, 0.00), Vector2(0.41, 0.07), Vector2(0.36, 0.16), Vector2(0.24, 0.25), Vector2(0.14, 0.78), Vector2(0.25, 0.94), Vector2(0.28, 1.02)]
-		_:
-			profile = [Vector2(0.39, 0.00), Vector2(0.42, 0.07), Vector2(0.36, 0.16), Vector2(0.24, 0.25), Vector2(0.15, 0.83), Vector2(0.25, 0.98), Vector2(0.25, 1.07)]
-	_add_lathed_profile(piece, kind, profile, material)
-	_add_torus(piece, profile[1].x - 0.025, 0.025, 0.09, accent)
+	var model := MeshInstance3D.new()
+	model.name = "SculptedModel"
+	model.mesh = PIECE_MODELS[kind]
+	model.material_override = material
+	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	# Knights face their opponent; rotational pieces are visually symmetric.
+	if kind == "knight":
+		model.rotation.y = 0.0 if is_white else PI
+	piece.add_child(model)
 
-	match kind:
-		"pawn":
-			_add_sphere(piece, 0.205, 0.78, material)
-		"rook":
-			for angle in [0.0, 60.0, 120.0, 180.0, 240.0, 300.0]:
-				var offset := Vector3(cos(deg_to_rad(angle)) * 0.23, 0.98, sin(deg_to_rad(angle)) * 0.23)
-				_add_box(piece, Vector3(0.13, 0.24, 0.13), offset, material)
-		"knight":
-			# Strong forward-facing horse silhouette: swept neck, muzzle, ears and mane.
-			_add_cylinder(piece, 0.15, 0.22, 0.58, 0.88, material, Vector3(-30, 0, 0))
-			_add_sphere(piece, 0.22, 1.10, material, Vector3(0.0, 0.0, -0.14))
-			_add_sphere(piece, 0.145, 1.04, material, Vector3(0.0, -0.02, -0.34))
-			_add_sphere(piece, 0.035, 1.12, accent, Vector3(0.11, 0.0, -0.34))
-			_add_box(piece, Vector3(0.08, 0.24, 0.08), Vector3(-0.09, 1.31, -0.10), material)
-			_add_box(piece, Vector3(0.08, 0.24, 0.08), Vector3(0.09, 1.31, -0.10), material)
-			for mane_y in [0.80, 0.94, 1.08, 1.22]:
-				_add_box(piece, Vector3(0.07, 0.13, 0.11), Vector3(0.0, mane_y, 0.13), accent)
-		"bishop":
-			_add_sphere(piece, 0.225, 1.01, material)
-			_add_box(piece, Vector3(0.045, 0.32, 0.09), Vector3(0.0, 1.05, -0.17), accent)
-			_add_sphere(piece, 0.065, 1.25, accent)
-		"queen":
-			for angle in [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]:
-				var crown := Vector3(cos(deg_to_rad(angle)) * 0.24, 0.0, sin(deg_to_rad(angle)) * 0.24)
-				_add_sphere(piece, 0.055, 1.17, accent, crown)
-			_add_sphere(piece, 0.10, 1.22, material)
-		"king":
-			_add_box(piece, Vector3(0.10, 0.43, 0.10), Vector3(0.0, 1.28, 0.0), accent)
-			_add_box(piece, Vector3(0.34, 0.10, 0.10), Vector3(0.0, 1.39, 0.0), accent)
-
-
-func _add_lathed_profile(parent: Node3D, kind: String, profile: Array[Vector2], material: Material) -> void:
-	var quality := _effective_graphics_quality()
-	var segments := 16 if quality == "low" else (24 if quality == "medium" else 32)
-	var key := "lathe:%s:%d:%d" % [kind, segments, material.get_instance_id()]
-	if not _mesh_cache.has(key):
-		var surface := SurfaceTool.new()
-		surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-		for ring in profile.size() - 1:
-			for segment in segments:
-				var next_segment := (segment + 1) % segments
-				var a0 := TAU * float(segment) / segments
-				var a1 := TAU * float(next_segment) / segments
-				var p0 := Vector3(cos(a0) * profile[ring].x, profile[ring].y, sin(a0) * profile[ring].x)
-				var p1 := Vector3(cos(a1) * profile[ring].x, profile[ring].y, sin(a1) * profile[ring].x)
-				var p2 := Vector3(cos(a1) * profile[ring + 1].x, profile[ring + 1].y, sin(a1) * profile[ring + 1].x)
-				var p3 := Vector3(cos(a0) * profile[ring + 1].x, profile[ring + 1].y, sin(a0) * profile[ring + 1].x)
-				# Counter-clockwise winding keeps the sculpted exterior visible with
-				# normal back-face culling on Android.
-				for vertex in [p0, p1, p2, p0, p2, p3]:
-					surface.set_uv(Vector2.ZERO)
-					surface.add_vertex(vertex)
-		# Close both ends so overhead camera angles never reveal hollow bodies.
-		for segment in segments:
-			var next_segment := (segment + 1) % segments
-			var a0 := TAU * float(segment) / segments
-			var a1 := TAU * float(next_segment) / segments
-			var bottom0 := Vector3(cos(a0) * profile[0].x, profile[0].y, sin(a0) * profile[0].x)
-			var bottom1 := Vector3(cos(a1) * profile[0].x, profile[0].y, sin(a1) * profile[0].x)
-			var last := profile.size() - 1
-			var top0 := Vector3(cos(a0) * profile[last].x, profile[last].y, sin(a0) * profile[last].x)
-			var top1 := Vector3(cos(a1) * profile[last].x, profile[last].y, sin(a1) * profile[last].x)
-			for vertex in [Vector3(0, profile[0].y, 0), bottom1, bottom0, Vector3(0, profile[last].y, 0), top0, top1]:
-				surface.set_uv(Vector2.ZERO)
-				surface.add_vertex(vertex)
-		surface.generate_normals()
-		var created := surface.commit()
-		created.surface_set_material(0, material)
-		_mesh_cache[key] = created
-	var instance := MeshInstance3D.new()
-	instance.mesh = _mesh_cache[key]
-	parent.add_child(instance)
+	# One restrained metallic inlay grounds the set without hiding its silhouette.
+	var base_radius := 0.235 if kind == "pawn" else 0.30
+	_add_torus(piece, base_radius, 0.018, 0.095, accent)
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
@@ -642,7 +573,7 @@ func _create_main_menu() -> void:
 	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "ANDROID • OFFLINE • BETA 0.12.0.9"
+	version.text = "ANDROID • OFFLINE • BETA 0.12.0.10"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_font_size_override("font_size", 13)
 	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
@@ -861,7 +792,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 9[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 10[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
