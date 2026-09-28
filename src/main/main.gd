@@ -218,7 +218,12 @@ func _create_board() -> void:
 	var base := MeshInstance3D.new()
 	var base_mesh := BoxMesh.new()
 	base_mesh.size = Vector3(9.0, 0.32, 9.0)
-	base_mesh.material = _matte_material(Color("201820"), 0.62)
+	# The exposed half-unit border around the squares projects as a large wedge
+	# on the camera-right side. Keep this structural backing uniformly matte;
+	# the rails above it provide the intended lit material variation.
+	var base_material := _matte_material(Color("201820"), 0.62)
+	base_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	base_mesh.material = base_material
 	base.mesh = base_mesh
 	base.position.y = -0.22
 	board.add_child(base)
