@@ -457,85 +457,106 @@ func _add_sphere(parent: Node3D, radius: float, y: float, material: Material, of
 
 
 func _create_ui() -> void:
+	# A single restrained sidebar groups secondary controls without competing
+	# with the board. It is inserted behind the scene title and all HUD controls.
+	var sidebar := PanelContainer.new()
+	sidebar.position = Vector2(14, 14)
+	sidebar.size = Vector2(205, 570)
+	sidebar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sidebar_style := StyleBoxFlat.new()
+	sidebar_style.bg_color = Color(0.035, 0.045, 0.065, 0.78)
+	sidebar_style.border_color = Color(0.22, 0.24, 0.30, 0.55)
+	sidebar_style.set_border_width_all(1)
+	sidebar_style.set_corner_radius_all(10)
+	sidebar.add_theme_stylebox_override("panel", sidebar_style)
+	$UI.add_child(sidebar)
+	$UI.move_child(sidebar, 0)
+
 	_top_panel = HBoxContainer.new()
 	var panel := _top_panel
-	panel.add_theme_constant_override("separation", 10)
+	panel.add_theme_constant_override("separation", 6)
 	$UI.add_child(panel)
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 
 	_status_label = Label.new()
-	_status_label.custom_minimum_size = Vector2(210, 50)
+	_status_label.custom_minimum_size = Vector2(190, 44)
 	_status_label.add_theme_font_size_override("font_size", 20)
 	panel.add_child(_status_label)
 
 	_clock_label = Label.new()
-	_clock_label.custom_minimum_size = Vector2(155, 50)
+	_clock_label.custom_minimum_size = Vector2(140, 44)
 	_clock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_clock_label.add_theme_font_size_override("font_size", 20)
 	panel.add_child(_clock_label)
 
 	_mode_button = Button.new()
 	_mode_button.text = "VS AI" if play_vs_ai else "LOCAL"
-	_mode_button.custom_minimum_size = Vector2(82, 48)
+	_mode_button.custom_minimum_size = Vector2(76, 42)
 	_mode_button.pressed.connect(_toggle_game_mode)
 	panel.add_child(_mode_button)
 
 	var clock_button := Button.new()
 	clock_button.text = "CLOCK"
-	clock_button.custom_minimum_size = Vector2(86, 48)
+	clock_button.custom_minimum_size = Vector2(78, 42)
 	clock_button.pressed.connect(_toggle_clock)
 	panel.add_child(clock_button)
 
 	var camera_button := Button.new()
 	camera_button.text = "VIEW"
-	camera_button.custom_minimum_size = Vector2(78, 48)
+	camera_button.custom_minimum_size = Vector2(72, 42)
 	camera_button.pressed.connect(_reset_camera)
 	panel.add_child(camera_button)
 
 	var haptic_button := Button.new()
 	haptic_button.text = "VIBE" if haptics_enabled else "VIBE OFF"
-	haptic_button.custom_minimum_size = Vector2(72, 48)
+	haptic_button.custom_minimum_size = Vector2(68, 42)
 	haptic_button.pressed.connect(_toggle_haptics.bind(haptic_button))
 	panel.add_child(haptic_button)
 
 	var undo_button := Button.new()
 	undo_button.text = "UNDO"
-	undo_button.custom_minimum_size = Vector2(86, 48)
+	undo_button.custom_minimum_size = Vector2(78, 42)
 	undo_button.pressed.connect(_undo)
 	panel.add_child(undo_button)
 
 	var new_button := Button.new()
 	new_button.text = "NEW"
-	new_button.custom_minimum_size = Vector2(86, 48)
+	new_button.custom_minimum_size = Vector2(78, 42)
 	new_button.pressed.connect(_new_game)
 	panel.add_child(new_button)
 
 	var menu_button := Button.new()
 	menu_button.text = "MENU"
-	menu_button.custom_minimum_size = Vector2(82, 48)
+	menu_button.custom_minimum_size = Vector2(76, 42)
 	menu_button.pressed.connect(_show_main_menu)
 	panel.add_child(menu_button)
 
 	_graphics_button = Button.new()
-	_graphics_button.position = Vector2(28, 78)
-	_graphics_button.size = Vector2(128, 44)
+	_graphics_button.position = Vector2(28, 66)
+	_graphics_button.size = Vector2(112, 36)
 	_graphics_button.pressed.connect(_cycle_graphics_quality)
 	$UI.add_child(_graphics_button)
 	_update_graphics_button()
 
 	_sound_button = Button.new()
-	_sound_button.position = Vector2(28, 130)
-	_sound_button.size = Vector2(128, 44)
+	_sound_button.position = Vector2(28, 108)
+	_sound_button.size = Vector2(112, 36)
 	_sound_button.pressed.connect(_toggle_sound)
 	$UI.add_child(_sound_button)
 	_update_sound_button()
 
 	_music_button = Button.new()
-	_music_button.position = Vector2(28, 182)
-	_music_button.size = Vector2(128, 44)
+	_music_button.position = Vector2(28, 150)
+	_music_button.size = Vector2(112, 36)
 	_music_button.pressed.connect(_toggle_music)
 	$UI.add_child(_music_button)
 	_update_music_button()
+
+	for child in panel.get_children():
+		if child is Button:
+			_style_hud_button(child)
+	for button in [_graphics_button, _sound_button, _music_button]:
+		_style_hud_button(button)
 
 	_fps_label = Label.new()
 	_fps_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -548,6 +569,21 @@ func _create_ui() -> void:
 	$UI.add_child(_fps_label)
 	_create_main_menu()
 	_create_game_panels()
+
+
+func _style_hud_button(button: Button) -> void:
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.075, 0.082, 0.105, 0.92)
+	normal.border_color = Color(0.24, 0.25, 0.30, 0.72)
+	normal.set_border_width_all(1)
+	normal.set_corner_radius_all(5)
+	button.add_theme_stylebox_override("normal", normal)
+	var active := normal.duplicate()
+	active.bg_color = Color(0.16, 0.13, 0.11, 0.96)
+	active.border_color = Color("b99150")
+	button.add_theme_stylebox_override("hover", active)
+	button.add_theme_stylebox_override("pressed", active)
+	button.add_theme_stylebox_override("focus", active)
 
 
 func _create_main_menu() -> void:
@@ -642,8 +678,8 @@ func _create_main_menu() -> void:
 
 func _create_game_panels() -> void:
 	var history_panel := PanelContainer.new()
-	history_panel.position = Vector2(24, 240)
-	history_panel.size = Vector2(235, 300)
+	history_panel.position = Vector2(24, 198)
+	history_panel.size = Vector2(185, 238)
 	$UI.add_child(history_panel)
 	_history_label = RichTextLabel.new()
 	_history_label.bbcode_enabled = true
@@ -654,16 +690,17 @@ func _create_game_panels() -> void:
 	_update_move_history()
 
 	_captured_label = Label.new()
-	_captured_label.position = Vector2(24, 552)
-	_captured_label.size = Vector2(280, 86)
+	_captured_label.position = Vector2(24, 448)
+	_captured_label.size = Vector2(190, 66)
 	_captured_label.add_theme_font_size_override("font_size", 17)
 	$UI.add_child(_captured_label)
 	_update_captured_pieces()
 
 	var resign_button := Button.new()
 	resign_button.text = "RESIGN"
-	resign_button.position = Vector2(24, 648)
-	resign_button.size = Vector2(120, 44)
+	resign_button.position = Vector2(24, 526)
+	resign_button.size = Vector2(104, 38)
+	_style_hud_button(resign_button)
 	resign_button.pressed.connect(_request_resign)
 	$UI.add_child(resign_button)
 
