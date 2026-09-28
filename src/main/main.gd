@@ -246,6 +246,12 @@ func _create_board() -> void:
 	# shaders, transparency, or per-frame work.
 	var table_material := _matte_material(Color("1d1116"), 0.72)
 	var table_edge_material := _matte_material(Color("281820"), 0.66)
+	# The broad plinth is a visual backdrop, not a light receiver. On the target
+	# mobile GPU a BoxMesh top face still exposed one diagonal lighting facet.
+	# Unshaded matte tiers guarantee a uniform surface while the stepped geometry
+	# itself preserves depth around the board.
+	table_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	table_edge_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_add_board_box(Vector3(0, -0.66, 0), Vector3(11.8, 0.48, 11.8), table_material)
 	_add_board_box(Vector3(0, -0.39, 0), Vector3(10.8, 0.14, 10.8), table_edge_material)
 	_add_board_box(Vector3(0, -0.315, 0), Vector3(9.65, 0.08, 9.65), table_material)
