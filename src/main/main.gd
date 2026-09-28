@@ -228,8 +228,13 @@ func _create_board() -> void:
 	base.position.y = -0.22
 	board.add_child(base)
 
-	var wood := _material(Color("241418"), 0.3, 0.18)
-	var gold := _material(Color("9f7440"), 0.22, 0.72)
+	# The wide side rails frame the board but must not behave like polished
+	# reflectors. In particular, the camera-right rail caught the cool fill over
+	# its full length and projected as the persistent bright wedge. Keep the dark
+	# structural rail unshaded; the narrow metallic inset remains light-reactive.
+	var wood := _matte_material(Color("241418"), 0.82)
+	wood.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var gold := _material(Color("9f7440"), 0.30, 0.72)
 	for rail in [
 		[Vector3(0, -0.02, -4.38), Vector3(9.15, 0.26, 0.42)],
 		[Vector3(0, -0.02, 4.38), Vector3(9.15, 0.26, 0.42)],
