@@ -175,7 +175,7 @@ func _setup_environment() -> void:
 	environment.background_color = Color("111725")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color("858e9d")
-	environment.ambient_light_energy = 0.36
+	environment.ambient_light_energy = 0.34
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	$WorldEnvironment.environment = environment
 	# Keep illumination spatially uniform: local Omni rim lights created visible
@@ -185,9 +185,14 @@ func _setup_environment() -> void:
 func _setup_piece_materials() -> void:
 	# Create the three premium materials once. All 32 ModelInstances share these
 	# resources, preventing per-move allocations and shader recompilation.
-	_piece_ivory_material = _luxury_piece_material(Color("cec2ad"), 0.36, 0.02)
-	_piece_obsidian_material = _luxury_piece_material(Color("28313e"), 0.26, 0.22)
-	_piece_gold_material = _luxury_piece_material(Color("c58a32"), 0.25, 0.82, false)
+	_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.40, 0.01)
+	_piece_ivory_material.metallic_specular = 0.34
+	_piece_ivory_material.clearcoat_roughness = 0.30
+	_piece_obsidian_material = _luxury_piece_material(Color("303846"), 0.30, 0.14)
+	_piece_obsidian_material.metallic_specular = 0.52
+	_piece_obsidian_material.clearcoat_roughness = 0.20
+	_piece_gold_material = _luxury_piece_material(Color("bd8b43"), 0.30, 0.78, false)
+	_piece_gold_material.clearcoat_roughness = 0.25
 
 
 func _create_board() -> void:
@@ -213,7 +218,7 @@ func _create_board() -> void:
 	var base := MeshInstance3D.new()
 	var base_mesh := BoxMesh.new()
 	base_mesh.size = Vector3(9.0, 0.32, 9.0)
-	base_mesh.material = _material(Color("201820"), 0.28, 0.25)
+	base_mesh.material = _matte_material(Color("201820"), 0.62)
 	base.mesh = base_mesh
 	base.position.y = -0.22
 	board.add_child(base)
@@ -241,7 +246,7 @@ func _create_board() -> void:
 	table_mesh.bottom_radius = 6.4
 	table_mesh.height = 0.45
 	table_mesh.radial_segments = 64
-	table_mesh.material = wood
+	table_mesh.material = _matte_material(Color("1d1116"), 0.68)
 	table.mesh = table_mesh
 	table.position.y = -0.58
 	board.add_child(table)
@@ -249,7 +254,7 @@ func _create_board() -> void:
 	var floor := MeshInstance3D.new()
 	var floor_mesh := PlaneMesh.new()
 	floor_mesh.size = Vector2(36.0, 36.0)
-	floor_mesh.material = _material(Color("090d16"), 0.72, 0.06)
+	floor_mesh.material = _matte_material(Color("090d16"), 0.90)
 	floor.mesh = floor_mesh
 	floor.position.y = -0.82
 	decor_root.add_child(floor)
@@ -573,7 +578,7 @@ func _create_main_menu() -> void:
 	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "ANDROID • OFFLINE • BETA 0.12.0.16"
+	version.text = "ANDROID • OFFLINE • BETA 0.12.0.17"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_font_size_override("font_size", 13)
 	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
@@ -792,7 +797,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 16[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 17[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
@@ -1607,6 +1612,15 @@ func _luxury_piece_material(color: Color, roughness: float, metallic: float, emi
 		material.emission_enabled = true
 		material.emission = color * 0.32
 		material.emission_energy_multiplier = 0.65
+	return material
+
+
+func _matte_material(color: Color, roughness: float) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.roughness = roughness
+	material.metallic = 0.0
+	material.metallic_specular = 0.22
 	return material
 
 
