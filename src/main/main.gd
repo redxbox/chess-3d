@@ -240,23 +240,24 @@ func _create_board() -> void:
 	]:
 		_add_board_box(accent[0], accent[1], gold)
 
-	var table := MeshInstance3D.new()
-	var table_mesh := CylinderMesh.new()
-	table_mesh.top_radius = 5.8
-	table_mesh.bottom_radius = 6.4
-	table_mesh.height = 0.45
-	table_mesh.radial_segments = 64
-	table_mesh.material = _matte_material(Color("1d1116"), 0.68)
-	table.mesh = table_mesh
-	table.position.y = -0.58
-	board.add_child(table)
+	# A layered rectangular plinth avoids the large fan-triangulated top of the
+	# old CylinderMesh. On mobile that fan produced a bright triangular facet at
+	# the right edge of the table. Separate matte tiers add depth without extra
+	# shaders, transparency, or per-frame work.
+	var table_material := _matte_material(Color("1d1116"), 0.72)
+	var table_edge_material := _matte_material(Color("281820"), 0.66)
+	_add_board_box(Vector3(0, -0.66, 0), Vector3(11.8, 0.48, 11.8), table_material)
+	_add_board_box(Vector3(0, -0.39, 0), Vector3(10.8, 0.14, 10.8), table_edge_material)
+	_add_board_box(Vector3(0, -0.315, 0), Vector3(9.65, 0.08, 9.65), table_material)
 
 	var floor := MeshInstance3D.new()
 	var floor_mesh := PlaneMesh.new()
 	floor_mesh.size = Vector2(36.0, 36.0)
-	floor_mesh.material = _matte_material(Color("090d16"), 0.90)
+	floor_mesh.material = _matte_material(Color("090d16"), 0.94)
 	floor.mesh = floor_mesh
-	floor.position.y = -0.82
+	# Keep a real gap below the plinth. The old 15 mm separation caused depth
+	# precision artifacts where the tapered table intersected the floor.
+	floor.position.y = -1.02
 	decor_root.add_child(floor)
 	_add_board_coordinates()
 	_create_room_details(wood, gold)
