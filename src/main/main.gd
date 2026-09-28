@@ -321,14 +321,18 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 	model.mesh = PIECE_MODELS[kind]
 	model.material_override = material
 	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	# Knights face their opponent; rotational pieces are visually symmetric.
+	# Knights face their opponent. Bishops turn diagonally so the real mitre cut
+	# remains visible from the gameplay camera instead of collapsing in profile.
 	if kind == "knight":
 		model.rotation.y = 0.0 if is_white else PI
+	elif kind == "bishop":
+		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
 	piece.add_child(model)
 
-	# One restrained metallic inlay grounds the set without hiding its silhouette.
-	var base_radius := 0.265 if kind == "pawn" else 0.325
-	_add_torus(piece, base_radius, 0.020, 0.095, accent)
+	# Keep the metallic inlay inside the sculpted foot so it reads as an inset,
+	# not as a separate ring glued around the model.
+	var base_radius := 0.235 if kind == "pawn" else 0.295
+	_add_torus(piece, base_radius, 0.012, 0.095, accent)
 	# A restrained second inlay follows an existing sculpted collar and makes the
 	# six silhouettes readable at gameplay distance without recoloring the body.
 	if kind in ["bishop", "queen", "king"]:
@@ -337,7 +341,7 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 			"queen": Vector2(0.215, 1.08),
 			"king": Vector2(0.215, 1.19)
 		}[kind]
-		_add_torus(piece, collar_data.x, 0.012, collar_data.y, accent)
+		_add_torus(piece, collar_data.x, 0.009, collar_data.y, accent)
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
@@ -578,7 +582,7 @@ func _create_main_menu() -> void:
 	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "ANDROID • OFFLINE • BETA 0.12.0.17"
+	version.text = "ANDROID • OFFLINE • BETA 0.12.0.18"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_font_size_override("font_size", 13)
 	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
@@ -797,7 +801,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 17[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 18[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
