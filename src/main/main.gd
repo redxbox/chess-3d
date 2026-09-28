@@ -351,15 +351,15 @@ func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material,
 			_add_torus(piece, 0.235, 0.028, 1.17, accent)
 			_add_cylinder(piece, 0.18, 0.25, 0.20, 1.27, material)
 			_add_sphere(piece, 0.19, 1.40, material)
-			_add_box(piece, Vector3(0.10, 0.38, 0.10), Vector3(0.0, 1.58, 0.0), accent)
-			_add_box(piece, Vector3(0.36, 0.10, 0.10), Vector3(0.0, 1.64, 0.0), accent)
+			_add_box(piece, Vector3(0.075, 0.32, 0.075), Vector3(0.0, 1.55, 0.0), accent)
+			_add_box(piece, Vector3(0.28, 0.075, 0.075), Vector3(0.0, 1.60, 0.0), accent)
 		"queen":
 			_add_torus(piece, 0.24, 0.026, 1.05, accent)
 			_add_cylinder(piece, 0.285, 0.19, 0.18, 1.14, material)
 			for angle in [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]:
-				var crown_offset := Vector3(cos(deg_to_rad(angle)) * 0.24, 1.34, sin(deg_to_rad(angle)) * 0.24)
-				_add_sphere(piece, 0.060, 0.0, accent, crown_offset)
-			_add_sphere(piece, 0.105, 1.39, material)
+				var crown_offset := Vector3(cos(deg_to_rad(angle)) * 0.215, 1.31, sin(deg_to_rad(angle)) * 0.215)
+				_add_sphere(piece, 0.045, 0.0, accent, crown_offset)
+			_add_sphere(piece, 0.085, 1.36, material)
 		"bishop":
 			_add_torus(piece, 0.205, 0.024, 0.91, accent)
 			_add_sphere(piece, 0.235, 1.10, material)
@@ -369,11 +369,11 @@ func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material,
 			# Keep the castle crown unmistakable without letting it overpower the
 			# back rank. The first rebuilt crown was wider than the rook's foot and
 			# nearly queen-height on device; this compact rim follows the body taper.
-			_add_torus(piece, 0.235, 0.022, 0.84, accent)
-			_add_cylinder(piece, 0.255, 0.22, 0.16, 0.92, material)
+			_add_torus(piece, 0.205, 0.018, 0.84, accent)
+			_add_cylinder(piece, 0.225, 0.205, 0.14, 0.91, material)
 			for angle in [0.0, 60.0, 120.0, 180.0, 240.0, 300.0]:
-				var battlement := Vector3(cos(deg_to_rad(angle)) * 0.20, 1.04, sin(deg_to_rad(angle)) * 0.20)
-				_add_box(piece, Vector3(0.11, 0.16, 0.11), battlement, material)
+				var battlement := Vector3(cos(deg_to_rad(angle)) * 0.17, 1.00, sin(deg_to_rad(angle)) * 0.17)
+				_add_box(piece, Vector3(0.085, 0.13, 0.085), battlement, material)
 
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
