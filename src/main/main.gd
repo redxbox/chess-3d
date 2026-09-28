@@ -108,9 +108,13 @@ var white_time := 600.0
 var black_time := 600.0
 var _autosave_accumulator := 0.0
 const AUTOSAVE_PATH := "user://autosave.json"
+const VISUAL_THEME_PATH := "user://visual_theme.txt"
+var visual_theme := "classic"
+var _visual_theme_button: Button
 
 
 func _ready() -> void:
+	_load_visual_theme()
 	_setup_environment()
 	_setup_piece_materials()
 	decor_root.name = "EnvironmentDetails"
@@ -172,10 +176,10 @@ func _notification(what: int) -> void:
 func _setup_environment() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("111725")
+	environment.background_color = Color("0b1015") if visual_theme == "metal" else Color("111725")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("858e9d")
-	environment.ambient_light_energy = 0.34
+	environment.ambient_light_color = Color("71808b") if visual_theme == "metal" else Color("858e9d")
+	environment.ambient_light_energy = 0.30 if visual_theme == "metal" else 0.34
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	$WorldEnvironment.environment = environment
 	# Keep illumination spatially uniform: local Omni rim lights created visible
@@ -185,19 +189,32 @@ func _setup_environment() -> void:
 func _setup_piece_materials() -> void:
 	# Create the three premium materials once. All 32 ModelInstances share these
 	# resources, preventing per-move allocations and shader recompilation.
-	_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.40, 0.01)
-	_piece_ivory_material.metallic_specular = 0.34
-	_piece_ivory_material.clearcoat_roughness = 0.30
-	_piece_obsidian_material = _luxury_piece_material(Color("303846"), 0.30, 0.14)
-	_piece_obsidian_material.metallic_specular = 0.52
-	_piece_obsidian_material.clearcoat_roughness = 0.20
-	_piece_gold_material = _luxury_piece_material(Color("bd8b43"), 0.30, 0.78, false)
-	_piece_gold_material.clearcoat_roughness = 0.25
+	if visual_theme == "metal":
+		_piece_ivory_material = _luxury_piece_material(Color("aeb8bd"), 0.24, 0.88)
+		_piece_ivory_material.metallic_specular = 0.72
+		_piece_ivory_material.clearcoat_roughness = 0.38
+		_piece_obsidian_material = _luxury_piece_material(Color("273039"), 0.20, 0.94)
+		_piece_obsidian_material.metallic_specular = 0.78
+		_piece_obsidian_material.clearcoat_roughness = 0.32
+		_piece_gold_material = _luxury_piece_material(Color("a96332"), 0.27, 0.92, false)
+	else:
+		_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.40, 0.01)
+		_piece_ivory_material.metallic_specular = 0.34
+		_piece_ivory_material.clearcoat_roughness = 0.30
+		_piece_obsidian_material = _luxury_piece_material(Color("303846"), 0.30, 0.14)
+		_piece_obsidian_material.metallic_specular = 0.52
+		_piece_obsidian_material.clearcoat_roughness = 0.20
+		_piece_gold_material = _luxury_piece_material(Color("bd8b43"), 0.30, 0.78, false)
+		_piece_gold_material.clearcoat_roughness = 0.25
 
 
 func _create_board() -> void:
-	_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
-	_board_dark_material = _material(Color("542536"), 0.43, 0.06)
+	if visual_theme == "metal":
+		_board_light_material = _material(Color("65727a"), 0.34, 0.82)
+		_board_dark_material = _material(Color("222d35"), 0.28, 0.90)
+	else:
+		_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
+		_board_dark_material = _material(Color("542536"), 0.43, 0.06)
 	var light_material := _board_light_material
 	var dark_material := _board_dark_material
 
@@ -232,9 +249,10 @@ func _create_board() -> void:
 	# reflectors. In particular, the camera-right rail caught the cool fill over
 	# its full length and projected as the persistent bright wedge. Keep the dark
 	# structural rail unshaded; the narrow metallic inset remains light-reactive.
-	var wood := _matte_material(Color("241418"), 0.82)
+	var wood_color := Color("171d22") if visual_theme == "metal" else Color("241418")
+	var wood := _matte_material(wood_color, 0.82)
 	wood.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var gold := _material(Color("9f7440"), 0.30, 0.72)
+	var gold := _material(Color("a96332") if visual_theme == "metal" else Color("9f7440"), 0.30, 0.82 if visual_theme == "metal" else 0.72)
 	for rail in [
 		[Vector3(0, -0.02, -4.38), Vector3(9.15, 0.26, 0.42)],
 		[Vector3(0, -0.02, 4.38), Vector3(9.15, 0.26, 0.42)],
@@ -341,6 +359,8 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
 	piece.add_child(model)
 	_add_sculpted_identity_top(piece, kind, material, accent)
+	if visual_theme == "metal":
+		_add_metal_armor(piece, kind, material, accent)
 
 	# Keep the metallic inlay inside the sculpted foot so it reads as an inset,
 	# not as a separate ring glued around the model.
@@ -386,6 +406,19 @@ func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material,
 			for angle in [0.0, 60.0, 120.0, 180.0, 240.0, 300.0]:
 				var battlement := Vector3(cos(deg_to_rad(angle)) * 0.17, 1.00, sin(deg_to_rad(angle)) * 0.17)
 				_add_box(piece, Vector3(0.085, 0.13, 0.085), battlement, material)
+
+
+func _add_metal_armor(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
+	# Angular, bolted armor changes the silhouette as well as the surface response;
+	# this is deliberately more than a palette swap. Cached primitive meshes are
+	# shared by every matching piece and both armies.
+	_add_cylinder(piece, 0.31 if kind != "pawn" else 0.25, 0.34 if kind != "pawn" else 0.28, 0.10, 0.38, material)
+	for angle in [0.0, 90.0, 180.0, 270.0]:
+		var radians := deg_to_rad(angle)
+		var radius := 0.29 if kind != "pawn" else 0.235
+		_add_box(piece, Vector3(0.075, 0.12, 0.16), Vector3(cos(radians) * radius, 0.43, sin(radians) * radius), accent, Vector3(0, -angle, 0))
+	if kind in ["rook", "knight", "bishop", "queen", "king"]:
+		_add_torus(piece, 0.20, 0.018, 0.73, accent)
 
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
@@ -635,15 +668,17 @@ func _create_main_menu() -> void:
 	settings_title.add_theme_color_override("font_color", Color("c5a96b"))
 	content.add_child(settings_title)
 	var settings := GridContainer.new()
-	settings.columns = 3
+	settings.columns = 4
 	settings.add_theme_constant_override("h_separation", 10)
 	content.add_child(settings)
-	_color_button = _menu_button("PLAY AS: " + ("WHITE" if human_color == ChessRules.WHITE else "BLACK"), _cycle_player_color, Vector2(174, 50))
+	_color_button = _menu_button("PLAY AS: " + ("WHITE" if human_color == ChessRules.WHITE else "BLACK"), _cycle_player_color, Vector2(130, 50))
 	settings.add_child(_color_button)
-	_difficulty_button = _menu_button("AI: " + ai_difficulty.to_upper(), _cycle_ai_difficulty, Vector2(174, 50))
+	_difficulty_button = _menu_button("AI: " + ai_difficulty.to_upper(), _cycle_ai_difficulty, Vector2(130, 50))
 	settings.add_child(_difficulty_button)
-	_language_button = _menu_button("ENGLISH", _cycle_language, Vector2(174, 50))
+	_language_button = _menu_button("ENGLISH", _cycle_language, Vector2(130, 50))
 	settings.add_child(_language_button)
+	_visual_theme_button = _menu_button("THEME: " + visual_theme.to_upper(), _cycle_visual_theme, Vector2(130, 50))
+	settings.add_child(_visual_theme_button)
 
 	var play_title := Label.new()
 	play_title.text = "PLAY"
@@ -802,6 +837,23 @@ func _text(key: String) -> String:
 	return fa.get(key, key) if language == "fa" else en.get(key, key)
 
 
+func _load_visual_theme() -> void:
+	if FileAccess.file_exists(VISUAL_THEME_PATH):
+		var file := FileAccess.open(VISUAL_THEME_PATH, FileAccess.READ)
+		if file:
+			visual_theme = file.get_as_text().strip_edges()
+	if visual_theme not in ["classic", "metal"]:
+		visual_theme = "classic"
+
+
+func _cycle_visual_theme() -> void:
+	visual_theme = "metal" if visual_theme == "classic" else "classic"
+	var file := FileAccess.open(VISUAL_THEME_PATH, FileAccess.WRITE)
+	if file:
+		file.store_string(visual_theme)
+	get_tree().reload_current_scene()
+
+
 func _cycle_language() -> void:
 	language = "fa" if language == "en" else "en"
 	_apply_language()
@@ -958,9 +1010,9 @@ func _update_accessibility_buttons() -> void:
 
 func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
-		_board_light_material.albedo_color = Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d")
+		_board_light_material.albedo_color = Color("7d8b93") if visual_theme == "metal" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d"))
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536"))
+		_board_dark_material.albedo_color = Color("1b252c") if visual_theme == "metal" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536")))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	for child in $UI.get_children():
