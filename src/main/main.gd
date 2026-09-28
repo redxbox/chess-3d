@@ -178,10 +178,16 @@ func _setup_environment() -> void:
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color("0b1015") if visual_theme == "metal" else Color("111725")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("71808b") if visual_theme == "metal" else Color("858e9d")
-	environment.ambient_light_energy = 0.30 if visual_theme == "metal" else 0.34
+	environment.ambient_light_color = Color("87949c") if visual_theme == "metal" else Color("858e9d")
+	environment.ambient_light_energy = 0.40 if visual_theme == "metal" else 0.34
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	$WorldEnvironment.environment = environment
+	if visual_theme == "metal":
+		# Metals need broad reflected illumination to retain their base color.
+		# A slightly stronger neutral fill reveals gunmetal without flattening it.
+		$KeyLight.light_energy = 0.44
+		$FillLight.light_energy = 0.36
+		$FillLight.light_color = Color("9aabb5")
 	# Keep illumination spatially uniform: local Omni rim lights created visible
 	# hotspots on the board and table. Key and fill are directional and cached.
 
@@ -193,9 +199,9 @@ func _setup_piece_materials() -> void:
 		_piece_ivory_material = _luxury_piece_material(Color("aeb8bd"), 0.24, 0.88)
 		_piece_ivory_material.metallic_specular = 0.72
 		_piece_ivory_material.clearcoat_roughness = 0.38
-		_piece_obsidian_material = _luxury_piece_material(Color("273039"), 0.20, 0.94)
-		_piece_obsidian_material.metallic_specular = 0.78
-		_piece_obsidian_material.clearcoat_roughness = 0.32
+		_piece_obsidian_material = _luxury_piece_material(Color("46545e"), 0.30, 0.76)
+		_piece_obsidian_material.metallic_specular = 0.68
+		_piece_obsidian_material.clearcoat_roughness = 0.38
 		_piece_gold_material = _luxury_piece_material(Color("a96332"), 0.27, 0.92, false)
 	else:
 		_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.40, 0.01)
@@ -210,8 +216,8 @@ func _setup_piece_materials() -> void:
 
 func _create_board() -> void:
 	if visual_theme == "metal":
-		_board_light_material = _material(Color("65727a"), 0.34, 0.82)
-		_board_dark_material = _material(Color("222d35"), 0.28, 0.90)
+		_board_light_material = _material(Color("68777f"), 0.48, 0.55)
+		_board_dark_material = _material(Color("2d3941"), 0.45, 0.45)
 	else:
 		_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
 		_board_dark_material = _material(Color("542536"), 0.43, 0.06)
@@ -416,7 +422,7 @@ func _add_metal_armor(piece: Node3D, kind: String, material: Material, accent: M
 	for angle in [0.0, 90.0, 180.0, 270.0]:
 		var radians := deg_to_rad(angle)
 		var radius := 0.29 if kind != "pawn" else 0.235
-		_add_box(piece, Vector3(0.075, 0.12, 0.16), Vector3(cos(radians) * radius, 0.43, sin(radians) * radius), accent, Vector3(0, -angle, 0))
+		_add_box(piece, Vector3(0.060, 0.10, 0.14), Vector3(cos(radians) * radius, 0.43, sin(radians) * radius), accent, Vector3(0, -angle, 0))
 	if kind in ["rook", "knight", "bishop", "queen", "king"]:
 		_add_torus(piece, 0.20, 0.018, 0.73, accent)
 
@@ -1010,9 +1016,9 @@ func _update_accessibility_buttons() -> void:
 
 func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
-		_board_light_material.albedo_color = Color("7d8b93") if visual_theme == "metal" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d"))
+		_board_light_material.albedo_color = Color("76858d") if visual_theme == "metal" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d"))
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color("1b252c") if visual_theme == "metal" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536")))
+		_board_dark_material.albedo_color = Color("2d3941") if visual_theme == "metal" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536")))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	for child in $UI.get_children():
