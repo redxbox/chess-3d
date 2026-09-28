@@ -29,10 +29,10 @@ shadow_enabled = false
 rotation_degrees = Vector3(0, 0, 0)
 
 [node name="Camera3D" type="Camera3D" parent="CameraRig"]
-position = Vector3(0, 8.5, 9.5)
-rotation_degrees = Vector3(-40, 0, 0)
+position = Vector3(0, 9.8, 10.8)
+rotation_degrees = Vector3(-42.2, 0, 0)
 current = true
-fov = 42.0
+fov = 34.0
 
 [node name="UI" type="CanvasLayer" parent="."]
 

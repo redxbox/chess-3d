@@ -1546,6 +1546,7 @@ func _save_autosave() -> void:
 		"large_text": large_text_enabled,
 		"camera_yaw": camera_rig.rotation.y,
 		"camera_distance": camera.position.length(),
+		"camera_composition_version": 2,
 		"play_vs_ai": play_vs_ai,
 		"human_color": human_color,
 		"ai_difficulty": ai_difficulty,
@@ -1593,7 +1594,10 @@ func _load_autosave() -> bool:
 	colorblind_enabled = bool(parsed.get("colorblind", false))
 	large_text_enabled = bool(parsed.get("large_text", false))
 	camera_rig.rotation.y = float(parsed.get("camera_yaw", 0.0))
-	_set_camera_distance(float(parsed.get("camera_distance", camera.position.length())))
+	# Beta 19 changes both lens and viewing angle. Do not apply a distance saved
+	# for the old 42-degree lens, because it would recreate the old distortion.
+	if int(parsed.get("camera_composition_version", 1)) >= 2:
+		_set_camera_distance(float(parsed.get("camera_distance", camera.position.length())))
 	play_vs_ai = bool(parsed.get("play_vs_ai", true))
 	human_color = int(parsed.get("human_color", ChessRules.WHITE))
 	ai_difficulty = parsed.get("ai_difficulty", "medium")
@@ -1797,7 +1801,7 @@ func _reset_camera() -> void:
 	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	var duration := 0.01 if reduced_motion_enabled else 0.35
 	tween.tween_property(camera_rig, "rotation:y", 0.0, duration)
-	tween.tween_property(camera, "position", Vector3(0, 8.5, 9.5), duration)
+	tween.tween_property(camera, "position", Vector3(0, 9.8, 10.8), duration)
 	_haptic(20)
 
 
