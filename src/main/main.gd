@@ -366,11 +366,14 @@ func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material,
 			_add_box(piece, Vector3(0.055, 0.34, 0.10), Vector3(0.0, 1.12, -0.19), accent, Vector3(0, 0, -28))
 			_add_sphere(piece, 0.060, 1.35, accent)
 		"rook":
-			_add_torus(piece, 0.27, 0.026, 0.84, accent)
-			_add_cylinder(piece, 0.31, 0.25, 0.20, 0.94, material)
+			# Keep the castle crown unmistakable without letting it overpower the
+			# back rank. The first rebuilt crown was wider than the rook's foot and
+			# nearly queen-height on device; this compact rim follows the body taper.
+			_add_torus(piece, 0.235, 0.022, 0.84, accent)
+			_add_cylinder(piece, 0.255, 0.22, 0.16, 0.92, material)
 			for angle in [0.0, 60.0, 120.0, 180.0, 240.0, 300.0]:
-				var battlement := Vector3(cos(deg_to_rad(angle)) * 0.245, 1.11, sin(deg_to_rad(angle)) * 0.245)
-				_add_box(piece, Vector3(0.14, 0.24, 0.14), battlement, material)
+				var battlement := Vector3(cos(deg_to_rad(angle)) * 0.20, 1.04, sin(deg_to_rad(angle)) * 0.20)
+				_add_box(piece, Vector3(0.11, 0.16, 0.11), battlement, material)
 
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
