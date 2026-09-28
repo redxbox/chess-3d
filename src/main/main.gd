@@ -250,15 +250,10 @@ func _create_board() -> void:
 	_add_board_box(Vector3(0, -0.39, 0), Vector3(10.8, 0.14, 10.8), table_edge_material)
 	_add_board_box(Vector3(0, -0.315, 0), Vector3(9.65, 0.08, 9.65), table_material)
 
-	var floor := MeshInstance3D.new()
-	var floor_mesh := PlaneMesh.new()
-	floor_mesh.size = Vector2(36.0, 36.0)
-	floor_mesh.material = _matte_material(Color("090d16"), 0.94)
-	floor.mesh = floor_mesh
-	# Keep a real gap below the plinth. The old 15 mm separation caused depth
-	# precision artifacts where the tapered table intersected the floor.
-	floor.position.y = -1.02
-	decor_root.add_child(floor)
+	# No floor receiver is needed in the restrained stage. The old PlaneMesh was
+	# split diagonally by the mobile renderer and one half caught the cool fill,
+	# producing the persistent white triangle to the board's right. The opaque
+	# environment background now surrounds the self-contained table cleanly.
 	_add_board_coordinates()
 	_create_room_details(wood, gold)
 
