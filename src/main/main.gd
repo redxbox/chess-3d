@@ -198,11 +198,12 @@ func _setup_piece_materials() -> void:
 	if visual_theme == "metal":
 		_piece_ivory_material = _luxury_piece_material(Color("aeb8bd"), 0.24, 0.88)
 		_piece_ivory_material.metallic_specular = 0.72
-		_piece_ivory_material.clearcoat_roughness = 0.38
+		_piece_ivory_material.clearcoat_enabled = false
 		_piece_obsidian_material = _luxury_piece_material(Color("46545e"), 0.30, 0.76)
 		_piece_obsidian_material.metallic_specular = 0.68
-		_piece_obsidian_material.clearcoat_roughness = 0.38
-		_piece_gold_material = _luxury_piece_material(Color("a96332"), 0.27, 0.92, false)
+		_piece_obsidian_material.clearcoat_enabled = false
+		_piece_gold_material = _luxury_piece_material(Color("8f4f2b"), 0.38, 0.86, false)
+		_piece_gold_material.clearcoat_enabled = false
 	else:
 		_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.40, 0.01)
 		_piece_ivory_material.metallic_specular = 0.34
@@ -352,28 +353,24 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 	piece.set_meta("square", Vector2i(file, rank))
 	pieces_root.add_child(piece)
 
+	if visual_theme == "metal":
+		_add_medieval_figure(piece, kind, is_white, material, accent)
+		return
+
 	var model := MeshInstance3D.new()
 	model.name = "SculptedModel"
 	model.mesh = PIECE_MODELS[kind]
 	model.material_override = material
 	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	# Knights face their opponent. Bishops turn diagonally so the real mitre cut
-	# remains visible from the gameplay camera instead of collapsing in profile.
 	if kind == "knight":
 		model.rotation.y = 0.0 if is_white else PI
 	elif kind == "bishop":
 		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
 	piece.add_child(model)
 	_add_sculpted_identity_top(piece, kind, material, accent)
-	if visual_theme == "metal":
-		_add_metal_armor(piece, kind, material, accent)
 
-	# Keep the metallic inlay inside the sculpted foot so it reads as an inset,
-	# not as a separate ring glued around the model.
 	var base_radius := 0.235 if kind == "pawn" else 0.295
 	_add_torus(piece, base_radius, 0.012, 0.095, accent)
-	# A restrained second inlay follows an existing sculpted collar and makes the
-	# six silhouettes readable at gameplay distance without recoloring the body.
 	if kind in ["bishop", "queen", "king"]:
 		var collar_data: Vector2 = {
 			"bishop": Vector2(0.18, 0.93),
@@ -414,17 +411,75 @@ func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material,
 				_add_box(piece, Vector3(0.085, 0.13, 0.085), battlement, material)
 
 
-func _add_metal_armor(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
-	# Angular, bolted armor changes the silhouette as well as the surface response;
-	# this is deliberately more than a palette swap. Cached primitive meshes are
-	# shared by every matching piece and both armies.
-	_add_cylinder(piece, 0.31 if kind != "pawn" else 0.25, 0.34 if kind != "pawn" else 0.28, 0.10, 0.38, material)
-	for angle in [0.0, 90.0, 180.0, 270.0]:
-		var radians := deg_to_rad(angle)
-		var radius := 0.29 if kind != "pawn" else 0.235
-		_add_box(piece, Vector3(0.060, 0.10, 0.14), Vector3(cos(radians) * radius, 0.43, sin(radians) * radius), accent, Vector3(0, -angle, 0))
-	if kind in ["rook", "knight", "bishop", "queen", "king"]:
-		_add_torus(piece, 0.20, 0.018, 0.73, accent)
+func _add_medieval_figure(piece: Node3D, kind: String, is_white: bool, steel: Material, trim: Material) -> void:
+	# Original low-poly medieval sculpts built from cached meshes. Unlike the
+	# previous armored Staunton skin, every rank has a complete figurative body,
+	# clothing/plate silhouette and a rank-specific weapon or structure.
+	var facing := 1.0 if is_white else -1.0
+	var base_radius := 0.27 if kind == "pawn" else 0.32
+	_add_cylinder(piece, base_radius - 0.03, base_radius, 0.12, 0.10, steel)
+	_add_torus(piece, base_radius - 0.025, 0.018, 0.17, trim)
+
+	match kind:
+		"pawn":
+			# Foot soldier: split greaves, mail skirt, breastplate, helmet and spear.
+			_add_box(piece, Vector3(0.09, 0.34, 0.11), Vector3(-0.09, 0.38, 0), steel)
+			_add_box(piece, Vector3(0.09, 0.34, 0.11), Vector3(0.09, 0.38, 0), steel)
+			_add_cylinder(piece, 0.16, 0.23, 0.38, 0.67, steel)
+			_add_box(piece, Vector3(0.34, 0.09, 0.14), Vector3(0, 0.80, 0), trim)
+			_add_sphere(piece, 0.13, 0.98, steel)
+			_add_cylinder(piece, 0.14, 0.16, 0.11, 1.08, steel)
+			_add_box(piece, Vector3(0.035, 0.22, 0.045), Vector3(0, 1.01, -0.13 * facing), trim)
+			_add_box(piece, Vector3(0.035, 0.88, 0.035), Vector3(-0.25, 0.78, 0), trim)
+			_add_box(piece, Vector3(0.10, 0.16, 0.035), Vector3(-0.25, 1.25, 0), steel, Vector3(0, 0, 45))
+		"rook":
+			# Fortified tower with an iron gate and four independent battlements.
+			_add_cylinder(piece, 0.23, 0.28, 0.58, 0.52, steel)
+			_add_box(piece, Vector3(0.13, 0.33, 0.035), Vector3(0, 0.48, -0.235 * facing), trim)
+			_add_cylinder(piece, 0.31, 0.24, 0.15, 0.86, steel)
+			for offset in [Vector3(-0.22, 1.02, -0.18), Vector3(0.22, 1.02, -0.18), Vector3(-0.22, 1.02, 0.18), Vector3(0.22, 1.02, 0.18)]:
+				_add_box(piece, Vector3(0.14, 0.22, 0.14), offset, steel)
+		"knight":
+			# Armoured warhorse: four legs, barrel, rising neck, head, ears and tack.
+			for x in [-0.16, 0.16]:
+				for z in [-0.14, 0.14]:
+					_add_box(piece, Vector3(0.075, 0.38, 0.075), Vector3(x, 0.39, z), steel)
+			_add_box(piece, Vector3(0.40, 0.30, 0.48), Vector3(0, 0.65, 0), steel)
+			_add_box(piece, Vector3(0.25, 0.48, 0.22), Vector3(0, 0.91, -0.14 * facing), steel, Vector3(-18 * facing, 0, 0))
+			_add_box(piece, Vector3(0.25, 0.22, 0.34), Vector3(0, 1.15, -0.27 * facing), steel)
+			_add_box(piece, Vector3(0.055, 0.18, 0.07), Vector3(-0.07, 1.34, -0.25 * facing), trim, Vector3(-12 * facing, 0, 0))
+			_add_box(piece, Vector3(0.055, 0.18, 0.07), Vector3(0.07, 1.34, -0.25 * facing), trim, Vector3(-12 * facing, 0, 0))
+			_add_torus(piece, 0.20, 0.018, 0.75, trim, Vector3(90, 0, 0))
+		"bishop":
+			# Robed cleric with shoulder mantle, mitre and a tall crozier.
+			_add_cylinder(piece, 0.16, 0.29, 0.68, 0.54, steel)
+			_add_box(piece, Vector3(0.46, 0.10, 0.18), Vector3(0, 0.82, 0), trim)
+			_add_sphere(piece, 0.14, 1.00, steel)
+			_add_box(piece, Vector3(0.20, 0.32, 0.12), Vector3(0, 1.20, 0), steel, Vector3(0, 0, 45))
+			_add_box(piece, Vector3(0.035, 1.00, 0.035), Vector3(0.27, 0.82, 0), trim)
+			_add_torus(piece, 0.10, 0.022, 1.30, trim, Vector3(90, 0, 0), Vector3(0.27, 0, 0))
+		"queen":
+			# Long court gown, plated bodice, arms and eight-point royal crown.
+			_add_cylinder(piece, 0.16, 0.30, 0.72, 0.55, steel)
+			_add_box(piece, Vector3(0.32, 0.36, 0.20), Vector3(0, 0.88, 0), steel)
+			_add_box(piece, Vector3(0.09, 0.48, 0.10), Vector3(-0.22, 0.78, 0), trim, Vector3(0, 0, -12))
+			_add_box(piece, Vector3(0.09, 0.48, 0.10), Vector3(0.22, 0.78, 0), trim, Vector3(0, 0, 12))
+			_add_sphere(piece, 0.14, 1.16, steel)
+			_add_cylinder(piece, 0.20, 0.15, 0.12, 1.31, trim)
+			for angle in [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]:
+				var r := deg_to_rad(angle)
+				_add_box(piece, Vector3(0.045, 0.18, 0.045), Vector3(cos(r) * 0.16, 1.43, sin(r) * 0.16), trim, Vector3(0, -angle, 12))
+		"king":
+			# Broad plate armour, crowned helm, cape shoulders and a full sword.
+			_add_cylinder(piece, 0.19, 0.30, 0.62, 0.52, steel)
+			_add_box(piece, Vector3(0.48, 0.16, 0.22), Vector3(0, 0.82, 0), trim)
+			_add_box(piece, Vector3(0.38, 0.42, 0.22), Vector3(0, 0.92, 0), steel)
+			_add_sphere(piece, 0.15, 1.21, steel)
+			_add_cylinder(piece, 0.21, 0.15, 0.13, 1.36, trim)
+			_add_box(piece, Vector3(0.06, 0.29, 0.06), Vector3(0, 1.51, 0), trim)
+			_add_box(piece, Vector3(0.25, 0.06, 0.06), Vector3(0, 1.56, 0), trim)
+			_add_box(piece, Vector3(0.055, 0.90, 0.055), Vector3(-0.30, 0.86, 0), steel, Vector3(0, 0, -8))
+			_add_box(piece, Vector3(0.24, 0.055, 0.055), Vector3(-0.30, 0.64, 0), trim)
 
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
@@ -446,7 +501,7 @@ func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, heig
 	parent.add_child(mesh_instance)
 
 
-func _add_torus(parent: Node3D, radius: float, tube: float, y: float, material: Material) -> void:
+func _add_torus(parent: Node3D, radius: float, tube: float, y: float, material: Material, rotation := Vector3.ZERO, offset := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
 	var segments := 12 if _effective_graphics_quality() == "low" else (18 if _effective_graphics_quality() == "medium" else 24)
 	var key := "torus:%s:%s:%d:%d" % [radius, tube, segments, material.get_instance_id()]
@@ -459,7 +514,8 @@ func _add_torus(parent: Node3D, radius: float, tube: float, y: float, material: 
 		created.material = material
 		_mesh_cache[key] = created
 	mesh_instance.mesh = _mesh_cache[key]
-	mesh_instance.position.y = y
+	mesh_instance.position = Vector3(offset.x, y + offset.y, offset.z)
+	mesh_instance.rotation_degrees = rotation
 	parent.add_child(mesh_instance)
 
 
