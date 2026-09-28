@@ -328,6 +328,7 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 	elif kind == "bishop":
 		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
 	piece.add_child(model)
+	_add_sculpted_identity_top(piece, kind, material, accent)
 
 	# Keep the metallic inlay inside the sculpted foot so it reads as an inset,
 	# not as a separate ring glued around the model.
@@ -342,6 +343,35 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 			"king": Vector2(0.215, 1.19)
 		}[kind]
 		_add_torus(piece, collar_data.x, 0.009, collar_data.y, accent)
+
+
+func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
+	match kind:
+		"king":
+			_add_torus(piece, 0.235, 0.028, 1.17, accent)
+			_add_cylinder(piece, 0.18, 0.25, 0.20, 1.27, material)
+			_add_sphere(piece, 0.19, 1.40, material)
+			_add_box(piece, Vector3(0.10, 0.38, 0.10), Vector3(0.0, 1.58, 0.0), accent)
+			_add_box(piece, Vector3(0.36, 0.10, 0.10), Vector3(0.0, 1.64, 0.0), accent)
+		"queen":
+			_add_torus(piece, 0.24, 0.026, 1.05, accent)
+			_add_cylinder(piece, 0.285, 0.19, 0.18, 1.14, material)
+			for angle in [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]:
+				var crown_offset := Vector3(cos(deg_to_rad(angle)) * 0.24, 1.34, sin(deg_to_rad(angle)) * 0.24)
+				_add_sphere(piece, 0.060, 0.0, accent, crown_offset)
+			_add_sphere(piece, 0.105, 1.39, material)
+		"bishop":
+			_add_torus(piece, 0.205, 0.024, 0.91, accent)
+			_add_sphere(piece, 0.235, 1.10, material)
+			_add_box(piece, Vector3(0.055, 0.34, 0.10), Vector3(0.0, 1.12, -0.19), accent, Vector3(0, 0, -28))
+			_add_sphere(piece, 0.060, 1.35, accent)
+		"rook":
+			_add_torus(piece, 0.27, 0.026, 0.84, accent)
+			_add_cylinder(piece, 0.31, 0.25, 0.20, 0.94, material)
+			for angle in [0.0, 60.0, 120.0, 180.0, 240.0, 300.0]:
+				var battlement := Vector3(cos(deg_to_rad(angle)) * 0.245, 1.11, sin(deg_to_rad(angle)) * 0.245)
+				_add_box(piece, Vector3(0.14, 0.24, 0.14), battlement, material)
+
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
@@ -379,13 +409,17 @@ func _add_torus(parent: Node3D, radius: float, tube: float, y: float, material: 
 	parent.add_child(mesh_instance)
 
 
-func _add_box(parent: Node3D, size: Vector3, position: Vector3, material: Material) -> void:
+func _add_box(parent: Node3D, size: Vector3, position: Vector3, material: Material, rotation := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	mesh.material = material
-	mesh_instance.mesh = mesh
+	var key := "box:%s:%d" % [size, material.get_instance_id()]
+	if not _mesh_cache.has(key):
+		var created := BoxMesh.new()
+		created.size = size
+		created.material = material
+		_mesh_cache[key] = created
+	mesh_instance.mesh = _mesh_cache[key]
 	mesh_instance.position = position
+	mesh_instance.rotation_degrees = rotation
 	parent.add_child(mesh_instance)
 
 
@@ -582,7 +616,7 @@ func _create_main_menu() -> void:
 	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "ANDROID • OFFLINE • BETA 0.12.0.18"
+	version.text = "ANDROID • OFFLINE • BETA 0.12.0.18.1"
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_font_size_override("font_size", 13)
 	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
@@ -801,7 +835,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 18[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 18.1[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
