@@ -45,8 +45,8 @@ var coordinates_root := Node3D.new()
 var _mesh_cache: Dictionary = {}
 var _board_light_material: StandardMaterial3D
 var _board_dark_material: StandardMaterial3D
-var _piece_ivory_material: StandardMaterial3D
-var _piece_obsidian_material: StandardMaterial3D
+var _piece_ivory_material: Material
+var _piece_obsidian_material: Material
 var _piece_gold_material: StandardMaterial3D
 var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
@@ -204,12 +204,8 @@ func _setup_piece_materials() -> void:
 	# Create the three premium materials once. All 32 ModelInstances share these
 	# resources, preventing per-move allocations and shader recompilation.
 	if visual_theme == "metal":
-		_piece_ivory_material = _luxury_piece_material(Color("aeb8bd"), 0.24, 0.88)
-		_piece_ivory_material.metallic_specular = 0.72
-		_piece_ivory_material.clearcoat_enabled = false
-		_piece_obsidian_material = _luxury_piece_material(Color("46545e"), 0.30, 0.76)
-		_piece_obsidian_material.metallic_specular = 0.68
-		_piece_obsidian_material.clearcoat_enabled = false
+		_piece_ivory_material = _persian_sculpture_material(true)
+		_piece_obsidian_material = _persian_sculpture_material(false)
 		_piece_gold_material = _luxury_piece_material(Color("8f4f2b"), 0.38, 0.86, false)
 		_piece_gold_material.clearcoat_enabled = false
 	else:
@@ -221,6 +217,58 @@ func _setup_piece_materials() -> void:
 		_piece_obsidian_material.clearcoat_roughness = 0.20
 		_piece_gold_material = _luxury_piece_material(Color("bd8b43"), 0.30, 0.78, false)
 		_piece_gold_material.clearcoat_roughness = 0.25
+
+
+func _persian_sculpture_material(is_white: bool) -> ShaderMaterial:
+	# The generated source meshes contain geometry only, with no UVs, textures,
+	# material slots, or vertex colours. A single cached local-space shader adds
+	# silver/iron, antique gold, and crimson enamel without texture memory.
+	var shader := Shader.new()
+	shader.code = """
+shader_type spatial;
+render_mode specular_schlick_ggx;
+
+uniform vec3 base_metal : source_color;
+uniform vec3 shadow_metal : source_color;
+uniform vec3 antique_gold : source_color;
+uniform vec3 crimson_enamel : source_color;
+varying vec3 sculpt_pos;
+
+void vertex() {
+    sculpt_pos = VERTEX;
+}
+
+void fragment() {
+    float y = sculpt_pos.y;
+    float centre = 1.0 - smoothstep(0.045, 0.135, abs(sculpt_pos.x));
+    float robe = smoothstep(-0.34, -0.18, y) * (1.0 - smoothstep(0.18, 0.32, y));
+    float enamel_mask = centre * robe;
+    float base_band = 1.0 - smoothstep(-0.43, -0.31, y);
+    float crown_detail = smoothstep(0.34, 0.47, y);
+    float gold_mask = clamp(base_band + crown_detail * 0.72, 0.0, 1.0);
+    float patina = 0.5 + 0.5 * sin(sculpt_pos.x * 41.0 + sculpt_pos.y * 29.0 + sculpt_pos.z * 37.0);
+    vec3 metal = mix(shadow_metal, base_metal, 0.72 + patina * 0.18);
+    vec3 colour = mix(metal, crimson_enamel, enamel_mask * 0.88);
+    colour = mix(colour, antique_gold, gold_mask * 0.82);
+    ALBEDO = colour;
+    METALLIC = mix(0.82, 0.48, enamel_mask);
+    ROUGHNESS = mix(0.38 + patina * 0.08, 0.30, enamel_mask);
+    SPECULAR = 0.58;
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	if is_white:
+		material.set_shader_parameter("base_metal", Color("b9c0c2"))
+		material.set_shader_parameter("shadow_metal", Color("555e61"))
+		material.set_shader_parameter("antique_gold", Color("b58a45"))
+		material.set_shader_parameter("crimson_enamel", Color("681d24"))
+	else:
+		material.set_shader_parameter("base_metal", Color("4e5b60"))
+		material.set_shader_parameter("shadow_metal", Color("182126"))
+		material.set_shader_parameter("antique_gold", Color("7c542c"))
+		material.set_shader_parameter("crimson_enamel", Color("3d1018"))
+	return material
 
 
 func _create_board() -> void:
@@ -398,7 +446,7 @@ func _add_persian_model(piece: Node3D, kind: String, is_white: bool, material: M
 	sculpture.name = "PersianSculpture"
 	sculpture.scale = Vector3.ONE * height
 	sculpture.position.y = height * 0.50
-	sculpture.rotation.y = 0.0 if is_white else PI
+	sculpture.rotation.y = PI if is_white else 0.0
 	_apply_sculpture_material(sculpture, material)
 	piece.add_child(sculpture)
 	_add_torus(piece, 0.27 if kind == "pawn" else 0.31, 0.014, 0.075, accent)
