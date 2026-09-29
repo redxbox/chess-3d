@@ -43,6 +43,8 @@ var highlights_root := Node3D.new()
 var decor_root := Node3D.new()
 var coordinates_root := Node3D.new()
 var _mesh_cache: Dictionary = {}
+var _persian_role_materials: Dictionary = {}
+var _persian_role_shader: Shader
 var _board_light_material: StandardMaterial3D
 var _board_dark_material: StandardMaterial3D
 var _piece_ivory_material: Material
@@ -440,6 +442,82 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 		_add_torus(piece, collar_data.x, 0.009, collar_data.y, accent)
 
 
+func _persian_role_material(is_white: bool, kind: String) -> ShaderMaterial:
+	var key := ("blue:" if is_white else "red:") + kind
+	if _persian_role_materials.has(key):
+		return _persian_role_materials[key]
+	if not is_instance_valid(_persian_role_shader):
+		_persian_role_shader = Shader.new()
+		_persian_role_shader.code = """
+shader_type spatial;
+render_mode specular_schlick_ggx;
+
+uniform vec3 metal_light : source_color;
+uniform vec3 metal_shadow : source_color;
+uniform vec3 robe_colour : source_color;
+uniform vec3 apron_colour : source_color;
+uniform vec3 antique_gold : source_color;
+uniform vec3 stone_colour : source_color;
+uniform float role_mode = 0.0;
+uniform float readability_lift = 0.0;
+varying vec3 sculpt_pos;
+
+void vertex() {
+    sculpt_pos = VERTEX;
+}
+
+void fragment() {
+    float y = sculpt_pos.y;
+    float patina = 0.5 + 0.5 * sin(sculpt_pos.x * 37.0 + y * 31.0 + sculpt_pos.z * 43.0);
+    vec3 metal = mix(metal_shadow, metal_light, 0.70 + patina * 0.20);
+    float human = 1.0 - step(0.5, role_mode);
+    float creature = step(0.5, role_mode) * (1.0 - step(1.5, role_mode));
+    float structure = step(1.5, role_mode);
+    float robe = smoothstep(-0.38, -0.22, y) * (1.0 - smoothstep(0.20, 0.34, y));
+    float apron = (1.0 - smoothstep(0.07, 0.16, abs(sculpt_pos.x))) * robe;
+    vec3 human_colour = mix(metal, robe_colour, robe * 0.88);
+    human_colour = mix(human_colour, apron_colour, apron * 0.92);
+    float face = smoothstep(0.22, 0.29, y) * (1.0 - smoothstep(0.38, 0.45, y));
+    human_colour = mix(human_colour, apron_colour, face * 0.48);
+    float creature_accent = smoothstep(0.18, 0.38, y);
+    vec3 creature_colour = mix(stone_colour, robe_colour, creature_accent * 0.24);
+    float capital = smoothstep(0.22, 0.38, y);
+    vec3 structure_colour = mix(stone_colour, robe_colour, capital * 0.58);
+    vec3 colour = human_colour * human + creature_colour * creature + structure_colour * structure;
+    float base_gold = 1.0 - smoothstep(-0.45, -0.34, y);
+    float crown_gold = human * smoothstep(0.42, 0.49, y);
+    colour = mix(colour, antique_gold, clamp(base_gold * 0.56 + crown_gold * 0.65, 0.0, 0.78));
+    ALBEDO = colour;
+    METALLIC = mix(0.70, 0.38, creature + structure);
+    ROUGHNESS = mix(0.40 + patina * 0.08, 0.62, creature + structure);
+    SPECULAR = 0.48;
+    EMISSION = colour * readability_lift;
+}
+"""
+	var result := ShaderMaterial.new()
+	result.shader = _persian_role_shader
+	var mode := 2.0 if kind == "rook" else (1.0 if kind in ["bishop", "knight"] else 0.0)
+	result.set_shader_parameter("role_mode", mode)
+	if is_white:
+		result.set_shader_parameter("metal_light", Color("aeb9bd"))
+		result.set_shader_parameter("metal_shadow", Color("4f5e65"))
+		result.set_shader_parameter("robe_colour", Color("174b82"))
+		result.set_shader_parameter("apron_colour", Color("d4cbb8"))
+		result.set_shader_parameter("antique_gold", Color("a77b3e"))
+		result.set_shader_parameter("stone_colour", Color("8f9290"))
+		result.set_shader_parameter("readability_lift", 0.025)
+	else:
+		result.set_shader_parameter("metal_light", Color("657278"))
+		result.set_shader_parameter("metal_shadow", Color("29363c"))
+		result.set_shader_parameter("robe_colour", Color("7b202b"))
+		result.set_shader_parameter("apron_colour", Color("c4b79f"))
+		result.set_shader_parameter("antique_gold", Color("81592f"))
+		result.set_shader_parameter("stone_colour", Color("4d4c4a"))
+		result.set_shader_parameter("readability_lift", 0.075)
+	_persian_role_materials[key] = result
+	return result
+
+
 func _add_persian_model(piece: Node3D, kind: String, is_white: bool, material: Material, accent: Material) -> void:
 	# The source sculptures are normalized to one unit high, then decimated to a
 	# rank-specific mobile budget. Packed scenes and their meshes are shared by
@@ -451,7 +529,7 @@ func _add_persian_model(piece: Node3D, kind: String, is_white: bool, material: M
 	sculpture.scale = Vector3.ONE * height
 	sculpture.position.y = height * 0.50
 	sculpture.rotation.y = PI if is_white else 0.0
-	_apply_sculpture_material(sculpture, material)
+	_apply_sculpture_material(sculpture, _persian_role_material(is_white, kind))
 	piece.add_child(sculpture)
 	_add_torus(piece, 0.27 if kind == "pawn" else 0.31, 0.014, 0.075, accent)
 
