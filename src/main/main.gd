@@ -468,15 +468,15 @@ void vertex() {
 
 void fragment() {
     float y = sculpt_pos.y;
-    float patina = 0.5 + 0.5 * sin(sculpt_pos.x * 37.0 + y * 31.0 + sculpt_pos.z * 43.0);
+    float patina = clamp(0.52 + NORMAL.y * 0.16 + NORMAL.x * 0.06, 0.0, 1.0);
     vec3 metal = mix(metal_shadow, metal_light, 0.70 + patina * 0.20);
     float human = 1.0 - step(0.5, role_mode);
     float creature = step(0.5, role_mode) * (1.0 - step(1.5, role_mode));
     float structure = step(1.5, role_mode);
     float robe = smoothstep(-0.38, -0.22, y) * (1.0 - smoothstep(0.20, 0.34, y));
-    float apron = (1.0 - smoothstep(0.07, 0.16, abs(sculpt_pos.x))) * robe;
-    vec3 human_colour = mix(metal, robe_colour, robe * 0.88);
-    human_colour = mix(human_colour, apron_colour, apron * 0.92);
+    float apron = (1.0 - smoothstep(0.025, 0.075, abs(sculpt_pos.x))) * robe;
+    vec3 human_colour = mix(metal, robe_colour, robe * 0.96);
+    human_colour = mix(human_colour, apron_colour, apron * 0.76);
     float face = smoothstep(0.22, 0.29, y) * (1.0 - smoothstep(0.38, 0.45, y));
     human_colour = mix(human_colour, apron_colour, face * 0.48);
     float creature_accent = smoothstep(0.18, 0.38, y);
@@ -501,18 +501,18 @@ void fragment() {
 	if is_white:
 		result.set_shader_parameter("metal_light", Color("aeb9bd"))
 		result.set_shader_parameter("metal_shadow", Color("4f5e65"))
-		result.set_shader_parameter("robe_colour", Color("174b82"))
-		result.set_shader_parameter("apron_colour", Color("d4cbb8"))
+		result.set_shader_parameter("robe_colour", Color("123f78"))
+		result.set_shader_parameter("apron_colour", Color("ded4bd"))
 		result.set_shader_parameter("antique_gold", Color("a77b3e"))
-		result.set_shader_parameter("stone_colour", Color("8f9290"))
+		result.set_shader_parameter("stone_colour", Color("747978"))
 		result.set_shader_parameter("readability_lift", 0.025)
 	else:
 		result.set_shader_parameter("metal_light", Color("657278"))
 		result.set_shader_parameter("metal_shadow", Color("29363c"))
-		result.set_shader_parameter("robe_colour", Color("7b202b"))
+		result.set_shader_parameter("robe_colour", Color("8a1f2c"))
 		result.set_shader_parameter("apron_colour", Color("c4b79f"))
 		result.set_shader_parameter("antique_gold", Color("81592f"))
-		result.set_shader_parameter("stone_colour", Color("4d4c4a"))
+		result.set_shader_parameter("stone_colour", Color("414443"))
 		result.set_shader_parameter("readability_lift", 0.075)
 	_persian_role_materials[key] = result
 	return result
@@ -528,7 +528,10 @@ func _add_persian_model(piece: Node3D, kind: String, is_white: bool, material: M
 	sculpture.name = "PersianSculpture"
 	sculpture.scale = Vector3.ONE * height
 	sculpture.position.y = height * 0.50
-	sculpture.rotation.y = PI if is_white else 0.0
+	var display_angle := deg_to_rad(22.0) if kind in ["rook", "bishop", "knight"] else 0.0
+	# Sculptural ranks use a mirrored three-quarter pose so the horse, griffin,
+	# and gate retain their side silhouette while still facing the opposing army.
+	sculpture.rotation.y = (PI - display_angle) if is_white else display_angle
 	_apply_sculpture_material(sculpture, _persian_role_material(is_white, kind))
 	piece.add_child(sculpture)
 	_add_torus(piece, 0.27 if kind == "pawn" else 0.31, 0.014, 0.075, accent)
