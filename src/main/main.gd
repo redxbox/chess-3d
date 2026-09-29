@@ -189,14 +189,14 @@ func _setup_environment() -> void:
 	environment.background_color = Color("0b1015") if visual_theme == "metal" else Color("111725")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color("87949c") if visual_theme == "metal" else Color("858e9d")
-	environment.ambient_light_energy = 0.41 if visual_theme == "metal" else 0.34
+	environment.ambient_light_energy = 0.36 if visual_theme == "metal" else 0.34
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	$WorldEnvironment.environment = environment
 	if visual_theme == "metal":
-		# Metals need broad reflected illumination to retain their base color.
-		# A slightly stronger neutral fill reveals gunmetal without flattening it.
-		$KeyLight.light_energy = 0.47
-		$FillLight.light_energy = 0.38
+		# Metals need broad illumination, but excessive ambient/fill erased folds.
+		# A stronger key and restrained neutral fill preserve sculptural contrast.
+		$KeyLight.light_energy = 0.50
+		$FillLight.light_energy = 0.30
 		$FillLight.light_color = Color("aab6bc")
 	# Keep illumination spatially uniform: local Omni rim lights created visible
 	# hotspots on the board and table. Key and fill are directional and cached.
@@ -492,8 +492,8 @@ void fragment() {
     float rim = 1.0 - max(dot(NORMAL, VIEW), 0.0);
     rim *= rim;
     ALBEDO = colour;
-    METALLIC = mix(0.62, 0.24, non_human);
-    ROUGHNESS = mix(0.46 + patina * 0.06, 0.70, non_human);
+    METALLIC = mix(0.62, 0.16, non_human);
+    ROUGHNESS = mix(0.46 + patina * 0.06, 0.58, non_human);
     SPECULAR = 0.42;
     EMISSION = colour * readability_lift + metal_light * rim * 0.035;
 }
@@ -517,7 +517,7 @@ void fragment() {
 		result.set_shader_parameter("apron_colour", Color("c4b79f"))
 		result.set_shader_parameter("antique_gold", Color("81592f"))
 		result.set_shader_parameter("stone_colour", Color("414443"))
-		result.set_shader_parameter("readability_lift", 0.060)
+		result.set_shader_parameter("readability_lift", 0.045)
 	_persian_role_materials[key] = result
 	return result
 
@@ -534,15 +534,12 @@ func _add_persian_model(piece: Node3D, kind: String, is_white: bool, material: M
 	sculpture.position.y = height * 0.50
 	var base_rotation := PI if is_white else 0.0
 	var display_angle := deg_to_rad(22.0) if kind in ["rook", "bishop", "knight"] else 0.0
-	if kind == "rook":
-		# Rooks are asymmetric twin-griffin gates. Turn left and right files in
-		# opposite directions so both profiles present equally to the camera.
+	if kind in ["rook", "bishop", "knight"]:
+		# Each left/right pair uses mirrored three-quarter presentation. This rule
+		# already fixed the rooks and now applies identically to horses and griffins.
 		var side_sign := -1.0 if piece.position.x < 0.0 else 1.0
 		var army_sign := 1.0 if is_white else -1.0
 		sculpture.rotation.y = base_rotation + display_angle * side_sign * army_sign
-	elif kind in ["bishop", "knight"]:
-		# Both armies use the same world-space turn instead of converging inward.
-		sculpture.rotation.y = base_rotation - display_angle
 	else:
 		sculpture.rotation.y = base_rotation
 	_apply_sculpture_material(sculpture, _persian_role_material(is_white, kind), kind != "pawn")
