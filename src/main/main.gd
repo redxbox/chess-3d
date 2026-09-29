@@ -187,15 +187,15 @@ func _setup_environment() -> void:
 	environment.background_color = Color("0b1015") if visual_theme == "metal" else Color("111725")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color("87949c") if visual_theme == "metal" else Color("858e9d")
-	environment.ambient_light_energy = 0.40 if visual_theme == "metal" else 0.34
+	environment.ambient_light_energy = 0.48 if visual_theme == "metal" else 0.34
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	$WorldEnvironment.environment = environment
 	if visual_theme == "metal":
 		# Metals need broad reflected illumination to retain their base color.
 		# A slightly stronger neutral fill reveals gunmetal without flattening it.
-		$KeyLight.light_energy = 0.44
-		$FillLight.light_energy = 0.36
-		$FillLight.light_color = Color("9aabb5")
+		$KeyLight.light_energy = 0.48
+		$FillLight.light_energy = 0.46
+		$FillLight.light_color = Color("b5c0c5")
 	# Keep illumination spatially uniform: local Omni rim lights created visible
 	# hotspots on the board and table. Key and fill are directional and cached.
 
@@ -232,6 +232,7 @@ uniform vec3 base_metal : source_color;
 uniform vec3 shadow_metal : source_color;
 uniform vec3 antique_gold : source_color;
 uniform vec3 crimson_enamel : source_color;
+uniform float readability_lift = 0.0;
 varying vec3 sculpt_pos;
 
 void vertex() {
@@ -252,8 +253,9 @@ void fragment() {
     colour = mix(colour, antique_gold, gold_mask * 0.72);
     ALBEDO = colour;
     METALLIC = mix(0.82, 0.48, enamel_mask);
-    ROUGHNESS = mix(0.38 + patina * 0.08, 0.30, enamel_mask);
-    SPECULAR = 0.58;
+    ROUGHNESS = mix(0.42 + patina * 0.07, 0.34, enamel_mask);
+    SPECULAR = 0.52;
+    EMISSION = colour * readability_lift;
 }
 """
 	var material := ShaderMaterial.new()
@@ -263,11 +265,13 @@ void fragment() {
 		material.set_shader_parameter("shadow_metal", Color("555e61"))
 		material.set_shader_parameter("antique_gold", Color("b58a45"))
 		material.set_shader_parameter("crimson_enamel", Color("681d24"))
+		material.set_shader_parameter("readability_lift", 0.015)
 	else:
-		material.set_shader_parameter("base_metal", Color("4e5b60"))
-		material.set_shader_parameter("shadow_metal", Color("182126"))
-		material.set_shader_parameter("antique_gold", Color("7c542c"))
-		material.set_shader_parameter("crimson_enamel", Color("3d1018"))
+		material.set_shader_parameter("base_metal", Color("75848a"))
+		material.set_shader_parameter("shadow_metal", Color("344349"))
+		material.set_shader_parameter("antique_gold", Color("9b713d"))
+		material.set_shader_parameter("crimson_enamel", Color("702733"))
+		material.set_shader_parameter("readability_lift", 0.085)
 	return material
 
 
