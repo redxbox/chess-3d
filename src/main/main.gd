@@ -189,15 +189,15 @@ func _setup_environment() -> void:
 	environment.background_color = Color("0b1015") if visual_theme == "metal" else Color("111725")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color("87949c") if visual_theme == "metal" else Color("858e9d")
-	environment.ambient_light_energy = 0.48 if visual_theme == "metal" else 0.34
+	environment.ambient_light_energy = 0.41 if visual_theme == "metal" else 0.34
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	$WorldEnvironment.environment = environment
 	if visual_theme == "metal":
 		# Metals need broad reflected illumination to retain their base color.
 		# A slightly stronger neutral fill reveals gunmetal without flattening it.
-		$KeyLight.light_energy = 0.48
-		$FillLight.light_energy = 0.46
-		$FillLight.light_color = Color("b5c0c5")
+		$KeyLight.light_energy = 0.47
+		$FillLight.light_energy = 0.38
+		$FillLight.light_color = Color("aab6bc")
 	# Keep illumination spatially uniform: local Omni rim lights created visible
 	# hotspots on the board and table. Key and fill are directional and cached.
 
@@ -279,8 +279,8 @@ void fragment() {
 
 func _create_board() -> void:
 	if visual_theme == "metal":
-		_board_light_material = _material(Color("68777f"), 0.48, 0.55)
-		_board_dark_material = _material(Color("2d3941"), 0.45, 0.45)
+		_board_light_material = _material(Color("5f6e75"), 0.55, 0.42)
+		_board_dark_material = _material(Color("303b41"), 0.52, 0.34)
 	else:
 		_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
 		_board_dark_material = _material(Color("542536"), 0.43, 0.06)
@@ -487,11 +487,14 @@ void fragment() {
     float base_gold = 1.0 - smoothstep(-0.45, -0.34, y);
     float crown_gold = human * smoothstep(0.42, 0.49, y);
     colour = mix(colour, antique_gold, clamp(base_gold * 0.56 + crown_gold * 0.65, 0.0, 0.78));
+    float non_human = clamp(creature + structure, 0.0, 1.0);
+    float rim = 1.0 - max(dot(NORMAL, VIEW), 0.0);
+    rim *= rim;
     ALBEDO = colour;
-    METALLIC = mix(0.70, 0.38, creature + structure);
-    ROUGHNESS = mix(0.40 + patina * 0.08, 0.62, creature + structure);
-    SPECULAR = 0.48;
-    EMISSION = colour * readability_lift;
+    METALLIC = mix(0.62, 0.24, non_human);
+    ROUGHNESS = mix(0.46 + patina * 0.06, 0.70, non_human);
+    SPECULAR = 0.42;
+    EMISSION = colour * readability_lift + metal_light * rim * 0.035;
 }
 """
 	var result := ShaderMaterial.new()
@@ -505,7 +508,7 @@ void fragment() {
 		result.set_shader_parameter("apron_colour", Color("ded4bd"))
 		result.set_shader_parameter("antique_gold", Color("a77b3e"))
 		result.set_shader_parameter("stone_colour", Color("747978"))
-		result.set_shader_parameter("readability_lift", 0.025)
+		result.set_shader_parameter("readability_lift", 0.012)
 	else:
 		result.set_shader_parameter("metal_light", Color("657278"))
 		result.set_shader_parameter("metal_shadow", Color("29363c"))
@@ -513,7 +516,7 @@ void fragment() {
 		result.set_shader_parameter("apron_colour", Color("c4b79f"))
 		result.set_shader_parameter("antique_gold", Color("81592f"))
 		result.set_shader_parameter("stone_colour", Color("414443"))
-		result.set_shader_parameter("readability_lift", 0.075)
+		result.set_shader_parameter("readability_lift", 0.060)
 	_persian_role_materials[key] = result
 	return result
 
@@ -1237,9 +1240,9 @@ func _update_accessibility_buttons() -> void:
 
 func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
-		_board_light_material.albedo_color = Color("76858d") if visual_theme == "metal" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d"))
+		_board_light_material.albedo_color = Color("6d7b82") if visual_theme == "metal" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d"))
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color("2d3941") if visual_theme == "metal" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536")))
+		_board_dark_material.albedo_color = Color("303b41") if visual_theme == "metal" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536")))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	for child in $UI.get_children():
