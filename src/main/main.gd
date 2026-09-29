@@ -21,6 +21,14 @@ const PIECE_MODELS := {
 	"queen": preload("res://assets/models/staunton/queen.obj"),
 	"king": preload("res://assets/models/staunton/king.obj")
 }
+const PERSIAN_MODELS := {
+	"pawn": preload("res://assets/models/persian/optimized/pawn.glb"),
+	"rook": preload("res://assets/models/persian/optimized/rook.glb"),
+	"knight": preload("res://assets/models/persian/optimized/knight.glb"),
+	"bishop": preload("res://assets/models/persian/optimized/bishop.glb"),
+	"queen": preload("res://assets/models/persian/optimized/queen.glb"),
+	"king": preload("res://assets/models/persian/optimized/king.glb")
+}
 const BOARD_SIZE := 8
 const SQUARE_SIZE := 1.0
 
@@ -354,7 +362,7 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 	pieces_root.add_child(piece)
 
 	if visual_theme == "metal":
-		_add_medieval_figure(piece, kind, is_white, material, accent)
+		_add_persian_model(piece, kind, is_white, material, accent)
 		return
 
 	var model := MeshInstance3D.new()
@@ -378,6 +386,30 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 			"king": Vector2(0.215, 1.19)
 		}[kind]
 		_add_torus(piece, collar_data.x, 0.009, collar_data.y, accent)
+
+
+func _add_persian_model(piece: Node3D, kind: String, is_white: bool, material: Material, accent: Material) -> void:
+	# The source sculptures are normalized to one unit high, then decimated to a
+	# rank-specific mobile budget. Packed scenes and their meshes are shared by
+	# every matching chessman; only lightweight scene instances are created.
+	var heights := {"pawn": 1.10, "rook": 1.22, "knight": 1.38, "bishop": 1.42, "queen": 1.52, "king": 1.60}
+	var height: float = heights[kind]
+	var sculpture: Node3D = PERSIAN_MODELS[kind].instantiate()
+	sculpture.name = "PersianSculpture"
+	sculpture.scale = Vector3.ONE * height
+	sculpture.position.y = height * 0.50
+	sculpture.rotation.y = 0.0 if is_white else PI
+	_apply_sculpture_material(sculpture, material)
+	piece.add_child(sculpture)
+	_add_torus(piece, 0.27 if kind == "pawn" else 0.31, 0.014, 0.075, accent)
+
+
+func _apply_sculpture_material(node: Node, material: Material) -> void:
+	if node is MeshInstance3D:
+		node.material_override = material
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	for child in node.get_children():
+		_apply_sculpture_material(child, material)
 
 
 func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
