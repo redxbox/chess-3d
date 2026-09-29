@@ -9,10 +9,10 @@ The six source GLB files were supplied by the project owner on 2026-09-29 and ge
 | Role | Source triangles | Runtime triangle budget |
 |---|---:|---:|
 | Pawn | 390,930 | 6,000 |
-| Rook | 315,616 | 8,000 |
-| Bishop | 315,108 | 9,000 |
-| Knight | 342,122 | 12,000 |
-| Queen | 340,408 | 12,000 |
+| Rook | 315,616 | 12,000 |
+| Bishop | 315,108 | 16,000 |
+| Knight | 342,122 | 18,000 |
+| Queen | 340,408 | 24,000 |
 | King | 367,786 | 12,000 |
 
 The source files contain geometry only: no embedded materials, textures, UV coordinates, or vertex colors. Runtime metal materials are therefore supplied by Godot and shared across all instances.

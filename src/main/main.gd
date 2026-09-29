@@ -240,16 +240,16 @@ void vertex() {
 
 void fragment() {
     float y = sculpt_pos.y;
-    float centre = 1.0 - smoothstep(0.045, 0.135, abs(sculpt_pos.x));
+    float centre = 1.0 - smoothstep(0.025, 0.085, abs(sculpt_pos.x));
     float robe = smoothstep(-0.34, -0.18, y) * (1.0 - smoothstep(0.18, 0.32, y));
     float enamel_mask = centre * robe;
     float base_band = 1.0 - smoothstep(-0.43, -0.31, y);
-    float crown_detail = smoothstep(0.34, 0.47, y);
+    float crown_detail = smoothstep(0.42, 0.50, y);
     float gold_mask = clamp(base_band + crown_detail * 0.72, 0.0, 1.0);
     float patina = 0.5 + 0.5 * sin(sculpt_pos.x * 41.0 + sculpt_pos.y * 29.0 + sculpt_pos.z * 37.0);
     vec3 metal = mix(shadow_metal, base_metal, 0.72 + patina * 0.18);
-    vec3 colour = mix(metal, crimson_enamel, enamel_mask * 0.88);
-    colour = mix(colour, antique_gold, gold_mask * 0.82);
+    vec3 colour = mix(metal, crimson_enamel, enamel_mask * 0.62);
+    colour = mix(colour, antique_gold, gold_mask * 0.72);
     ALBEDO = colour;
     METALLIC = mix(0.82, 0.48, enamel_mask);
     ROUGHNESS = mix(0.38 + patina * 0.08, 0.30, enamel_mask);
