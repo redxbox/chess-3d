@@ -480,9 +480,10 @@ void fragment() {
     float face = smoothstep(0.22, 0.29, y) * (1.0 - smoothstep(0.38, 0.45, y));
     human_colour = mix(human_colour, apron_colour, face * 0.48);
     float creature_accent = smoothstep(0.18, 0.38, y);
-    vec3 creature_colour = mix(stone_colour, robe_colour, creature_accent * 0.24);
+    vec3 sculpted_stone = stone_colour * (0.76 + patina * 0.26);
+    vec3 creature_colour = mix(sculpted_stone, robe_colour, creature_accent * 0.38);
     float capital = smoothstep(0.22, 0.38, y);
-    vec3 structure_colour = mix(stone_colour, robe_colour, capital * 0.58);
+    vec3 structure_colour = mix(sculpted_stone, robe_colour, capital * 0.64);
     vec3 colour = human_colour * human + creature_colour * creature + structure_colour * structure;
     float base_gold = 1.0 - smoothstep(-0.45, -0.34, y);
     float crown_gold = human * smoothstep(0.42, 0.49, y);
@@ -531,21 +532,30 @@ func _add_persian_model(piece: Node3D, kind: String, is_white: bool, material: M
 	sculpture.name = "PersianSculpture"
 	sculpture.scale = Vector3.ONE * height
 	sculpture.position.y = height * 0.50
+	var base_rotation := PI if is_white else 0.0
 	var display_angle := deg_to_rad(22.0) if kind in ["rook", "bishop", "knight"] else 0.0
-	# Sculptural ranks use a mirrored three-quarter pose so the horse, griffin,
-	# and gate retain their side silhouette while still facing the opposing army.
-	sculpture.rotation.y = (PI - display_angle) if is_white else display_angle
-	_apply_sculpture_material(sculpture, _persian_role_material(is_white, kind))
+	if kind == "rook":
+		# Rooks are asymmetric twin-griffin gates. Turn left and right files in
+		# opposite directions so both profiles present equally to the camera.
+		var side_sign := -1.0 if piece.position.x < 0.0 else 1.0
+		var army_sign := 1.0 if is_white else -1.0
+		sculpture.rotation.y = base_rotation + display_angle * side_sign * army_sign
+	elif kind in ["bishop", "knight"]:
+		# Both armies use the same world-space turn instead of converging inward.
+		sculpture.rotation.y = base_rotation - display_angle
+	else:
+		sculpture.rotation.y = base_rotation
+	_apply_sculpture_material(sculpture, _persian_role_material(is_white, kind), kind != "pawn")
 	piece.add_child(sculpture)
 	_add_torus(piece, 0.27 if kind == "pawn" else 0.31, 0.014, 0.075, accent)
 
 
-func _apply_sculpture_material(node: Node, material: Material) -> void:
+func _apply_sculpture_material(node: Node, material: Material, cast_shadow := true) -> void:
 	if node is MeshInstance3D:
 		node.material_override = material
-		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if cast_shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for child in node.get_children():
-		_apply_sculpture_material(child, material)
+		_apply_sculpture_material(child, material, cast_shadow)
 
 
 func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
