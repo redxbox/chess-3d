@@ -485,6 +485,9 @@ void fragment() {
     float capital = smoothstep(0.22, 0.38, y);
     vec3 structure_colour = mix(sculpted_stone, robe_colour, capital * 0.64);
     vec3 colour = human_colour * human + creature_colour * creature + structure_colour * structure;
+    // Red vertex colour stores curvature baked once from the mobile mesh.
+    // It darkens recessed folds and lifts exposed relief without a texture fetch.
+    colour *= mix(0.80, 1.06, COLOR.r);
     float base_gold = 1.0 - smoothstep(-0.45, -0.34, y);
     float crown_gold = human * smoothstep(0.42, 0.49, y);
     colour = mix(colour, antique_gold, clamp(base_gold * 0.56 + crown_gold * 0.65, 0.0, 0.78));

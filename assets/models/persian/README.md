@@ -4,7 +4,7 @@ The six source GLB files were supplied by the project owner on 2026-09-29 and ge
 
 ## Runtime assets
 
-`optimized/` contains mobile runtime derivatives produced from the supplied source meshes. All meshes were normalized by their source generator to approximately one unit in height, simplified with quadric-error decimation, stripped of source-only data, assigned regenerated vertex normals, and exported as GLB.
+`optimized/` contains mobile runtime derivatives produced from the supplied source meshes. All meshes were normalized by their source generator to approximately one unit in height, simplified with quadric-error decimation, stripped of source-only data, assigned regenerated vertex normals, baked a curvature/relief mask into vertex colour, and exported as GLB.
 
 | Role | Source triangles | Runtime triangle budget |
 |---|---:|---:|
