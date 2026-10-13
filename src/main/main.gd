@@ -1308,9 +1308,11 @@ func _update_accessibility_buttons() -> void:
 
 func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
-		_board_light_material.albedo_color = Color("6d7b82") if visual_theme == "metal" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d"))
+		# Persian marble stores its complete palette in generated textures; a white
+		# multiplier preserves those colors instead of tinting them slate blue.
+		_board_light_material.albedo_color = Color.WHITE if visual_theme == "metal" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d"))
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color("303b41") if visual_theme == "metal" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536")))
+		_board_dark_material.albedo_color = Color.WHITE if visual_theme == "metal" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536")))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	for child in $UI.get_children():
