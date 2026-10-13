@@ -224,11 +224,11 @@ func _setup_piece_materials() -> void:
 	if visual_theme == "metal":
 		# Physical companion materials for generated collars/identity ornaments.
 		# Imported sculptures use the matching shared shader below.
-		_piece_ivory_material = _luxury_piece_material(Color("f8f4eb"), 0.12, 0.0)
+		_piece_ivory_material = _luxury_piece_material(Color("f2ead8"), 0.14, 0.0)
 		_piece_ivory_material.clearcoat_roughness = 0.08
-		_piece_obsidian_material = _luxury_piece_material(Color("1e1a17"), 0.55, 0.70)
+		_piece_obsidian_material = _luxury_piece_material(Color("171918"), 0.48, 0.72)
 		_piece_obsidian_material.clearcoat_roughness = 0.30
-		_piece_gold_material = _luxury_piece_material(Color("e5b85c"), 0.15, 1.0, false)
+		_piece_gold_material = _luxury_piece_material(Color("d8ad57"), 0.16, 1.0, false)
 		_piece_gold_material.clearcoat_roughness = 0.18
 	else:
 		_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.40, 0.01)
@@ -475,6 +475,7 @@ render_mode specular_schlick_ggx;
 uniform vec3 marble_colour : source_color;
 uniform vec3 marble_shadow : source_color;
 uniform vec3 bronze_colour : source_color;
+uniform vec3 inlay_colour : source_color;
 uniform vec3 gold_colour : source_color;
 uniform float is_ivory = 1.0;
 uniform float readability_lift = 0.0;
@@ -502,7 +503,7 @@ void fragment() {
     // Actual recessed sculpture becomes the weathered dark inlay; no straight
     // painted stripe is projected over unrelated anatomy.
     float engraved = (1.0 - smoothstep(0.12, 0.34, relief)) * 0.62;
-    body = mix(body, bronze_colour * 0.54, engraved);
+    body = mix(body, inlay_colour, engraved);
 
     // Restrained rings emulate separate polished-gold trim while preserving the
     // underlying silhouette and keeping heads/battlements marble or bronze.
@@ -527,10 +528,11 @@ void fragment() {
 """
 	var result := ShaderMaterial.new()
 	result.shader = _persian_role_shader
-	result.set_shader_parameter("marble_colour", Color("f8f4eb"))
-	result.set_shader_parameter("marble_shadow", Color("c8bda9"))
-	result.set_shader_parameter("bronze_colour", Color("1e1a17"))
-	result.set_shader_parameter("gold_colour", Color("e5b85c"))
+	result.set_shader_parameter("marble_colour", Color("f2ead8"))
+	result.set_shader_parameter("marble_shadow", Color("aa9b82"))
+	result.set_shader_parameter("bronze_colour", Color("171918"))
+	result.set_shader_parameter("inlay_colour", Color("174340") if is_white else Color("4b2028"))
+	result.set_shader_parameter("gold_colour", Color("d8ad57"))
 	result.set_shader_parameter("is_ivory", 1.0 if is_white else 0.0)
 	result.set_shader_parameter("readability_lift", 0.006 if is_white else 0.020)
 	_persian_role_materials[key] = result
@@ -559,7 +561,9 @@ func _add_persian_model(piece: Node3D, kind: String, is_white: bool, material: M
 		sculpture.rotation.y = base_rotation
 	_apply_sculpture_material(sculpture, _persian_role_material(is_white, kind), kind in ["king", "queen"])
 	piece.add_child(sculpture)
-	_add_torus(piece, 0.27 if kind == "pawn" else 0.31, 0.014, 0.075, accent)
+	_add_royal_back_emblem(piece, kind, is_white, accent)
+	# A real shared gold ring anchors every piece at gameplay distance.
+	_add_torus(piece, 0.27 if kind == "pawn" else 0.31, 0.016, 0.075, accent)
 
 
 func _apply_sculpture_material(node: Node, material: Material, cast_shadow := true) -> void:
@@ -568,6 +572,19 @@ func _apply_sculpture_material(node: Node, material: Material, cast_shadow := tr
 		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if cast_shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for child in node.get_children():
 		_apply_sculpture_material(child, material, cast_shadow)
+
+
+func _add_royal_back_emblem(piece: Node3D, kind: String, is_white: bool, gold: Material) -> void:
+	# A restrained Achaemenid-inspired winged-sun seal enriches the reverse of
+	# major pieces without changing their role silhouette. Pawns remain clean.
+	if kind == "pawn":
+		return
+	var heights := {"rook": 1.22, "knight": 1.38, "bishop": 1.42, "queen": 1.52, "king": 1.60}
+	var badge_y: float = heights[kind] * (0.68 if kind in ["knight", "bishop"] else 0.62)
+	var back_z := 0.205 if is_white else -0.205
+	_add_sphere(piece, 0.050, badge_y, gold, Vector3(0.0, 0.0, back_z))
+	_add_box(piece, Vector3(0.17, 0.035, 0.025), Vector3(-0.105, badge_y, back_z), gold, Vector3(0, 0, -14))
+	_add_box(piece, Vector3(0.17, 0.035, 0.025), Vector3(0.105, badge_y, back_z), gold, Vector3(0, 0, 14))
 
 
 func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
