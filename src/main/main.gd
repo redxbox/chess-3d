@@ -309,8 +309,8 @@ func _make_marble_texture(base: Color, vein_colour: Color, strength: float, seed
 	for y in size:
 		for x in size:
 			var warp := noise.get_noise_2d(float(x), float(y)) * 18.0
-			var ridge_a := abs(sin((float(x) + warp) * 0.105 + float(y) * 0.041))
-			var ridge_b := abs(sin(float(x) * 0.031 - (float(y) + warp) * 0.082 + 1.7))
+			var ridge_a: float = absf(sin((float(x) + warp) * 0.105 + float(y) * 0.041))
+			var ridge_b: float = absf(sin(float(x) * 0.031 - (float(y) + warp) * 0.082 + 1.7))
 			var vein := pow(maxf(0.0, 1.0 - minf(ridge_a, ridge_b) * 10.0), 1.8)
 			var cloud := noise.get_noise_2d(float(x) * 0.45, float(y) * 0.45) * 0.025
 			var stone := base.lightened(maxf(0.0, cloud)).darkened(maxf(0.0, -cloud))
