@@ -321,12 +321,12 @@ func _make_marble_texture(base: Color, vein_colour: Color, strength: float, seed
 
 func _create_board() -> void:
 	if visual_theme == "metal":
-		# Two cuts of the same white Persian marble keep chess-square contrast via
-		# warm cream/taupe values rather than an unrelated blue or metallic board.
+		# Reference-inspired stone board only: polished white marble alternates
+		# with deep Persian-green marble, both carrying restrained natural veins.
 		_board_light_material = _material(Color.WHITE, 0.68, 0.0)
-		_board_light_material.albedo_texture = _make_marble_texture(Color("f1ede4"), Color("795b43"), 0.34, 17)
+		_board_light_material.albedo_texture = _make_marble_texture(Color("eeeae0"), Color("9b8a74"), 0.30, 17)
 		_board_dark_material = _material(Color.WHITE, 0.72, 0.0)
-		_board_dark_material.albedo_texture = _make_marble_texture(Color("b7a38c"), Color("5b4030"), 0.40, 53)
+		_board_dark_material.albedo_texture = _make_marble_texture(Color("24473c"), Color("789081"), 0.34, 53)
 		# Unshaded stone avoids a fake moving hotspot; veining supplies surface life.
 		_board_light_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		_board_dark_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -356,7 +356,14 @@ func _create_board() -> void:
 	# The exposed half-unit border around the squares projects as a large wedge
 	# on the camera-right side. Keep this structural backing uniformly matte;
 	# the rails above it provide the intended lit material variation.
-	var base_material := _matte_material(Color("160f0c") if visual_theme == "metal" else Color("201820"), 0.72)
+	var base_material: StandardMaterial3D
+	if visual_theme == "metal":
+		# The exposed surround is cut from the same deep-green stone as the dark
+		# squares, matching the reference's continuous marble slab.
+		base_material = _material(Color.WHITE, 0.76, 0.0)
+		base_material.albedo_texture = _make_marble_texture(Color("19382f"), Color("667c70"), 0.30, 91)
+	else:
+		base_material = _matte_material(Color("201820"), 0.62)
 	base_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	base_mesh.material = base_material
 	base.mesh = base_mesh
@@ -367,10 +374,10 @@ func _create_board() -> void:
 	# reflectors. In particular, the camera-right rail caught the cool fill over
 	# its full length and projected as the persistent bright wedge. Keep the dark
 	# structural rail unshaded; the narrow metallic inset remains light-reactive.
-	var wood_color := Color("21140e") if visual_theme == "metal" else Color("241418")
+	var wood_color := Color("1b0e09") if visual_theme == "metal" else Color("241418")
 	var wood := _matte_material(wood_color, 0.82)
 	wood.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var gold := _material(Color("b68a43") if visual_theme == "metal" else Color("9f7440"), 0.26, 0.88 if visual_theme == "metal" else 0.72)
+	var gold := _material(Color("c69a4a") if visual_theme == "metal" else Color("9f7440"), 0.24, 0.92 if visual_theme == "metal" else 0.72)
 	for rail in [
 		[Vector3(0, -0.02, -4.38), Vector3(9.15, 0.26, 0.42)],
 		[Vector3(0, -0.02, 4.38), Vector3(9.15, 0.26, 0.42)],
