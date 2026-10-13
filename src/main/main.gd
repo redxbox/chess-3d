@@ -186,30 +186,50 @@ func _notification(what: int) -> void:
 func _setup_environment() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("0b1015") if visual_theme == "metal" else Color("111725")
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("87949c") if visual_theme == "metal" else Color("858e9d")
-	environment.ambient_light_energy = 0.36 if visual_theme == "metal" else 0.34
-	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	$WorldEnvironment.environment = environment
+	environment.background_color = Color("090b0d") if visual_theme == "metal" else Color("111725")
+	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
+	environment.tonemap_exposure = 1.15 if visual_theme == "metal" else 1.0
 	if visual_theme == "metal":
-		# Metals need broad illumination, but excessive ambient/fill erased folds.
-		# A stronger key and restrained neutral fill preserve sculptural contrast.
-		$KeyLight.light_energy = 0.50
-		$FillLight.light_energy = 0.30
-		$FillLight.light_color = Color("aab6bc")
-	# Keep illumination spatially uniform: local Omni rim lights created visible
-	# hotspots on the board and table. Key and fill are directional and cached.
+		# Mobile-safe equivalent of a warm studio HDRI. Godot prefilters this Sky
+		# into radiance levels once, giving polished marble and gold something to
+		# reflect without shipping a large HDR texture in the Android package.
+		var studio_material := ProceduralSkyMaterial.new()
+		studio_material.sky_top_color = Color("17100d")
+		studio_material.sky_horizon_color = Color("e2a35f")
+		studio_material.ground_bottom_color = Color("090a0b")
+		studio_material.ground_horizon_color = Color("7a4b2c")
+		studio_material.sun_angle_max = 18.0
+		studio_material.sun_curve = 0.12
+		var studio_sky := Sky.new()
+		studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
+		studio_sky.sky_material = studio_material
+		environment.sky = studio_sky
+		environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+		environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+		environment.ambient_light_energy = 0.25
+		$KeyLight.light_energy = 1.30
+		$FillLight.light_energy = 0.42
+		$RimLight.light_energy = 0.95
+	else:
+		environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		environment.ambient_light_color = Color("858e9d")
+		environment.ambient_light_energy = 0.34
+		$RimLight.light_energy = 0.0
+	$WorldEnvironment.environment = environment
 
 
 func _setup_piece_materials() -> void:
 	# Create the three premium materials once. All 32 ModelInstances share these
 	# resources, preventing per-move allocations and shader recompilation.
 	if visual_theme == "metal":
-		_piece_ivory_material = _persian_sculpture_material(true)
-		_piece_obsidian_material = _persian_sculpture_material(false)
-		_piece_gold_material = _luxury_piece_material(Color("8f4f2b"), 0.38, 0.86, false)
-		_piece_gold_material.clearcoat_enabled = false
+		# Physical companion materials for generated collars/identity ornaments.
+		# Imported sculptures use the matching shared shader below.
+		_piece_ivory_material = _luxury_piece_material(Color("f8f4eb"), 0.12, 0.0)
+		_piece_ivory_material.clearcoat_roughness = 0.08
+		_piece_obsidian_material = _luxury_piece_material(Color("1e1a17"), 0.55, 0.70)
+		_piece_obsidian_material.clearcoat_roughness = 0.30
+		_piece_gold_material = _luxury_piece_material(Color("e5b85c"), 0.15, 1.0, false)
+		_piece_gold_material.clearcoat_roughness = 0.18
 	else:
 		_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.40, 0.01)
 		_piece_ivory_material.metallic_specular = 0.34
@@ -452,15 +472,11 @@ func _persian_role_material(is_white: bool, kind: String) -> ShaderMaterial:
 shader_type spatial;
 render_mode specular_schlick_ggx;
 
-uniform vec3 metal_light : source_color;
-uniform vec3 metal_shadow : source_color;
-uniform vec3 robe_colour : source_color;
-uniform vec3 apron_colour : source_color;
-uniform vec3 panel_colour : source_color;
-uniform vec3 accent_colour : source_color;
-uniform vec3 antique_gold : source_color;
-uniform vec3 stone_colour : source_color;
-uniform float role_mode = 0.0;
+uniform vec3 marble_colour : source_color;
+uniform vec3 marble_shadow : source_color;
+uniform vec3 bronze_colour : source_color;
+uniform vec3 gold_colour : source_color;
+uniform float is_ivory = 1.0;
 uniform float readability_lift = 0.0;
 varying vec3 sculpt_pos;
 
@@ -470,79 +486,53 @@ void vertex() {
 
 void fragment() {
     float y = sculpt_pos.y;
-    float patina = clamp(0.52 + NORMAL.y * 0.16 + NORMAL.x * 0.06, 0.0, 1.0);
-    vec3 metal = mix(metal_shadow, metal_light, 0.70 + patina * 0.20);
-    float human = 1.0 - step(0.5, role_mode);
-    float creature = step(0.5, role_mode) * (1.0 - step(1.5, role_mode));
-    float structure = step(1.5, role_mode);
-    // The references use broad ivory/black panels with narrow gold borders.
-    // Source meshes have no UVs or material groups, so stable object-space masks
-    // place these finishes without textures or per-piece duplicate geometry.
-    float body_zone = smoothstep(-0.39, -0.30, y) * (1.0 - smoothstep(0.27, 0.38, y));
-    float centre = 1.0 - smoothstep(0.048, 0.073, abs(sculpt_pos.x));
-    float centre_inner = 1.0 - smoothstep(0.038, 0.054, abs(sculpt_pos.x));
-    float panel = centre_inner * body_zone;
-    float panel_border = max(centre - centre_inner, 0.0) * body_zone;
-    vec3 human_colour = mix(metal, robe_colour, body_zone * 0.90);
-    human_colour = mix(human_colour, panel_colour, panel * 0.96);
-    human_colour = mix(human_colour, antique_gold, panel_border * 0.88);
-    float face = smoothstep(0.24, 0.31, y) * (1.0 - smoothstep(0.37, 0.44, y));
-    human_colour = mix(human_colour, robe_colour, face * 0.55);
-    vec3 sculpted_stone = stone_colour * (0.78 + patina * 0.24);
-    float harness = smoothstep(0.045, 0.070, abs(sculpt_pos.x)) * (1.0 - smoothstep(0.070, 0.095, abs(sculpt_pos.x)));
-    harness *= smoothstep(-0.20, -0.05, y) * (1.0 - smoothstep(0.30, 0.42, y));
-    vec3 creature_colour = mix(sculpted_stone, antique_gold, harness * 0.62);
-    float tower_panel = centre_inner * smoothstep(-0.34, -0.20, y) * (1.0 - smoothstep(0.18, 0.30, y));
-    float tower_border = panel_border * smoothstep(-0.34, -0.20, y) * (1.0 - smoothstep(0.18, 0.30, y));
-    vec3 structure_colour = mix(sculpted_stone, panel_colour, tower_panel * 0.92);
-    structure_colour = mix(structure_colour, antique_gold, tower_border * 0.86);
-    vec3 colour = human_colour * human + creature_colour * creature + structure_colour * structure;
-    // Red vertex colour stores curvature baked once from the mobile mesh.
-    // It darkens recessed folds and lifts exposed relief without a texture fetch.
-    colour *= mix(0.80, 1.06, COLOR.r);
-    // Narrow horizontal bands read as metal trim; unlike the previous masks
-    // they do not flood the complete base, head, or rook battlements with gold.
-    float base_trim = smoothstep(-0.455, -0.440, y) * (1.0 - smoothstep(-0.425, -0.405, y));
-    float collar_trim = smoothstep(0.175, 0.195, y) * (1.0 - smoothstep(0.215, 0.238, y));
-    float crown_trim = human * smoothstep(0.435, 0.455, y) * (1.0 - smoothstep(0.470, 0.490, y));
-    float gold_trim = clamp(base_trim + collar_trim + crown_trim, 0.0, 1.0);
-    colour = mix(colour, antique_gold, gold_trim * 0.74);
-    float non_human = clamp(creature + structure, 0.0, 1.0);
-    float rim = 1.0 - max(dot(NORMAL, VIEW), 0.0);
-    rim *= rim;
+    float relief = COLOR.r;
+    float facing = clamp(0.58 + NORMAL.y * 0.16 + NORMAL.x * 0.05, 0.0, 1.0);
+
+    // Fine object-space Carrara veins: subtle, stable, and texture-free.
+    float vein_wave = sin(sculpt_pos.y * 73.0 + sculpt_pos.x * 31.0 + sin(sculpt_pos.z * 41.0) * 2.2);
+    float vein = 1.0 - smoothstep(0.035, 0.16, abs(vein_wave));
+    vein *= smoothstep(0.20, 0.82, relief) * is_ivory;
+    vec3 marble = mix(marble_shadow, marble_colour, 0.76 + facing * 0.20);
+    marble = mix(marble, vec3(0.56, 0.48, 0.39), vein * 0.16);
+
+    vec3 bronze = bronze_colour * (0.72 + facing * 0.25);
+    vec3 body = mix(bronze, marble, is_ivory);
+
+    // Actual recessed sculpture becomes the weathered dark inlay; no straight
+    // painted stripe is projected over unrelated anatomy.
+    float engraved = (1.0 - smoothstep(0.12, 0.34, relief)) * 0.62;
+    body = mix(body, bronze_colour * 0.54, engraved);
+
+    // Restrained rings emulate separate polished-gold trim while preserving the
+    // underlying silhouette and keeping heads/battlements marble or bronze.
+    float lower_ring = smoothstep(-0.465, -0.448, y) * (1.0 - smoothstep(-0.420, -0.397, y));
+    float plinth_ring = smoothstep(-0.335, -0.317, y) * (1.0 - smoothstep(-0.292, -0.270, y));
+    float collar_ring = smoothstep(0.165, 0.185, y) * (1.0 - smoothstep(0.212, 0.235, y));
+    float crown_ring = smoothstep(0.425, 0.445, y) * (1.0 - smoothstep(0.468, 0.487, y));
+    float gold = clamp(lower_ring + plinth_ring * 0.72 + collar_ring * 0.66 + crown_ring * 0.45, 0.0, 1.0);
+    vec3 colour = mix(body, gold_colour, gold);
+
+    float rim = pow(1.0 - max(dot(NORMAL, VIEW), 0.0), 2.0);
     ALBEDO = colour;
-    METALLIC = mix(0.62, 0.16, non_human);
-    ROUGHNESS = mix(0.46 + patina * 0.06, 0.58, non_human);
-    SPECULAR = 0.42;
-    EMISSION = colour * readability_lift + metal_light * rim * 0.035;
+    METALLIC = mix(0.0, 1.0, gold);
+    METALLIC = mix(METALLIC, 0.70, (1.0 - is_ivory) * (1.0 - gold));
+    ROUGHNESS = mix(mix(0.12, 0.55, 1.0 - is_ivory), 0.15, gold);
+    SPECULAR = 0.50;
+    CLEARCOAT = mix(1.0, 0.30, max(gold, 1.0 - is_ivory));
+    CLEARCOAT_GLOSS = mix(0.92, 0.70, max(gold, 1.0 - is_ivory));
+    EMISSION = colour * readability_lift + marble_colour * rim * 0.018;
 }
+
 """
 	var result := ShaderMaterial.new()
 	result.shader = _persian_role_shader
-	var mode := 2.0 if kind == "rook" else (1.0 if kind in ["bishop", "knight"] else 0.0)
-	result.set_shader_parameter("role_mode", mode)
-	# Candidate 2 deliberately uses a two-material presentation: warm ivory or
-	# near-black stone, with shared yellow-gold trim selected by mesh position.
-	if is_white:
-		result.set_shader_parameter("metal_light", Color("fffaf0"))
-		result.set_shader_parameter("metal_shadow", Color("aa9068"))
-		result.set_shader_parameter("robe_colour", Color("f3ead8"))
-		result.set_shader_parameter("apron_colour", Color("d2a044"))
-		result.set_shader_parameter("panel_colour", Color("241b13"))
-		result.set_shader_parameter("accent_colour", Color("dda94a"))
-		result.set_shader_parameter("antique_gold", Color("c58f32"))
-		result.set_shader_parameter("stone_colour", Color("ede4d2"))
-		result.set_shader_parameter("readability_lift", 0.010)
-	else:
-		result.set_shader_parameter("metal_light", Color("3b3a36"))
-		result.set_shader_parameter("metal_shadow", Color("090b0b"))
-		result.set_shader_parameter("robe_colour", Color("121414"))
-		result.set_shader_parameter("apron_colour", Color("c18a30"))
-		result.set_shader_parameter("panel_colour", Color("d8c8a9"))
-		result.set_shader_parameter("accent_colour", Color("d09a3a"))
-		result.set_shader_parameter("antique_gold", Color("ad7422"))
-		result.set_shader_parameter("stone_colour", Color("181a19"))
-		result.set_shader_parameter("readability_lift", 0.038)
+	result.set_shader_parameter("marble_colour", Color("f8f4eb"))
+	result.set_shader_parameter("marble_shadow", Color("c8bda9"))
+	result.set_shader_parameter("bronze_colour", Color("1e1a17"))
+	result.set_shader_parameter("gold_colour", Color("e5b85c"))
+	result.set_shader_parameter("is_ivory", 1.0 if is_white else 0.0)
+	result.set_shader_parameter("readability_lift", 0.006 if is_white else 0.020)
 	_persian_role_materials[key] = result
 	return result
 
