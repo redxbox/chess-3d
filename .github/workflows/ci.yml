@@ -79,14 +79,32 @@ jobs:
           retention-days: 14
       - name: Publish latest preview on session branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/arena/01a0dc2e-chess-3d'
-        run: |
-          mkdir -p docs/previews
-          cp build/preview/persian-luxury-preview.png docs/previews/persian-luxury-preview.png
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/previews/persian-luxury-preview.png
-          git commit -m "Update rendered Persian preview [skip ci]"
-          git push origin HEAD:arena/01a0dc2e-chess-3d
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'docs/previews/persian-luxury-preview.png';
+            let sha;
+            try {
+              const current = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path,
+                ref: context.ref
+              });
+              sha = current.data.sha;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path,
+              branch: 'arena/01a0dc2e-chess-3d',
+              message: 'Update rendered Persian preview [skip ci]',
+              content: fs.readFileSync('build/preview/persian-luxury-preview.png').toString('base64'),
+              ...(sha ? { sha } : {})
+            });
 
   android-debug:
     name: Build Android debug APK
