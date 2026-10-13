@@ -456,6 +456,7 @@ uniform vec3 metal_light : source_color;
 uniform vec3 metal_shadow : source_color;
 uniform vec3 robe_colour : source_color;
 uniform vec3 apron_colour : source_color;
+uniform vec3 panel_colour : source_color;
 uniform vec3 accent_colour : source_color;
 uniform vec3 antique_gold : source_color;
 uniform vec3 stone_colour : source_color;
@@ -474,24 +475,38 @@ void fragment() {
     float human = 1.0 - step(0.5, role_mode);
     float creature = step(0.5, role_mode) * (1.0 - step(1.5, role_mode));
     float structure = step(1.5, role_mode);
-    float robe = smoothstep(-0.38, -0.22, y) * (1.0 - smoothstep(0.20, 0.34, y));
-    float apron = (1.0 - smoothstep(0.025, 0.075, abs(sculpt_pos.x))) * robe;
-    vec3 human_colour = mix(metal, robe_colour, robe * 0.96);
-    human_colour = mix(human_colour, apron_colour, apron * 0.76);
-    float face = smoothstep(0.22, 0.29, y) * (1.0 - smoothstep(0.38, 0.45, y));
-    human_colour = mix(human_colour, apron_colour, face * 0.48);
-    float creature_accent = smoothstep(0.18, 0.38, y);
-    vec3 sculpted_stone = stone_colour * (0.76 + patina * 0.26);
-    vec3 creature_colour = mix(sculpted_stone, accent_colour, creature_accent * 0.38);
-    float capital = smoothstep(0.22, 0.38, y);
-    vec3 structure_colour = mix(sculpted_stone, accent_colour, capital * 0.64);
+    // The references use broad ivory/black panels with narrow gold borders.
+    // Source meshes have no UVs or material groups, so stable object-space masks
+    // place these finishes without textures or per-piece duplicate geometry.
+    float body_zone = smoothstep(-0.39, -0.30, y) * (1.0 - smoothstep(0.27, 0.38, y));
+    float centre = 1.0 - smoothstep(0.048, 0.073, abs(sculpt_pos.x));
+    float centre_inner = 1.0 - smoothstep(0.038, 0.054, abs(sculpt_pos.x));
+    float panel = centre_inner * body_zone;
+    float panel_border = max(centre - centre_inner, 0.0) * body_zone;
+    vec3 human_colour = mix(metal, robe_colour, body_zone * 0.90);
+    human_colour = mix(human_colour, panel_colour, panel * 0.96);
+    human_colour = mix(human_colour, antique_gold, panel_border * 0.88);
+    float face = smoothstep(0.24, 0.31, y) * (1.0 - smoothstep(0.37, 0.44, y));
+    human_colour = mix(human_colour, robe_colour, face * 0.55);
+    vec3 sculpted_stone = stone_colour * (0.78 + patina * 0.24);
+    float harness = smoothstep(0.045, 0.070, abs(sculpt_pos.x)) * (1.0 - smoothstep(0.070, 0.095, abs(sculpt_pos.x)));
+    harness *= smoothstep(-0.20, -0.05, y) * (1.0 - smoothstep(0.30, 0.42, y));
+    vec3 creature_colour = mix(sculpted_stone, antique_gold, harness * 0.62);
+    float tower_panel = centre_inner * smoothstep(-0.34, -0.20, y) * (1.0 - smoothstep(0.18, 0.30, y));
+    float tower_border = panel_border * smoothstep(-0.34, -0.20, y) * (1.0 - smoothstep(0.18, 0.30, y));
+    vec3 structure_colour = mix(sculpted_stone, panel_colour, tower_panel * 0.92);
+    structure_colour = mix(structure_colour, antique_gold, tower_border * 0.86);
     vec3 colour = human_colour * human + creature_colour * creature + structure_colour * structure;
     // Red vertex colour stores curvature baked once from the mobile mesh.
     // It darkens recessed folds and lifts exposed relief without a texture fetch.
     colour *= mix(0.80, 1.06, COLOR.r);
-    float base_gold = 1.0 - smoothstep(-0.45, -0.34, y);
-    float crown_gold = human * smoothstep(0.42, 0.49, y);
-    colour = mix(colour, antique_gold, clamp(base_gold * 0.56 + crown_gold * 0.65, 0.0, 0.78));
+    // Narrow horizontal bands read as metal trim; unlike the previous masks
+    // they do not flood the complete base, head, or rook battlements with gold.
+    float base_trim = smoothstep(-0.455, -0.440, y) * (1.0 - smoothstep(-0.425, -0.405, y));
+    float collar_trim = smoothstep(0.175, 0.195, y) * (1.0 - smoothstep(0.215, 0.238, y));
+    float crown_trim = human * smoothstep(0.435, 0.455, y) * (1.0 - smoothstep(0.470, 0.490, y));
+    float gold_trim = clamp(base_trim + collar_trim + crown_trim, 0.0, 1.0);
+    colour = mix(colour, antique_gold, gold_trim * 0.74);
     float non_human = clamp(creature + structure, 0.0, 1.0);
     float rim = 1.0 - max(dot(NORMAL, VIEW), 0.0);
     rim *= rim;
@@ -509,19 +524,21 @@ void fragment() {
 	# Candidate 2 deliberately uses a two-material presentation: warm ivory or
 	# near-black stone, with shared yellow-gold trim selected by mesh position.
 	if is_white:
-		result.set_shader_parameter("metal_light", Color("f1e4c9"))
+		result.set_shader_parameter("metal_light", Color("fffaf0"))
 		result.set_shader_parameter("metal_shadow", Color("aa9068"))
-		result.set_shader_parameter("robe_colour", Color("e5d8bd"))
+		result.set_shader_parameter("robe_colour", Color("f3ead8"))
 		result.set_shader_parameter("apron_colour", Color("d2a044"))
+		result.set_shader_parameter("panel_colour", Color("241b13"))
 		result.set_shader_parameter("accent_colour", Color("dda94a"))
 		result.set_shader_parameter("antique_gold", Color("c58f32"))
-		result.set_shader_parameter("stone_colour", Color("e0d1b6"))
+		result.set_shader_parameter("stone_colour", Color("ede4d2"))
 		result.set_shader_parameter("readability_lift", 0.010)
 	else:
 		result.set_shader_parameter("metal_light", Color("3b3a36"))
 		result.set_shader_parameter("metal_shadow", Color("090b0b"))
 		result.set_shader_parameter("robe_colour", Color("121414"))
 		result.set_shader_parameter("apron_colour", Color("c18a30"))
+		result.set_shader_parameter("panel_colour", Color("d8c8a9"))
 		result.set_shader_parameter("accent_colour", Color("d09a3a"))
 		result.set_shader_parameter("antique_gold", Color("ad7422"))
 		result.set_shader_parameter("stone_colour", Color("181a19"))
