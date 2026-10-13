@@ -456,6 +456,7 @@ uniform vec3 metal_light : source_color;
 uniform vec3 metal_shadow : source_color;
 uniform vec3 robe_colour : source_color;
 uniform vec3 apron_colour : source_color;
+uniform vec3 accent_colour : source_color;
 uniform vec3 antique_gold : source_color;
 uniform vec3 stone_colour : source_color;
 uniform float role_mode = 0.0;
@@ -481,9 +482,9 @@ void fragment() {
     human_colour = mix(human_colour, apron_colour, face * 0.48);
     float creature_accent = smoothstep(0.18, 0.38, y);
     vec3 sculpted_stone = stone_colour * (0.76 + patina * 0.26);
-    vec3 creature_colour = mix(sculpted_stone, robe_colour, creature_accent * 0.38);
+    vec3 creature_colour = mix(sculpted_stone, accent_colour, creature_accent * 0.38);
     float capital = smoothstep(0.22, 0.38, y);
-    vec3 structure_colour = mix(sculpted_stone, robe_colour, capital * 0.64);
+    vec3 structure_colour = mix(sculpted_stone, accent_colour, capital * 0.64);
     vec3 colour = human_colour * human + creature_colour * creature + structure_colour * structure;
     // Red vertex colour stores curvature baked once from the mobile mesh.
     // It darkens recessed folds and lifts exposed relief without a texture fetch.
@@ -506,21 +507,23 @@ void fragment() {
 	var mode := 2.0 if kind == "rook" else (1.0 if kind in ["bishop", "knight"] else 0.0)
 	result.set_shader_parameter("role_mode", mode)
 	if is_white:
-		result.set_shader_parameter("metal_light", Color("aeb9bd"))
-		result.set_shader_parameter("metal_shadow", Color("4f5e65"))
-		result.set_shader_parameter("robe_colour", Color("123f78"))
-		result.set_shader_parameter("apron_colour", Color("ded4bd"))
-		result.set_shader_parameter("antique_gold", Color("a77b3e"))
-		result.set_shader_parameter("stone_colour", Color("747978"))
+		result.set_shader_parameter("metal_light", Color("c2c1b8"))
+		result.set_shader_parameter("metal_shadow", Color("666b68"))
+		result.set_shader_parameter("robe_colour", Color("858985"))
+		result.set_shader_parameter("apron_colour", Color("c79a42"))
+		result.set_shader_parameter("accent_colour", Color("d2a447"))
+		result.set_shader_parameter("antique_gold", Color("bd8d36"))
+		result.set_shader_parameter("stone_colour", Color("858681"))
 		result.set_shader_parameter("readability_lift", 0.012)
 	else:
-		result.set_shader_parameter("metal_light", Color("657278"))
-		result.set_shader_parameter("metal_shadow", Color("29363c"))
-		result.set_shader_parameter("robe_colour", Color("8a1f2c"))
-		result.set_shader_parameter("apron_colour", Color("c4b79f"))
-		result.set_shader_parameter("antique_gold", Color("81592f"))
-		result.set_shader_parameter("stone_colour", Color("414443"))
-		result.set_shader_parameter("readability_lift", 0.045)
+		result.set_shader_parameter("metal_light", Color("626965"))
+		result.set_shader_parameter("metal_shadow", Color("252d2d"))
+		result.set_shader_parameter("robe_colour", Color("3d4543"))
+		result.set_shader_parameter("apron_colour", Color("ad7d2f"))
+		result.set_shader_parameter("accent_colour", Color("c28e35"))
+		result.set_shader_parameter("antique_gold", Color("a97428"))
+		result.set_shader_parameter("stone_colour", Color("4c504d"))
+		result.set_shader_parameter("readability_lift", 0.040)
 	_persian_role_materials[key] = result
 	return result
 
@@ -545,7 +548,7 @@ func _add_persian_model(piece: Node3D, kind: String, is_white: bool, material: M
 		sculpture.rotation.y = base_rotation + display_angle * side_sign * army_sign
 	else:
 		sculpture.rotation.y = base_rotation
-	_apply_sculpture_material(sculpture, _persian_role_material(is_white, kind), kind != "pawn")
+	_apply_sculpture_material(sculpture, _persian_role_material(is_white, kind), kind in ["king", "queen"])
 	piece.add_child(sculpture)
 	_add_torus(piece, 0.27 if kind == "pawn" else 0.31, 0.014, 0.075, accent)
 
