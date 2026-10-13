@@ -24,7 +24,17 @@ func _initialize() -> void:
 
 
 func capture_when_ready() -> void:
-	# Allow imports, procedural sky radiance, shaders, and UI layout to settle.
+	# Main intentionally opens its setup menu at startup. Hide it only in this
+	# capture harness so the automated image shows the board and materials.
+	for frame in 2:
+		await process_frame
+	var main := root.get_child(0)
+	var menu_overlay := main.get("_menu_overlay") as ColorRect
+	if is_instance_valid(menu_overlay):
+		menu_overlay.hide()
+	paused = false
+
+	# Allow procedural sky radiance, shaders, and UI layout to settle.
 	for frame in 30:
 		await process_frame
 	await create_timer(2.0).timeout
