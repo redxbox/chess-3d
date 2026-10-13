@@ -22,12 +22,12 @@ const PIECE_MODELS := {
 	"king": preload("res://assets/models/staunton/king.obj")
 }
 const PERSIAN_MODELS := {
-	"pawn": preload("res://assets/models/persian/optimized/pawn.glb"),
-	"rook": preload("res://assets/models/persian/optimized/rook.glb"),
-	"knight": preload("res://assets/models/persian/optimized/knight.glb"),
-	"bishop": preload("res://assets/models/persian/optimized/bishop.glb"),
-	"queen": preload("res://assets/models/persian/optimized/queen.glb"),
-	"king": preload("res://assets/models/persian/optimized/king.glb")
+	"pawn": preload("res://assets/models/persian/candidate2/optimized/pawn.glb"),
+	"rook": preload("res://assets/models/persian/candidate2/optimized/rook.glb"),
+	"knight": preload("res://assets/models/persian/candidate2/optimized/knight.glb"),
+	"bishop": preload("res://assets/models/persian/candidate2/optimized/bishop.glb"),
+	"queen": preload("res://assets/models/persian/candidate2/optimized/queen.glb"),
+	"king": preload("res://assets/models/persian/candidate2/optimized/king.glb")
 }
 const BOARD_SIZE := 8
 const SQUARE_SIZE := 1.0
