@@ -306,6 +306,10 @@ func _create_board() -> void:
 		_board_light_material.metallic_specular = 0.24
 		_board_dark_material = _material(Color("30231b"), 0.72, 0.0)
 		_board_dark_material.metallic_specular = 0.20
+		# The procedural studio sky contains a bright horizon used by gold. Keep
+		# board squares independent from it so every repeated tile remains uniform.
+		_board_light_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_board_dark_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	else:
 		_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
 		_board_dark_material = _material(Color("542536"), 0.43, 0.06)
