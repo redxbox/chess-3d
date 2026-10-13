@@ -224,9 +224,9 @@ func _setup_piece_materials() -> void:
 	if visual_theme == "metal":
 		# Physical companion materials for generated collars/identity ornaments.
 		# Imported sculptures use the matching shared shader below.
-		_piece_ivory_material = _luxury_piece_material(Color("f2ead8"), 0.14, 0.0)
+		_piece_ivory_material = _luxury_piece_material(Color("f7f5ef"), 0.14, 0.0)
 		_piece_ivory_material.clearcoat_roughness = 0.08
-		_piece_obsidian_material = _luxury_piece_material(Color("171918"), 0.48, 0.72)
+		_piece_obsidian_material = _luxury_piece_material(Color("090a0a"), 0.48, 0.72)
 		_piece_obsidian_material.clearcoat_roughness = 0.30
 		_piece_gold_material = _luxury_piece_material(Color("d8ad57"), 0.16, 1.0, false)
 		_piece_gold_material.clearcoat_roughness = 0.18
@@ -297,17 +297,37 @@ void fragment() {
 	return material
 
 
+func _make_marble_texture(base: Color, vein_colour: Color, strength: float, seed: int) -> ImageTexture:
+	# Tiny deterministic texture generated once at startup: no download, no APK
+	# asset cost, and no per-frame shader noise. Two warped ridges form fine veins.
+	var size := 128
+	var image := Image.create(size, size, false, Image.FORMAT_RGB8)
+	var noise := FastNoiseLite.new()
+	noise.seed = seed
+	noise.frequency = 0.032
+	noise.fractal_octaves = 3
+	for y in size:
+		for x in size:
+			var warp := noise.get_noise_2d(float(x), float(y)) * 18.0
+			var ridge_a := abs(sin((float(x) + warp) * 0.105 + float(y) * 0.041))
+			var ridge_b := abs(sin(float(x) * 0.031 - (float(y) + warp) * 0.082 + 1.7))
+			var vein := pow(maxf(0.0, 1.0 - minf(ridge_a, ridge_b) * 10.0), 1.8)
+			var cloud := noise.get_noise_2d(float(x) * 0.45, float(y) * 0.45) * 0.025
+			var stone := base.lightened(maxf(0.0, cloud)).darkened(maxf(0.0, -cloud))
+			image.set_pixel(x, y, stone.lerp(vein_colour, vein * strength))
+	image.generate_mipmaps()
+	return ImageTexture.create_from_image(image)
+
+
 func _create_board() -> void:
 	if visual_theme == "metal":
-		# A restrained royal board: honed limestone against dark walnut. Both are
-		# dielectric and deliberately rough so studio lights illuminate pieces
-		# instead of burning a metallic hotspot across the centre squares.
-		_board_light_material = _material(Color("a79b83"), 0.78, 0.0)
-		_board_light_material.metallic_specular = 0.24
-		_board_dark_material = _material(Color("30231b"), 0.72, 0.0)
-		_board_dark_material.metallic_specular = 0.20
-		# The procedural studio sky contains a bright horizon used by gold. Keep
-		# board squares independent from it so every repeated tile remains uniform.
+		# Two cuts of the same white Persian marble keep chess-square contrast via
+		# warm cream/taupe values rather than an unrelated blue or metallic board.
+		_board_light_material = _material(Color.WHITE, 0.68, 0.0)
+		_board_light_material.albedo_texture = _make_marble_texture(Color("f1ede4"), Color("795b43"), 0.34, 17)
+		_board_dark_material = _material(Color.WHITE, 0.72, 0.0)
+		_board_dark_material.albedo_texture = _make_marble_texture(Color("b7a38c"), Color("5b4030"), 0.40, 53)
+		# Unshaded stone avoids a fake moving hotspot; veining supplies surface life.
 		_board_light_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		_board_dark_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	else:
@@ -537,10 +557,10 @@ void fragment() {
 """
 	var result := ShaderMaterial.new()
 	result.shader = _persian_role_shader
-	result.set_shader_parameter("marble_colour", Color("f2ead8"))
-	result.set_shader_parameter("marble_shadow", Color("aa9b82"))
-	result.set_shader_parameter("bronze_colour", Color("171918"))
-	result.set_shader_parameter("inlay_colour", Color("174340") if is_white else Color("4b2028"))
+	result.set_shader_parameter("marble_colour", Color("f7f5ef"))
+	result.set_shader_parameter("marble_shadow", Color("c7bfb1"))
+	result.set_shader_parameter("bronze_colour", Color("090a0a"))
+	result.set_shader_parameter("inlay_colour", Color("8a704e") if is_white else Color("030404"))
 	result.set_shader_parameter("gold_colour", Color("d8ad57"))
 	result.set_shader_parameter("is_ivory", 1.0 if is_white else 0.0)
 	result.set_shader_parameter("readability_lift", 0.006 if is_white else 0.020)
