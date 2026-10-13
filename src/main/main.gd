@@ -299,8 +299,13 @@ void fragment() {
 
 func _create_board() -> void:
 	if visual_theme == "metal":
-		_board_light_material = _material(Color("5f6e75"), 0.55, 0.42)
-		_board_dark_material = _material(Color("303b41"), 0.52, 0.34)
+		# A restrained royal board: honed limestone against dark walnut. Both are
+		# dielectric and deliberately rough so studio lights illuminate pieces
+		# instead of burning a metallic hotspot across the centre squares.
+		_board_light_material = _material(Color("a79b83"), 0.78, 0.0)
+		_board_light_material.metallic_specular = 0.24
+		_board_dark_material = _material(Color("30231b"), 0.72, 0.0)
+		_board_dark_material.metallic_specular = 0.20
 	else:
 		_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
 		_board_dark_material = _material(Color("542536"), 0.43, 0.06)
@@ -327,7 +332,7 @@ func _create_board() -> void:
 	# The exposed half-unit border around the squares projects as a large wedge
 	# on the camera-right side. Keep this structural backing uniformly matte;
 	# the rails above it provide the intended lit material variation.
-	var base_material := _matte_material(Color("201820"), 0.62)
+	var base_material := _matte_material(Color("160f0c") if visual_theme == "metal" else Color("201820"), 0.72)
 	base_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	base_mesh.material = base_material
 	base.mesh = base_mesh
@@ -338,10 +343,10 @@ func _create_board() -> void:
 	# reflectors. In particular, the camera-right rail caught the cool fill over
 	# its full length and projected as the persistent bright wedge. Keep the dark
 	# structural rail unshaded; the narrow metallic inset remains light-reactive.
-	var wood_color := Color("171d22") if visual_theme == "metal" else Color("241418")
+	var wood_color := Color("21140e") if visual_theme == "metal" else Color("241418")
 	var wood := _matte_material(wood_color, 0.82)
 	wood.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var gold := _material(Color("a96332") if visual_theme == "metal" else Color("9f7440"), 0.30, 0.82 if visual_theme == "metal" else 0.72)
+	var gold := _material(Color("b68a43") if visual_theme == "metal" else Color("9f7440"), 0.26, 0.88 if visual_theme == "metal" else 0.72)
 	for rail in [
 		[Vector3(0, -0.02, -4.38), Vector3(9.15, 0.26, 0.42)],
 		[Vector3(0, -0.02, 4.38), Vector3(9.15, 0.26, 0.42)],
@@ -361,8 +366,8 @@ func _create_board() -> void:
 	# old CylinderMesh. On mobile that fan produced a bright triangular facet at
 	# the right edge of the table. Separate matte tiers add depth without extra
 	# shaders, transparency, or per-frame work.
-	var table_material := _matte_material(Color("1d1116"), 0.72)
-	var table_edge_material := _matte_material(Color("281820"), 0.66)
+	var table_material := _matte_material(Color("120b09") if visual_theme == "metal" else Color("1d1116"), 0.78)
+	var table_edge_material := _matte_material(Color("251610") if visual_theme == "metal" else Color("281820"), 0.72)
 	# The broad plinth is a visual backdrop, not a light receiver. On the target
 	# mobile GPU a BoxMesh top face still exposed one diagonal lighting facet.
 	# Unshaded matte tiers guarantee a uniform surface while the stepped geometry
