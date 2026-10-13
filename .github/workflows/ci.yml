@@ -47,6 +47,37 @@ jobs:
             exit 1
           fi
 
+  visual-preview:
+    name: Render Persian visual preview
+    needs: validate
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.4.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Install virtual display
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends xvfb
+          rm -rf /var/lib/apt/lists/*
+      - name: Import resources
+        run: godot --headless --editor --path . --quit-after 20
+      - name: Render real Godot screenshot
+        run: |
+          mkdir -p build/preview
+          xvfb-run -a -s "-screen 0 1536x864x24" \
+            godot --path . --rendering-method gl_compatibility \
+            --resolution 1536x864 --script res://tools/capture_preview.gd
+          test -s build/preview/persian-luxury-preview.png
+      - name: Upload visual preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: persian-luxury-preview-${{ github.run_number }}
+          path: build/preview/persian-luxury-preview.png
+          if-no-files-found: error
+          retention-days: 14
+
   android-debug:
     name: Build Android debug APK
     needs: validate
