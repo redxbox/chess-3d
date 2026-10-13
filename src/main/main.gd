@@ -443,7 +443,7 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 
 
 func _persian_role_material(is_white: bool, kind: String) -> ShaderMaterial:
-	var key := ("blue:" if is_white else "red:") + kind
+	var key := ("ivory_gold:" if is_white else "black_gold:") + kind
 	if _persian_role_materials.has(key):
 		return _persian_role_materials[key]
 	if not is_instance_valid(_persian_role_shader):
@@ -506,24 +506,26 @@ void fragment() {
 	result.shader = _persian_role_shader
 	var mode := 2.0 if kind == "rook" else (1.0 if kind in ["bishop", "knight"] else 0.0)
 	result.set_shader_parameter("role_mode", mode)
+	# Candidate 2 deliberately uses a two-material presentation: warm ivory or
+	# near-black stone, with shared yellow-gold trim selected by mesh position.
 	if is_white:
-		result.set_shader_parameter("metal_light", Color("c2c1b8"))
-		result.set_shader_parameter("metal_shadow", Color("666b68"))
-		result.set_shader_parameter("robe_colour", Color("858985"))
-		result.set_shader_parameter("apron_colour", Color("c79a42"))
-		result.set_shader_parameter("accent_colour", Color("d2a447"))
-		result.set_shader_parameter("antique_gold", Color("bd8d36"))
-		result.set_shader_parameter("stone_colour", Color("858681"))
-		result.set_shader_parameter("readability_lift", 0.012)
+		result.set_shader_parameter("metal_light", Color("f1e4c9"))
+		result.set_shader_parameter("metal_shadow", Color("aa9068"))
+		result.set_shader_parameter("robe_colour", Color("e5d8bd"))
+		result.set_shader_parameter("apron_colour", Color("d2a044"))
+		result.set_shader_parameter("accent_colour", Color("dda94a"))
+		result.set_shader_parameter("antique_gold", Color("c58f32"))
+		result.set_shader_parameter("stone_colour", Color("e0d1b6"))
+		result.set_shader_parameter("readability_lift", 0.010)
 	else:
-		result.set_shader_parameter("metal_light", Color("626965"))
-		result.set_shader_parameter("metal_shadow", Color("252d2d"))
-		result.set_shader_parameter("robe_colour", Color("3d4543"))
-		result.set_shader_parameter("apron_colour", Color("ad7d2f"))
-		result.set_shader_parameter("accent_colour", Color("c28e35"))
-		result.set_shader_parameter("antique_gold", Color("a97428"))
-		result.set_shader_parameter("stone_colour", Color("4c504d"))
-		result.set_shader_parameter("readability_lift", 0.040)
+		result.set_shader_parameter("metal_light", Color("3b3a36"))
+		result.set_shader_parameter("metal_shadow", Color("090b0b"))
+		result.set_shader_parameter("robe_colour", Color("121414"))
+		result.set_shader_parameter("apron_colour", Color("c18a30"))
+		result.set_shader_parameter("accent_colour", Color("d09a3a"))
+		result.set_shader_parameter("antique_gold", Color("ad7422"))
+		result.set_shader_parameter("stone_colour", Color("181a19"))
+		result.set_shader_parameter("readability_lift", 0.038)
 	_persian_role_materials[key] = result
 	return result
 
