@@ -188,7 +188,7 @@ func _setup_environment() -> void:
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color("090b0d") if visual_theme == "metal" else Color("111725")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.tonemap_exposure = 1.15 if visual_theme == "metal" else 1.0
+	environment.tonemap_exposure = 1.05 if visual_theme == "metal" else 1.0
 	if visual_theme == "metal":
 		# Mobile-safe equivalent of a warm studio HDRI. Godot prefilters this Sky
 		# into radiance levels once, giving polished marble and gold something to
@@ -206,10 +206,10 @@ func _setup_environment() -> void:
 		environment.sky = studio_sky
 		environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 		environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-		environment.ambient_light_energy = 0.25
-		$KeyLight.light_energy = 1.30
-		$FillLight.light_energy = 0.42
-		$RimLight.light_energy = 0.95
+		environment.ambient_light_energy = 0.20
+		$KeyLight.light_energy = 0.72
+		$FillLight.light_energy = 0.22
+		$RimLight.light_energy = 0.42
 	else:
 		environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		environment.ambient_light_color = Color("858e9d")
@@ -519,9 +519,9 @@ void fragment() {
     METALLIC = mix(0.0, 1.0, gold);
     METALLIC = mix(METALLIC, 0.70, (1.0 - is_ivory) * (1.0 - gold));
     ROUGHNESS = mix(mix(0.12, 0.55, 1.0 - is_ivory), 0.15, gold);
-    SPECULAR = 0.50;
-    CLEARCOAT = mix(1.0, 0.30, max(gold, 1.0 - is_ivory));
-    CLEARCOAT_GLOSS = mix(0.92, 0.70, max(gold, 1.0 - is_ivory));
+    // Compatibility renderer has no custom-shader clearcoat outputs. Low
+    // roughness plus strong dielectric specular provides the mobile-safe glaze.
+    SPECULAR = mix(0.62, 0.48, 1.0 - is_ivory);
     EMISSION = colour * readability_lift + marble_colour * rim * 0.018;
 }
 
