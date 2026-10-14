@@ -545,11 +545,11 @@ void fragment() {
     // inlay. The horse is excluded: its dark areas come from mane/tack relief.
     float knight = 1.0 - step(0.45, abs(role_mode - 2.0));
     float rook = 1.0 - step(0.45, abs(role_mode - 1.0));
-    float panel_width = mix(0.074, 0.115, rook);
+    float panel_width = mix(0.155, 0.195, rook);
     float body_zone = smoothstep(-0.34, -0.27, y) * (1.0 - smoothstep(0.18, 0.29, y));
     float surface = smoothstep(0.045, 0.105, abs(sculpt_pos.z));
-    float panel_outer = 1.0 - smoothstep(panel_width * 0.78, panel_width, abs(sculpt_pos.x));
-    float panel_inner = 1.0 - smoothstep(panel_width * 0.48, panel_width * 0.68, abs(sculpt_pos.x));
+    float panel_outer = 1.0 - smoothstep(panel_width * 0.82, panel_width, abs(sculpt_pos.x));
+    float panel_inner = 1.0 - smoothstep(panel_width * 0.58, panel_width * 0.74, abs(sculpt_pos.x));
     float panel = panel_inner * body_zone * surface * (1.0 - knight);
     float panel_border = max(panel_outer - panel_inner, 0.0) * body_zone * surface * (1.0 - knight);
     body = mix(body, inlay_colour, panel * mix(0.28, 0.94, is_ivory));
