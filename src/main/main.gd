@@ -514,6 +514,7 @@ uniform vec3 bronze_colour : source_color;
 uniform vec3 inlay_colour : source_color;
 uniform vec3 gold_colour : source_color;
 uniform float is_ivory = 1.0;
+uniform float role_mode = 0.0;
 uniform float readability_lift = 0.0;
 varying vec3 sculpt_pos;
 
@@ -536,18 +537,32 @@ void fragment() {
     vec3 bronze = bronze_colour * (0.72 + facing * 0.25);
     vec3 body = mix(bronze, marble, is_ivory);
 
-    // Actual recessed sculpture becomes the weathered dark inlay; no straight
-    // painted stripe is projected over unrelated anatomy.
-    float engraved = (1.0 - smoothstep(0.12, 0.34, relief)) * 0.62;
+    // Recesses inherit the dark engraved finish visible in every reference.
+    float engraved = (1.0 - smoothstep(0.12, 0.34, relief)) * 0.48;
     body = mix(body, inlay_colour, engraved);
 
-    // Restrained rings emulate separate polished-gold trim while preserving the
-    // underlying silhouette and keeping heads/battlements marble or bronze.
+    // Rook, pawn, bishop, queen and king references all carry a framed central
+    // inlay. The horse is excluded: its dark areas come from mane/tack relief.
+    float knight = 1.0 - step(0.45, abs(role_mode - 2.0));
+    float rook = 1.0 - step(0.45, abs(role_mode - 1.0));
+    float panel_width = mix(0.074, 0.115, rook);
+    float body_zone = smoothstep(-0.34, -0.27, y) * (1.0 - smoothstep(0.18, 0.29, y));
+    float surface = smoothstep(0.045, 0.105, abs(sculpt_pos.z));
+    float panel_outer = 1.0 - smoothstep(panel_width * 0.78, panel_width, abs(sculpt_pos.x));
+    float panel_inner = 1.0 - smoothstep(panel_width * 0.48, panel_width * 0.68, abs(sculpt_pos.x));
+    float panel = panel_inner * body_zone * surface * (1.0 - knight);
+    float panel_border = max(panel_outer - panel_inner, 0.0) * body_zone * surface * (1.0 - knight);
+    body = mix(body, inlay_colour, panel * mix(0.28, 0.94, is_ivory));
+
+    // A dark engraved base band plus narrow 24k borders mirrors the supplied
+    // set while keeping gold subordinate to the white/black body material.
+    float base_inlay = smoothstep(-0.405, -0.385, y) * (1.0 - smoothstep(-0.345, -0.325, y));
+    body = mix(body, inlay_colour, base_inlay * 0.82);
     float lower_ring = smoothstep(-0.465, -0.448, y) * (1.0 - smoothstep(-0.420, -0.397, y));
     float plinth_ring = smoothstep(-0.335, -0.317, y) * (1.0 - smoothstep(-0.292, -0.270, y));
     float collar_ring = smoothstep(0.165, 0.185, y) * (1.0 - smoothstep(0.212, 0.235, y));
     float crown_ring = smoothstep(0.425, 0.445, y) * (1.0 - smoothstep(0.468, 0.487, y));
-    float gold = clamp(lower_ring + plinth_ring * 0.72 + collar_ring * 0.66 + crown_ring * 0.45, 0.0, 1.0);
+    float gold = clamp(lower_ring + plinth_ring * 0.72 + collar_ring * 0.66 + crown_ring * 0.45 + panel_border * 0.88, 0.0, 1.0);
     vec3 colour = mix(body, gold_colour, gold);
 
     float rim = pow(1.0 - max(dot(NORMAL, VIEW), 0.0), 2.0);
@@ -570,6 +585,8 @@ void fragment() {
 	result.set_shader_parameter("inlay_colour", Color("8a704e") if is_white else Color("030404"))
 	result.set_shader_parameter("gold_colour", Color("d8ad57"))
 	result.set_shader_parameter("is_ivory", 1.0 if is_white else 0.0)
+	var role_modes := {"pawn": 0.0, "rook": 1.0, "knight": 2.0, "bishop": 3.0, "queen": 4.0, "king": 5.0}
+	result.set_shader_parameter("role_mode", role_modes[kind])
 	result.set_shader_parameter("readability_lift", 0.006 if is_white else 0.020)
 	_persian_role_materials[key] = result
 	return result
