@@ -12,7 +12,7 @@ script = ExtResource("1_main")
 [node name="KeyLight" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-70, -35, 0)
 light_color = Color(1, 0.988, 0.941, 1)
-light_energy = 0.72
+light_energy = 0.48
 shadow_enabled = true
 shadow_bias = 0.0001
 shadow_opacity = 0.58
@@ -23,13 +23,13 @@ directional_shadow_fade_start = 0.75
 [node name="FillLight" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-52, 5, 0)
 light_color = Color(1, 0.961, 0.878, 1)
-light_energy = 0.65
+light_energy = 0.32
 shadow_enabled = false
 
 [node name="RimLight" type="OmniLight3D" parent="."]
 position = Vector3(2.8, 4.2, -4.5)
 light_color = Color(1, 0.655, 0.149, 1)
-light_energy = 0.24
+light_energy = 0.10
 omni_range = 10.0
 omni_attenuation = 1.45
 shadow_enabled = false

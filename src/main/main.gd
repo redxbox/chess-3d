@@ -207,10 +207,10 @@ func _setup_environment() -> void:
 		environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 		environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		environment.ambient_light_color = Color("ffeacc")
-		environment.ambient_light_energy = 0.80
-		$KeyLight.light_energy = 0.72
-		$FillLight.light_energy = 0.65
-		$RimLight.light_energy = 0.24
+		environment.ambient_light_energy = 0.42
+		$KeyLight.light_energy = 0.48
+		$FillLight.light_energy = 0.32
+		$RimLight.light_energy = 0.10
 	else:
 		environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		environment.ambient_light_color = Color("858e9d")
