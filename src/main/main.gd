@@ -194,8 +194,8 @@ func _setup_environment() -> void:
 		# into radiance levels once, giving polished marble and gold something to
 		# reflect without shipping a large HDR texture in the Android package.
 		var studio_material := ProceduralSkyMaterial.new()
-		studio_material.sky_top_color = Color("3a2818")
-		studio_material.sky_horizon_color = Color("8c6239")
+		studio_material.sky_top_color = Color("4a3525")
+		studio_material.sky_horizon_color = Color("a67c52")
 		studio_material.ground_bottom_color = Color("1a110a")
 		studio_material.ground_horizon_color = Color("593e25")
 		studio_material.sun_angle_max = 18.0
@@ -205,8 +205,7 @@ func _setup_environment() -> void:
 		studio_sky.sky_material = studio_material
 		environment.sky = studio_sky
 		environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-		environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-		environment.ambient_light_color = Color("ffeacc")
+		environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 		environment.ambient_light_energy = 0.42
 		$KeyLight.light_energy = 0.48
 		$FillLight.light_energy = 0.32
@@ -479,7 +478,7 @@ func _persian_role_material(is_white: bool, kind: String) -> ShaderMaterial:
 	result.set_shader_parameter("marble_colour", Color("f5e8d1"))
 	result.set_shader_parameter("marble_shadow", Color("e1d5c1"))
 	result.set_shader_parameter("bronze_colour", Color("26211d"))
-	result.set_shader_parameter("inlay_colour", Color("3a3028") if is_white else Color("181512"))
+	result.set_shader_parameter("inlay_colour", Color("3d2716") if is_white else Color("181512"))
 	result.set_shader_parameter("gold_colour", Color("f5c542"))
 	result.set_shader_parameter("is_ivory", 1.0 if is_white else 0.0)
 	var role_modes := {"pawn": 0.0, "rook": 1.0, "knight": 2.0, "bishop": 3.0, "queen": 4.0, "king": 5.0}

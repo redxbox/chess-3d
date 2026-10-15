@@ -31,7 +31,7 @@ void fragment() {
     // carries polished-gold coverage and blue carries dark engraved coverage;
     // red remains the original geometric-relief bake.
     float reference_gold = smoothstep(0.65, 0.75, COLOR.g);
-    float reference_dark = smoothstep(0.65, 0.75, COLOR.b);
+    float reference_dark = clamp(smoothstep(0.65, 0.75, COLOR.b), 0.0, 0.72);
     body = mix(body, inlay_colour, reference_dark * mix(0.20, 0.94, is_ivory));
 
     // Physical rings remain crisp at gameplay distance. Photo-derived gold adds
@@ -46,8 +46,8 @@ void fragment() {
     float rim = pow(1.0 - max(dot(NORMAL, VIEW), 0.0), 2.0);
     ALBEDO = colour;
     METALLIC = mix(0.0, 0.65, gold);
-    METALLIC = mix(METALLIC, 0.50, (1.0 - is_ivory) * (1.0 - gold));
-    ROUGHNESS = mix(mix(0.35, 0.50, 1.0 - is_ivory), 0.22, gold);
+    METALLIC = mix(METALLIC, 0.60, (1.0 - is_ivory) * (1.0 - gold));
+    ROUGHNESS = mix(mix(0.35, 0.25, 1.0 - is_ivory), 0.22, gold);
     // Compatibility renderer has no custom-shader clearcoat outputs. Low
     // roughness plus strong dielectric specular provides the mobile-safe glaze.
     SPECULAR = 0.50;
