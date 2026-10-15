@@ -59,6 +59,19 @@ def sample_masks(image: Image.Image, u: np.ndarray, v: np.ndarray) -> tuple[np.n
     return np.clip(gold, 0.0, 1.0), np.clip(dark, 0.0, 1.0)
 
 
+def smooth_on_surface(mesh: trimesh.Trimesh, values: np.ndarray, iterations: int = 5) -> np.ndarray:
+    """Diffuse projected masks across adjacent vertices to remove photo noise."""
+    result = values.astype(np.float32, copy=True)
+    neighbors = mesh.vertex_neighbors
+    for _ in range(iterations):
+        updated = result.copy()
+        for index, adjacent in enumerate(neighbors):
+            if len(adjacent):
+                updated[index] = result[index] * 0.38 + result[np.asarray(adjacent)].mean() * 0.62
+        result = updated
+    return np.clip(result, 0.0, 1.0)
+
+
 def bake(role: str, reference_dir: Path) -> None:
     filename, crop, horizontal_axis = REFERENCES[role]
     image = Image.open(reference_dir / filename)
@@ -74,6 +87,8 @@ def bake(role: str, reference_dir: Path) -> None:
     u = left + nx * (right - left)
     v = bottom - ny * (bottom - top)
     gold, dark = sample_masks(image, u, v)
+    gold = smooth_on_surface(mesh, gold)
+    dark = smooth_on_surface(mesh, dark)
 
     old = np.asarray(mesh.visual.vertex_colors)
     curvature = old[:, 0] if len(old) == len(vertices) else np.full(len(vertices), 128, dtype=np.uint8)
