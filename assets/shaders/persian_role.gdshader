@@ -32,7 +32,7 @@ void fragment() {
     // red remains the original geometric-relief bake.
     float reference_gold = smoothstep(0.65, 0.75, COLOR.g);
     float reference_dark = clamp(smoothstep(0.65, 0.75, COLOR.b), 0.0, 0.72);
-    body = mix(body, inlay_colour, reference_dark * mix(0.20, 0.94, is_ivory));
+    body = mix(body, inlay_colour, reference_dark * 0.24 * is_ivory);
 
     // Physical rings remain crisp at gameplay distance. Photo-derived gold adds
     // role-specific crown, harness, panel, and ornament placement without UVs.
