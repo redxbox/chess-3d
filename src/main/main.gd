@@ -208,8 +208,8 @@ func _setup_environment() -> void:
 		environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 		environment.ambient_light_energy = 0.20
 		$KeyLight.light_energy = 0.72
-		$FillLight.light_energy = 0.22
-		$RimLight.light_energy = 0.42
+		$FillLight.light_energy = 0.16
+		$RimLight.light_energy = 0.24
 	else:
 		environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		environment.ambient_light_color = Color("858e9d")
@@ -222,14 +222,11 @@ func _setup_piece_materials() -> void:
 	# Create the three premium materials once. All 32 ModelInstances share these
 	# resources, preventing per-move allocations and shader recompilation.
 	if visual_theme == "metal":
-		# Physical companion materials for generated collars/identity ornaments.
-		# Imported sculptures use the matching shared shader below.
-		_piece_ivory_material = _luxury_piece_material(Color("f7f5ef"), 0.14, 0.0)
-		_piece_ivory_material.clearcoat_roughness = 0.08
-		_piece_obsidian_material = _luxury_piece_material(Color("090a0a"), 0.48, 0.72)
-		_piece_obsidian_material.clearcoat_roughness = 0.30
-		_piece_gold_material = _luxury_piece_material(Color("d8ad57"), 0.16, 1.0, false)
-		_piece_gold_material.clearcoat_roughness = 0.18
+		# Authored mobile PBR resources are loaded once and shared by every generated
+		# collar, ring, crown, and emblem. Imported bodies use the vertex-mask shader.
+		_piece_ivory_material = (load("res://assets/materials/royal/ivory_piece.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
+		_piece_obsidian_material = (load("res://assets/materials/royal/black_bronze_piece.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
+		_piece_gold_material = (load("res://assets/materials/royal/gold_trim.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
 	else:
 		_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.40, 0.01)
 		_piece_ivory_material.metallic_specular = 0.34
@@ -248,7 +245,7 @@ func _persian_sculpture_material(is_white: bool) -> ShaderMaterial:
 	var shader := Shader.new()
 	shader.code = """
 shader_type spatial;
-render_mode specular_schlick_ggx;
+render_mode blend_mix, depth_draw_opaque, diffuse_burley, specular_schlick_ggx;
 
 uniform vec3 base_metal : source_color;
 uniform vec3 shadow_metal : source_color;
@@ -297,39 +294,12 @@ void fragment() {
 	return material
 
 
-func _make_marble_texture(base: Color, vein_colour: Color, strength: float, seed: int) -> ImageTexture:
-	# Tiny deterministic texture generated once at startup: no download, no APK
-	# asset cost, and no per-frame shader noise. Two warped ridges form fine veins.
-	var size := 128
-	var image := Image.create(size, size, false, Image.FORMAT_RGB8)
-	var noise := FastNoiseLite.new()
-	noise.seed = seed
-	noise.frequency = 0.032
-	noise.fractal_octaves = 3
-	for y in size:
-		for x in size:
-			var warp := noise.get_noise_2d(float(x), float(y)) * 18.0
-			var ridge_a: float = absf(sin((float(x) + warp) * 0.105 + float(y) * 0.041))
-			var ridge_b: float = absf(sin(float(x) * 0.031 - (float(y) + warp) * 0.082 + 1.7))
-			var vein := pow(maxf(0.0, 1.0 - minf(ridge_a, ridge_b) * 10.0), 1.8)
-			var cloud := noise.get_noise_2d(float(x) * 0.45, float(y) * 0.45) * 0.025
-			var stone := base.lightened(maxf(0.0, cloud)).darkened(maxf(0.0, -cloud))
-			image.set_pixel(x, y, stone.lerp(vein_colour, vein * strength))
-	image.generate_mipmaps()
-	return ImageTexture.create_from_image(image)
-
-
 func _create_board() -> void:
 	if visual_theme == "metal":
-		# Reference-inspired stone board only: polished white marble alternates
-		# with deep Persian-green marble, both carrying restrained natural veins.
-		_board_light_material = _material(Color.WHITE, 0.68, 0.0)
-		_board_light_material.albedo_texture = _make_marble_texture(Color("eeeae0"), Color("9b8a74"), 0.30, 17)
-		_board_dark_material = _material(Color.WHITE, 0.72, 0.0)
-		_board_dark_material.albedo_texture = _make_marble_texture(Color("24473c"), Color("789081"), 0.34, 53)
-		# Unshaded stone avoids a fake moving hotspot; veining supplies surface life.
-		_board_light_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_board_dark_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		# Baked 256px marble maps replace runtime noise. Both materials stay lit so
+		# roughness/specular respond naturally to the one key and two subtle fills.
+		_board_light_material = (load("res://assets/materials/royal/ivory_marble_board.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
+		_board_dark_material = (load("res://assets/materials/royal/royal_green_board.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
 	else:
 		_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
 		_board_dark_material = _material(Color("542536"), 0.43, 0.06)
@@ -358,13 +328,12 @@ func _create_board() -> void:
 	# the rails above it provide the intended lit material variation.
 	var base_material: StandardMaterial3D
 	if visual_theme == "metal":
-		# The exposed surround is cut from the same deep-green stone as the dark
-		# squares, matching the reference's continuous marble slab.
-		base_material = _material(Color.WHITE, 0.76, 0.0)
-		base_material.albedo_texture = _make_marble_texture(Color("19382f"), Color("667c70"), 0.30, 91)
+		# Continue the green marble beyond the 8x8 field without another texture.
+		base_material = (load("res://assets/materials/royal/royal_green_board.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
+		base_material.roughness = 0.30
 	else:
 		base_material = _matte_material(Color("201820"), 0.62)
-	base_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		base_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	base_mesh.material = base_material
 	base.mesh = base_mesh
 	base.position.y = -0.22
@@ -506,7 +475,7 @@ func _persian_role_material(is_white: bool, kind: String) -> ShaderMaterial:
 		_persian_role_shader = Shader.new()
 		_persian_role_shader.code = """
 shader_type spatial;
-render_mode specular_schlick_ggx;
+render_mode blend_mix, depth_draw_opaque, diffuse_burley, specular_schlick_ggx;
 
 uniform vec3 marble_colour : source_color;
 uniform vec3 marble_shadow : source_color;
@@ -527,12 +496,9 @@ void fragment() {
     float relief = COLOR.r;
     float facing = clamp(0.58 + NORMAL.y * 0.16 + NORMAL.x * 0.05, 0.0, 1.0);
 
-    // Fine object-space Carrara veins: subtle, stable, and texture-free.
-    float vein_wave = sin(sculpt_pos.y * 73.0 + sculpt_pos.x * 31.0 + sin(sculpt_pos.z * 41.0) * 2.2);
-    float vein = 1.0 - smoothstep(0.035, 0.16, abs(vein_wave));
-    vein *= smoothstep(0.20, 0.82, relief) * is_ivory;
+    // Curvature is already baked in COLOR.r; avoid procedural fragment noise.
     vec3 marble = mix(marble_shadow, marble_colour, 0.76 + facing * 0.20);
-    marble = mix(marble, vec3(0.56, 0.48, 0.39), vein * 0.16);
+    marble *= mix(0.93, 1.025, relief);
 
     vec3 bronze = bronze_colour * (0.72 + facing * 0.25);
     vec3 body = mix(bronze, marble, is_ivory);

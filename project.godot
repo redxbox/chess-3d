@@ -21,6 +21,7 @@ handheld/orientation=0
 textures/vram_compression/import_etc2_astc=true
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+rendering/lights_and_shadows/directional_shadow/size=2048
 textures/default_filters/use_nearest_mipmap_filter=false
 lights_and_shadows/directional_shadow/size=2048
 
