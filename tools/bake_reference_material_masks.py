@@ -49,13 +49,13 @@ def sample_masks(image: Image.Image, u: np.ndarray, v: np.ndarray) -> tuple[np.n
     # Warm saturation distinguishes gold trim from warm ivory marble.
     warm = smoothstep(0.03, 0.16, rgb[:, 0] - rgb[:, 2])
     yellow = smoothstep(-0.03, 0.10, rgb[:, 1] - rgb[:, 2])
-    gold = smoothstep(0.34, 0.66, saturation) * warm * yellow
-    gold *= smoothstep(0.16, 0.40, luminance) * (1.0 - smoothstep(0.78, 0.93, luminance))
+    gold = smoothstep(0.52, 0.82, saturation) * warm * yellow
+    gold *= smoothstep(0.18, 0.42, luminance) * (1.0 - smoothstep(0.73, 0.86, luminance))
 
-    # Engraved bronze/charcoal is dark and materially distinct from the ivory.
-    dark = 1.0 - smoothstep(0.16, 0.43, luminance)
+    # Engraved bronze/charcoal is substantially darker than shaded ivory.
+    dark = 1.0 - smoothstep(0.10, 0.27, luminance)
     # Reject the nearly black photographic backdrop; it is not model material.
-    dark *= smoothstep(0.055, 0.13, luminance)
+    dark *= smoothstep(0.060, 0.115, luminance)
     return np.clip(gold, 0.0, 1.0), np.clip(dark, 0.0, 1.0)
 
 

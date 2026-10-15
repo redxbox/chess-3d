@@ -540,8 +540,8 @@ void fragment() {
     // The six supplied photographs are sampled offline onto each role. Green
     // carries polished-gold coverage and blue carries dark engraved coverage;
     // red remains the original geometric-relief bake.
-    float reference_gold = smoothstep(0.18, 0.72, COLOR.g);
-    float reference_dark = smoothstep(0.16, 0.68, COLOR.b);
+    float reference_gold = smoothstep(0.34, 0.76, COLOR.g);
+    float reference_dark = smoothstep(0.32, 0.76, COLOR.b);
     float engraved = (1.0 - smoothstep(0.12, 0.34, relief)) * 0.30;
     body = mix(body, inlay_colour, max(engraved, reference_dark * mix(0.34, 0.92, is_ivory)));
 
