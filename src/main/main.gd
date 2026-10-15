@@ -537,32 +537,21 @@ void fragment() {
     vec3 bronze = bronze_colour * (0.72 + facing * 0.25);
     vec3 body = mix(bronze, marble, is_ivory);
 
-    // Recesses inherit the dark engraved finish visible in every reference.
-    float engraved = (1.0 - smoothstep(0.12, 0.34, relief)) * 0.48;
-    body = mix(body, inlay_colour, engraved);
+    // The six supplied photographs are sampled offline onto each role. Green
+    // carries polished-gold coverage and blue carries dark engraved coverage;
+    // red remains the original geometric-relief bake.
+    float reference_gold = smoothstep(0.18, 0.72, COLOR.g);
+    float reference_dark = smoothstep(0.16, 0.68, COLOR.b);
+    float engraved = (1.0 - smoothstep(0.12, 0.34, relief)) * 0.30;
+    body = mix(body, inlay_colour, max(engraved, reference_dark * mix(0.34, 0.92, is_ivory)));
 
-    // Rook, pawn, bishop, queen and king references all carry a framed central
-    // inlay. The horse is excluded: its dark areas come from mane/tack relief.
-    float knight = 1.0 - step(0.45, abs(role_mode - 2.0));
-    float rook = 1.0 - step(0.45, abs(role_mode - 1.0));
-    float panel_width = mix(0.155, 0.195, rook);
-    float body_zone = smoothstep(-0.34, -0.27, y) * (1.0 - smoothstep(0.18, 0.29, y));
-    float surface = smoothstep(0.045, 0.105, abs(sculpt_pos.z));
-    float panel_outer = 1.0 - smoothstep(panel_width * 0.82, panel_width, abs(sculpt_pos.x));
-    float panel_inner = 1.0 - smoothstep(panel_width * 0.58, panel_width * 0.74, abs(sculpt_pos.x));
-    float panel = panel_inner * body_zone * surface * (1.0 - knight);
-    float panel_border = max(panel_outer - panel_inner, 0.0) * body_zone * surface * (1.0 - knight);
-    body = mix(body, inlay_colour, panel * mix(0.28, 0.94, is_ivory));
-
-    // A dark engraved base band plus narrow 24k borders mirrors the supplied
-    // set while keeping gold subordinate to the white/black body material.
-    float base_inlay = smoothstep(-0.405, -0.385, y) * (1.0 - smoothstep(-0.345, -0.325, y));
-    body = mix(body, inlay_colour, base_inlay * 0.82);
+    // Physical rings remain crisp at gameplay distance. Photo-derived gold adds
+    // role-specific crown, harness, panel, and ornament placement without UVs.
     float lower_ring = smoothstep(-0.465, -0.448, y) * (1.0 - smoothstep(-0.420, -0.397, y));
     float plinth_ring = smoothstep(-0.335, -0.317, y) * (1.0 - smoothstep(-0.292, -0.270, y));
     float collar_ring = smoothstep(0.165, 0.185, y) * (1.0 - smoothstep(0.212, 0.235, y));
     float crown_ring = smoothstep(0.425, 0.445, y) * (1.0 - smoothstep(0.468, 0.487, y));
-    float gold = clamp(lower_ring + plinth_ring * 0.72 + collar_ring * 0.66 + crown_ring * 0.45 + panel_border * 0.88, 0.0, 1.0);
+    float gold = clamp(max(reference_gold * 0.90, lower_ring + plinth_ring * 0.72 + collar_ring * 0.66 + crown_ring * 0.45), 0.0, 1.0);
     vec3 colour = mix(body, gold_colour, gold);
 
     float rim = pow(1.0 - max(dot(NORMAL, VIEW), 0.0), 2.0);
