@@ -185,7 +185,7 @@ func _notification(what: int) -> void:
 
 func _setup_environment() -> void:
 	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
+	environment.background_mode = Environment.BG_SKY
 	environment.background_color = Color("120d0a") if visual_theme == "metal" else Color("111725")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	environment.tonemap_exposure = 1.05 if visual_theme == "metal" else 1.0
@@ -206,10 +206,10 @@ func _setup_environment() -> void:
 		environment.sky = studio_sky
 		environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 		environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-		environment.ambient_light_energy = 0.42
-		$KeyLight.light_energy = 0.48
-		$FillLight.light_energy = 0.32
-		$RimLight.light_energy = 0.10
+		environment.ambient_light_energy = 0.40
+		$KeyLight.light_energy = 1.50
+		$FillLight.light_energy = 0.24
+		$RimLight.light_energy = 0.0
 	else:
 		environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		environment.ambient_light_color = Color("858e9d")
@@ -222,11 +222,11 @@ func _setup_piece_materials() -> void:
 	# Create the three premium materials once. All 32 ModelInstances share these
 	# resources, preventing per-move allocations and shader recompilation.
 	if visual_theme == "metal":
-		# Authored mobile PBR resources are loaded once and shared by every generated
-		# collar, ring, crown, and emblem. Imported bodies use the vertex-mask shader.
-		_piece_ivory_material = (load("res://assets/materials/royal/ivory_piece.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
-		_piece_obsidian_material = (load("res://assets/materials/royal/black_bronze_piece.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
-		_piece_gold_material = (load("res://assets/materials/royal/gold_trim.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
+		# Geometry-only GLBs and generated ornaments share three cached mobile PBR
+		# resources. No model texture or broken UV data is consulted.
+		_piece_ivory_material = ChessMaterials.white_body()
+		_piece_obsidian_material = ChessMaterials.black_body()
+		_piece_gold_material = ChessMaterials.gold_trim()
 	else:
 		_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.40, 0.01)
 		_piece_ivory_material.metallic_specular = 0.34
@@ -508,7 +508,7 @@ func _add_persian_model(piece: Node3D, kind: String, is_white: bool, material: M
 		sculpture.rotation.y = base_rotation + display_angle * side_sign * army_sign
 	else:
 		sculpture.rotation.y = base_rotation
-	_apply_sculpture_material(sculpture, _persian_role_material(is_white, kind), kind in ["king", "queen"])
+	ChessMaterials.apply_to_tree(sculpture, is_white, kind in ["king", "queen"])
 	piece.add_child(sculpture)
 	_add_royal_back_emblem(piece, kind, is_white, accent)
 	# A real shared gold ring anchors every piece at gameplay distance.
