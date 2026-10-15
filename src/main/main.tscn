@@ -20,12 +20,10 @@ shadow_blur = 3.5
 directional_shadow_max_distance = 18.0
 directional_shadow_fade_start = 0.75
 
-[node name="FillLight" type="OmniLight3D" parent="."]
-position = Vector3(-3.8, 4.8, 2.4)
-light_color = Color(0.82, 0.68, 0.52, 1)
-light_energy = 0.16
-omni_range = 11.0
-omni_attenuation = 1.35
+[node name="FillLight" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-52, 5, 0)
+light_color = Color(1, 0.961, 0.878, 1)
+light_energy = 0.65
 shadow_enabled = false
 
 [node name="RimLight" type="OmniLight3D" parent="."]

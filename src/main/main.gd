@@ -186,7 +186,7 @@ func _notification(what: int) -> void:
 func _setup_environment() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("090b0d") if visual_theme == "metal" else Color("111725")
+	environment.background_color = Color("120d0a") if visual_theme == "metal" else Color("111725")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	environment.tonemap_exposure = 1.05 if visual_theme == "metal" else 1.0
 	if visual_theme == "metal":
@@ -194,10 +194,10 @@ func _setup_environment() -> void:
 		# into radiance levels once, giving polished marble and gold something to
 		# reflect without shipping a large HDR texture in the Android package.
 		var studio_material := ProceduralSkyMaterial.new()
-		studio_material.sky_top_color = Color("17100d")
-		studio_material.sky_horizon_color = Color("e2a35f")
-		studio_material.ground_bottom_color = Color("090a0b")
-		studio_material.ground_horizon_color = Color("7a4b2c")
+		studio_material.sky_top_color = Color("3a2818")
+		studio_material.sky_horizon_color = Color("8c6239")
+		studio_material.ground_bottom_color = Color("1a110a")
+		studio_material.ground_horizon_color = Color("593e25")
 		studio_material.sun_angle_max = 18.0
 		studio_material.sun_curve = 0.12
 		var studio_sky := Sky.new()
@@ -205,10 +205,11 @@ func _setup_environment() -> void:
 		studio_sky.sky_material = studio_material
 		environment.sky = studio_sky
 		environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-		environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-		environment.ambient_light_energy = 0.20
+		environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		environment.ambient_light_color = Color("ffeacc")
+		environment.ambient_light_energy = 0.80
 		$KeyLight.light_energy = 0.72
-		$FillLight.light_energy = 0.16
+		$FillLight.light_energy = 0.65
 		$RimLight.light_energy = 0.24
 	else:
 		environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -343,7 +344,7 @@ func _create_board() -> void:
 	# reflectors. In particular, the camera-right rail caught the cool fill over
 	# its full length and projected as the persistent bright wedge. Keep the dark
 	# structural rail unshaded; the narrow metallic inset remains light-reactive.
-	var wood_color := Color("1b0e09") if visual_theme == "metal" else Color("241418")
+	var wood_color := Color("382218") if visual_theme == "metal" else Color("241418")
 	var wood := _matte_material(wood_color, 0.82)
 	wood.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	var gold := _material(Color("c69a4a") if visual_theme == "metal" else Color("9f7440"), 0.24, 0.92 if visual_theme == "metal" else 0.72)
@@ -366,8 +367,8 @@ func _create_board() -> void:
 	# old CylinderMesh. On mobile that fan produced a bright triangular facet at
 	# the right edge of the table. Separate matte tiers add depth without extra
 	# shaders, transparency, or per-frame work.
-	var table_material := _matte_material(Color("120b09") if visual_theme == "metal" else Color("1d1116"), 0.78)
-	var table_edge_material := _matte_material(Color("251610") if visual_theme == "metal" else Color("281820"), 0.72)
+	var table_material := _matte_material(Color("1f130e") if visual_theme == "metal" else Color("1d1116"), 0.78)
+	var table_edge_material := _matte_material(Color("42281c") if visual_theme == "metal" else Color("281820"), 0.72)
 	# The broad plinth is a visual backdrop, not a light receiver. On the target
 	# mobile GPU a BoxMesh top face still exposed one diagonal lighting facet.
 	# Unshaded matte tiers guarantee a uniform surface while the stepped geometry
@@ -472,77 +473,18 @@ func _persian_role_material(is_white: bool, kind: String) -> ShaderMaterial:
 	if _persian_role_materials.has(key):
 		return _persian_role_materials[key]
 	if not is_instance_valid(_persian_role_shader):
-		_persian_role_shader = Shader.new()
-		_persian_role_shader.code = """
-shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, diffuse_burley, specular_schlick_ggx;
-
-uniform vec3 marble_colour : source_color;
-uniform vec3 marble_shadow : source_color;
-uniform vec3 bronze_colour : source_color;
-uniform vec3 inlay_colour : source_color;
-uniform vec3 gold_colour : source_color;
-uniform float is_ivory = 1.0;
-uniform float role_mode = 0.0;
-uniform float readability_lift = 0.0;
-varying vec3 sculpt_pos;
-
-void vertex() {
-    sculpt_pos = VERTEX;
-}
-
-void fragment() {
-    float y = sculpt_pos.y;
-    float relief = COLOR.r;
-    float facing = clamp(0.58 + NORMAL.y * 0.16 + NORMAL.x * 0.05, 0.0, 1.0);
-
-    // Curvature is already baked in COLOR.r; avoid procedural fragment noise.
-    vec3 marble = mix(marble_shadow, marble_colour, 0.76 + facing * 0.20);
-    marble *= mix(0.93, 1.025, relief);
-
-    vec3 bronze = bronze_colour * (0.72 + facing * 0.25);
-    vec3 body = mix(bronze, marble, is_ivory);
-
-    // The six supplied photographs are sampled offline onto each role. Green
-    // carries polished-gold coverage and blue carries dark engraved coverage;
-    // red remains the original geometric-relief bake.
-    float reference_gold = smoothstep(0.34, 0.76, COLOR.g);
-    float reference_dark = smoothstep(0.32, 0.76, COLOR.b);
-    float engraved = (1.0 - smoothstep(0.12, 0.34, relief)) * 0.30;
-    body = mix(body, inlay_colour, max(engraved, reference_dark * mix(0.34, 0.92, is_ivory)));
-
-    // Physical rings remain crisp at gameplay distance. Photo-derived gold adds
-    // role-specific crown, harness, panel, and ornament placement without UVs.
-    float lower_ring = smoothstep(-0.465, -0.448, y) * (1.0 - smoothstep(-0.420, -0.397, y));
-    float plinth_ring = smoothstep(-0.335, -0.317, y) * (1.0 - smoothstep(-0.292, -0.270, y));
-    float collar_ring = smoothstep(0.165, 0.185, y) * (1.0 - smoothstep(0.212, 0.235, y));
-    float crown_ring = smoothstep(0.425, 0.445, y) * (1.0 - smoothstep(0.468, 0.487, y));
-    float gold = clamp(max(reference_gold * 0.90, lower_ring + plinth_ring * 0.72 + collar_ring * 0.66 + crown_ring * 0.45), 0.0, 1.0);
-    vec3 colour = mix(body, gold_colour, gold);
-
-    float rim = pow(1.0 - max(dot(NORMAL, VIEW), 0.0), 2.0);
-    ALBEDO = colour;
-    METALLIC = mix(0.0, 1.0, gold);
-    METALLIC = mix(METALLIC, 0.70, (1.0 - is_ivory) * (1.0 - gold));
-    ROUGHNESS = mix(mix(0.12, 0.55, 1.0 - is_ivory), 0.15, gold);
-    // Compatibility renderer has no custom-shader clearcoat outputs. Low
-    // roughness plus strong dielectric specular provides the mobile-safe glaze.
-    SPECULAR = mix(0.62, 0.48, 1.0 - is_ivory);
-    EMISSION = colour * readability_lift + marble_colour * rim * 0.018;
-}
-
-"""
+		_persian_role_shader = load("res://assets/shaders/persian_role.gdshader") as Shader
 	var result := ShaderMaterial.new()
 	result.shader = _persian_role_shader
-	result.set_shader_parameter("marble_colour", Color("f7f5ef"))
-	result.set_shader_parameter("marble_shadow", Color("c7bfb1"))
-	result.set_shader_parameter("bronze_colour", Color("090a0a"))
-	result.set_shader_parameter("inlay_colour", Color("8a704e") if is_white else Color("030404"))
-	result.set_shader_parameter("gold_colour", Color("d8ad57"))
+	result.set_shader_parameter("marble_colour", Color("f5e8d1"))
+	result.set_shader_parameter("marble_shadow", Color("e1d5c1"))
+	result.set_shader_parameter("bronze_colour", Color("26211d"))
+	result.set_shader_parameter("inlay_colour", Color("3a3028") if is_white else Color("181512"))
+	result.set_shader_parameter("gold_colour", Color("f5c542"))
 	result.set_shader_parameter("is_ivory", 1.0 if is_white else 0.0)
 	var role_modes := {"pawn": 0.0, "rook": 1.0, "knight": 2.0, "bishop": 3.0, "queen": 4.0, "king": 5.0}
 	result.set_shader_parameter("role_mode", role_modes[kind])
-	result.set_shader_parameter("readability_lift", 0.006 if is_white else 0.020)
+	result.set_shader_parameter("readability_lift", 0.006 if is_white else 0.035)
 	_persian_role_materials[key] = result
 	return result
 
