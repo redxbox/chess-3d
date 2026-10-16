@@ -390,28 +390,26 @@ func _add_royal_wood_piece(piece: Node3D, kind: String, is_white: bool, wood: Ma
 	_add_torus(piece, base_radius, 0.014, 0.095, gold)
 	match kind:
 		"pawn":
-			_add_torus(piece, 0.145, 0.010, 0.67, gold)
+			_add_torus(piece, 0.135, 0.008, 0.69, gold)
 		"rook":
-			_add_torus(piece, 0.235, 0.026, 1.17, gold)
-			for angle in [0.0, 60.0, 120.0, 180.0, 240.0, 300.0]:
-				var r := deg_to_rad(angle)
-				_add_box(piece, Vector3(0.065, 0.12, 0.065), Vector3(cos(r)*0.22, 1.27, sin(r)*0.22), gold)
+			# Trace the existing castle rim; do not replace it with a floating crown.
+			_add_torus(piece, 0.19, 0.014, 1.00, gold)
 		"knight":
-			# A segmented gold mane follows the horse-head profile.
-			for i in 5:
-				_add_sphere(piece, 0.035, 1.00 + i*0.075, gold, Vector3(0, 0, 0.12 - i*0.018))
+			# Three restrained studs suggest the gilded mane in the reference.
+			for i in 3:
+				_add_sphere(piece, 0.022, 1.10 + i*0.06, gold, Vector3(0, 0, 0.10 - i*0.012))
 		"bishop":
-			_add_torus(piece, 0.19, 0.020, 1.03, gold)
-			_add_sphere(piece, 0.048, 1.35, gold)
+			_add_torus(piece, 0.155, 0.012, 1.05, gold)
+			_add_sphere(piece, 0.030, 1.31, gold)
 		"queen":
-			_add_torus(piece, 0.235, 0.026, 1.16, gold)
-			for angle in [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]:
+			_add_torus(piece, 0.16, 0.014, 1.19, gold)
+			for angle in [0.0, 90.0, 180.0, 270.0]:
 				var r := deg_to_rad(angle)
-				_add_sphere(piece, 0.045, 1.34, gold, Vector3(cos(r)*0.18, 0, sin(r)*0.18))
+				_add_sphere(piece, 0.026, 1.29, gold, Vector3(cos(r)*0.13, 0, sin(r)*0.13))
 		"king":
-			_add_torus(piece, 0.22, 0.022, 1.20, gold)
-			_add_box(piece, Vector3(0.075, 0.29, 0.075), Vector3(0, 1.48, 0), gold)
-			_add_box(piece, Vector3(0.26, 0.075, 0.075), Vector3(0, 1.53, 0), gold)
+			_add_torus(piece, 0.15, 0.012, 1.22, gold)
+			_add_box(piece, Vector3(0.055, 0.20, 0.055), Vector3(0, 1.39, 0), gold)
+			_add_box(piece, Vector3(0.18, 0.055, 0.055), Vector3(0, 1.42, 0), gold)
 
 
 func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
