@@ -1201,9 +1201,9 @@ func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
 		# Persian marble stores its complete palette in generated textures; a white
 		# multiplier preserves those colors instead of tinting them slate blue.
-		_board_light_material.albedo_color = Color.WHITE if board_theme == "marble" else (Color("d9edf2") if board_theme == "cyber" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d")))
+		_board_light_material.albedo_color = Color("f0ede6") if board_theme == "marble" else (Color("22252a") if board_theme == "cyber" else (Color("e8d5b7") if board_theme == "wood" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d"))))
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color.WHITE if board_theme == "marble" else (Color("183247") if board_theme == "cyber" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536"))))
+		_board_dark_material.albedo_color = Color("151517") if board_theme == "marble" else (Color("0f1115") if board_theme == "cyber" else (Color("4a2d18") if board_theme == "wood" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536")))))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	for child in $UI.get_children():
