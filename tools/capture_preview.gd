@@ -1,18 +1,25 @@
 extends SceneTree
 
-const OUTPUT_PATH := "res://build/preview/persian-luxury-preview.png"
+var output_path := "res://build/preview/theme-preview.png"
 
 
 func _initialize() -> void:
-	# CI starts with an empty user directory; select the Persian presentation
-	# before Main._ready() reads the saved visual-theme preference.
-	var theme_file := FileAccess.open("user://visual_theme.txt", FileAccess.WRITE)
-	if theme_file == null:
-		push_error("Could not prepare the Persian preview preference")
-		quit(1)
-		return
-	theme_file.store_string("metal")
-	theme_file.close()
+	# CI chooses board and pieces independently, exactly like the setup menu.
+	var piece_theme := OS.get_environment("CHESS_PIECE_THEME")
+	var board_theme := OS.get_environment("CHESS_BOARD_THEME")
+	if piece_theme == "": piece_theme = "persian"
+	if board_theme == "": board_theme = "royal"
+	var output_name := OS.get_environment("CHESS_PREVIEW_NAME")
+	if output_name == "": output_name = "%s-%s.png" % [board_theme, piece_theme]
+	output_path = "res://build/preview/" + output_name
+	for preference in [["user://piece_theme.txt", piece_theme], ["user://board_theme.txt", board_theme]]:
+		var theme_file := FileAccess.open(preference[0], FileAccess.WRITE)
+		if theme_file == null:
+			push_error("Could not prepare theme preference: " + preference[0])
+			quit(1)
+			return
+		theme_file.store_string(preference[1])
+		theme_file.close()
 
 	var packed_scene := load("res://src/main/main.tscn") as PackedScene
 	if packed_scene == null:
@@ -45,10 +52,10 @@ func capture_when_ready() -> void:
 		push_error("Godot returned an empty preview image")
 		quit(1)
 		return
-	var error := image.save_png(OUTPUT_PATH)
+	var error := image.save_png(output_path)
 	if error != OK:
 		push_error("Could not save preview PNG: %s" % error_string(error))
 		quit(1)
 		return
-	print("Saved real Godot preview to ", OUTPUT_PATH)
+	print("Saved real Godot preview to ", output_path)
 	quit()

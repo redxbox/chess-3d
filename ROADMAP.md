@@ -277,3 +277,5 @@
 - قابلیت روی حداقل یک گوشی Android آزمایش شده باشد.
 
 - **Beta 22.37:** Independent cached selection of three board themes (Classic, Royal Marble, Frost) and three piece themes (Classic Staunton, Persian Kingdoms, Frost), yielding nine mobile-safe combinations without changing chess logic.
+
+- **Beta 22.38:** Full-project audit fixed stale preview preferences and expanded authentic CI rendering to all nine independent board/piece combinations.
