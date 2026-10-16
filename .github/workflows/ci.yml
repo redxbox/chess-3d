@@ -48,7 +48,7 @@ jobs:
           fi
 
   visual-preview:
-    name: Render Persian visual preview
+    name: Render all visual themes
     needs: validate
     runs-on: ubuntu-latest
     container:
@@ -66,8 +66,8 @@ jobs:
       - name: Render real Godot screenshot
         run: |
           mkdir -p build/preview
-          for board in classic royal frost; do
-            for pieces in classic persian frost; do
+          for board in classic wood marble cyber; do
+            for pieces in classic bauhaus gothic abstract; do
               name="${board}-${pieces}.png"
               CHESS_BOARD_THEME="$board" CHESS_PIECE_THEME="$pieces" CHESS_PREVIEW_NAME="$name" \
                 xvfb-run -a -s "-screen 0 1536x864x24" \
@@ -76,7 +76,7 @@ jobs:
               test -s "build/preview/$name"
             done
           done
-          cp build/preview/royal-persian.png build/preview/persian-luxury-preview.png
+          cp build/preview/marble-gothic.png build/preview/theme-showcase-preview.png
       - name: Upload visual preview
         uses: actions/upload-artifact@v4
         with:
@@ -90,7 +90,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const path = 'docs/previews/persian-luxury-preview.png';
+            const path = 'docs/previews/theme-showcase-preview.png';
             let sha;
             try {
               const current = await github.rest.repos.getContent({
@@ -109,7 +109,7 @@ jobs:
               path,
               branch: 'arena/01a0dc2e-chess-3d',
               message: 'Update rendered Persian preview [skip ci]',
-              content: fs.readFileSync('build/preview/persian-luxury-preview.png').toString('base64'),
+              content: fs.readFileSync('build/preview/theme-showcase-preview.png').toString('base64'),
               ...(sha ? { sha } : {})
             });
 
@@ -168,7 +168,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: chess-3d-v0.12.0-beta.22.38-build-${{ github.run_number }}
+          name: chess-3d-v0.12.0-beta.22.39-build-${{ github.run_number }}
           path: build/android/chess-3d.apk
           if-no-files-found: error
           retention-days: 14

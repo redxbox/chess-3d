@@ -279,3 +279,5 @@
 - **Beta 22.37:** Independent cached selection of three board themes (Classic, Royal Marble, Frost) and three piece themes (Classic Staunton, Persian Kingdoms, Frost), yielding nine mobile-safe combinations without changing chess logic.
 
 - **Beta 22.38:** Full-project audit fixed stale preview preferences and expanded authentic CI rendering to all nine independent board/piece combinations.
+
+- **Beta 22.39:** Replaced active Persian set with three cached procedural geometry families (Bauhaus, Gothic Crystal, Abstract Spiral), added Wood/Marble/Cyber boards alongside Classic, and calibrated two-directional-light ACES rendering for 16 combinations.

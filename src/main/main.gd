@@ -21,17 +21,6 @@ const PIECE_MODELS := {
 	"queen": preload("res://assets/models/staunton/queen.obj"),
 	"king": preload("res://assets/models/staunton/king.obj")
 }
-const PERSIAN_MODELS := {
-	"pawn": preload("res://assets/models/persian/candidate2/optimized/pawn.glb"),
-	"rook": preload("res://assets/models/persian/candidate2/optimized/rook.glb"),
-	"knight": preload("res://assets/models/persian/candidate2/optimized/knight.glb"),
-	"bishop": preload("res://assets/models/persian/candidate2/optimized/bishop.glb"),
-	"queen": preload("res://assets/models/persian/candidate2/optimized/queen.glb"),
-	"king": preload("res://assets/models/persian/candidate2/optimized/king.glb")
-}
-const BOARD_SIZE := 8
-const SQUARE_SIZE := 1.0
-
 @onready var board: Node3D = $Board
 @onready var camera_rig: Node3D = $CameraRig
 @onready var camera: Camera3D = $CameraRig/Camera3D
@@ -43,8 +32,6 @@ var highlights_root := Node3D.new()
 var decor_root := Node3D.new()
 var coordinates_root := Node3D.new()
 var _mesh_cache: Dictionary = {}
-var _persian_role_materials: Dictionary = {}
-var _persian_role_shader: Shader
 var _board_light_material: StandardMaterial3D
 var _board_dark_material: StandardMaterial3D
 var _piece_ivory_material: Material
@@ -188,129 +175,63 @@ func _notification(what: int) -> void:
 
 
 func _setup_environment() -> void:
+	# Godot equivalent of ACESFilmic + sRGB. Compatibility renders to sRGB;
+	# calibrated energies preserve ivory detail and readable dark silhouettes.
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_SKY
-	environment.background_color = Color("120d0a") if piece_theme == "persian" or board_theme != "classic" else Color("111725")
+	environment.background_color = Color("100d0f")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.tonemap_exposure = 1.05 if piece_theme == "persian" or board_theme != "classic" else 1.0
-	if piece_theme == "persian" or board_theme != "classic":
-		# Mobile-safe equivalent of a warm studio HDRI. Godot prefilters this Sky
-		# into radiance levels once, giving polished marble and gold something to
-		# reflect without shipping a large HDR texture in the Android package.
-		var studio_material := ProceduralSkyMaterial.new()
-		studio_material.sky_top_color = Color("4a3525")
-		studio_material.sky_horizon_color = Color("a67c52")
-		studio_material.ground_bottom_color = Color("1a110a")
-		studio_material.ground_horizon_color = Color("593e25")
-		studio_material.sun_angle_max = 18.0
-		studio_material.sun_curve = 0.12
-		var studio_sky := Sky.new()
-		studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
-		studio_sky.sky_material = studio_material
-		environment.sky = studio_sky
-		environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-		environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-		environment.ambient_light_energy = 0.40
-		$KeyLight.light_energy = 1.50
-		$FillLight.light_energy = 0.24
-		$RimLight.light_energy = 0.0
-	else:
-		environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-		environment.ambient_light_color = Color("858e9d")
-		environment.ambient_light_energy = 0.34
-		$RimLight.light_energy = 0.0
+	environment.tonemap_exposure = 0.82
+	var sky_material := ProceduralSkyMaterial.new()
+	sky_material.sky_top_color = Color("252a33")
+	sky_material.sky_horizon_color = Color("776f65")
+	sky_material.ground_bottom_color = Color("0b0c10")
+	sky_material.ground_horizon_color = Color("302b29")
+	var studio_sky := Sky.new()
+	studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
+	studio_sky.sky_material = sky_material
+	environment.sky = studio_sky
+	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color.WHITE
+	environment.ambient_light_energy = 0.35
+	$KeyLight.light_energy = 1.10
+	$FillLight.light_energy = 0.45
+	$RimLight.light_energy = 0.0
 	$WorldEnvironment.environment = environment
 
 
 func _setup_piece_materials() -> void:
-	# Create the three premium materials once. All 32 ModelInstances share these
-	# resources, preventing per-move allocations and shader recompilation.
-	if piece_theme == "persian":
-		# Geometry-only GLBs and generated ornaments share three cached mobile PBR
-		# resources. No model texture or broken UV data is consulted.
-		_piece_ivory_material = ChessMaterials.white_body()
-		_piece_obsidian_material = ChessMaterials.black_body()
-		_piece_gold_material = ChessMaterials.gold_trim()
-	elif piece_theme == "frost":
-		_piece_ivory_material = _luxury_piece_material(Color("c9edf4"), 0.16, 0.22)
-		_piece_obsidian_material = _luxury_piece_material(Color("17354f"), 0.20, 0.48)
-		_piece_gold_material = _luxury_piece_material(Color("a9d4df"), 0.14, 0.72, false)
-	else:
-		_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.40, 0.01)
-		_piece_ivory_material.metallic_specular = 0.34
-		_piece_ivory_material.clearcoat_roughness = 0.30
-		_piece_obsidian_material = _luxury_piece_material(Color("303846"), 0.30, 0.14)
-		_piece_obsidian_material.metallic_specular = 0.52
-		_piece_obsidian_material.clearcoat_roughness = 0.20
-		_piece_gold_material = _luxury_piece_material(Color("bd8b43"), 0.30, 0.78, false)
-		_piece_gold_material.clearcoat_roughness = 0.25
-
-
-func _persian_sculpture_material(is_white: bool) -> ShaderMaterial:
-	# The generated source meshes contain geometry only, with no UVs, textures,
-	# material slots, or vertex colours. A single cached local-space shader adds
-	# silver/iron, antique gold, and crimson enamel without texture memory.
-	var shader := Shader.new()
-	shader.code = """
-shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, diffuse_burley, specular_schlick_ggx;
-
-uniform vec3 base_metal : source_color;
-uniform vec3 shadow_metal : source_color;
-uniform vec3 antique_gold : source_color;
-uniform vec3 crimson_enamel : source_color;
-uniform float readability_lift = 0.0;
-varying vec3 sculpt_pos;
-
-void vertex() {
-    sculpt_pos = VERTEX;
-}
-
-void fragment() {
-    float y = sculpt_pos.y;
-    float centre = 1.0 - smoothstep(0.025, 0.085, abs(sculpt_pos.x));
-    float robe = smoothstep(-0.34, -0.18, y) * (1.0 - smoothstep(0.18, 0.32, y));
-    float enamel_mask = centre * robe;
-    float base_band = 1.0 - smoothstep(-0.43, -0.31, y);
-    float crown_detail = smoothstep(0.42, 0.50, y);
-    float gold_mask = clamp(base_band + crown_detail * 0.72, 0.0, 1.0);
-    float patina = 0.5 + 0.5 * sin(sculpt_pos.x * 41.0 + sculpt_pos.y * 29.0 + sculpt_pos.z * 37.0);
-    vec3 metal = mix(shadow_metal, base_metal, 0.72 + patina * 0.18);
-    vec3 colour = mix(metal, crimson_enamel, enamel_mask * 0.62);
-    colour = mix(colour, antique_gold, gold_mask * 0.72);
-    ALBEDO = colour;
-    METALLIC = mix(0.82, 0.48, enamel_mask);
-    ROUGHNESS = mix(0.42 + patina * 0.07, 0.34, enamel_mask);
-    SPECULAR = 0.52;
-    EMISSION = colour * readability_lift;
-}
-"""
-	var material := ShaderMaterial.new()
-	material.shader = shader
-	if is_white:
-		material.set_shader_parameter("base_metal", Color("b9c0c2"))
-		material.set_shader_parameter("shadow_metal", Color("555e61"))
-		material.set_shader_parameter("antique_gold", Color("b58a45"))
-		material.set_shader_parameter("crimson_enamel", Color("681d24"))
-		material.set_shader_parameter("readability_lift", 0.015)
-	else:
-		material.set_shader_parameter("base_metal", Color("75848a"))
-		material.set_shader_parameter("shadow_metal", Color("344349"))
-		material.set_shader_parameter("antique_gold", Color("9b713d"))
-		material.set_shader_parameter("crimson_enamel", Color("702733"))
-		material.set_shader_parameter("readability_lift", 0.085)
-	return material
+	# One material triplet per active style; primitive meshes are cached below.
+	match piece_theme:
+		"bauhaus":
+			_piece_ivory_material = _material(Color("d7d1c3"), 0.40, 0.60)
+			_piece_obsidian_material = _material(Color("252a30"), 0.40, 0.60)
+			_piece_gold_material = _material(Color("b98535"), 0.34, 0.72)
+		"gothic":
+			_piece_ivory_material = _material(Color("b9e7ee"), 0.15, 0.18)
+			_piece_obsidian_material = _material(Color("334268"), 0.18, 0.24)
+			_piece_gold_material = _material(Color("88cddd"), 0.12, 0.42)
+		"abstract":
+			_piece_ivory_material = _material(Color("e8ddca"), 0.24, 0.18)
+			_piece_obsidian_material = _material(Color("382c43"), 0.24, 0.30)
+			_piece_gold_material = _material(Color("d06f42"), 0.22, 0.55)
+		_:
+			_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.25, 0.05)
+			_piece_obsidian_material = _luxury_piece_material(Color("30343a"), 0.25, 0.05)
+			_piece_gold_material = _luxury_piece_material(Color("bd8b43"), 0.30, 0.78, false)
 
 
 func _create_board() -> void:
-	if board_theme == "royal":
-		# Baked 256px marble maps replace runtime noise. Both materials stay lit so
-		# roughness/specular respond naturally to the one key and two subtle fills.
-		_board_light_material = (load("res://assets/materials/royal/ivory_marble_board.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
-		_board_dark_material = (load("res://assets/materials/royal/royal_green_board.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
-	elif board_theme == "frost":
-		_board_light_material = _material(Color("d9edf2"), 0.22, 0.08)
-		_board_dark_material = _material(Color("183247"), 0.18, 0.34)
+	if board_theme == "wood":
+		_board_light_material = _material(Color("e8d5b7"), 0.30, 0.02)
+		_board_dark_material = _material(Color("4a2d18"), 0.30, 0.03)
+	elif board_theme == "marble":
+		_board_light_material = _material(Color("f0ede6"), 0.10, 0.04)
+		_board_dark_material = _material(Color("151517"), 0.10, 0.08)
+	elif board_theme == "cyber":
+		_board_light_material = _material(Color("22252a"), 0.20, 0.10)
+		_board_dark_material = _material(Color("0f1115"), 0.80, 0.02)
 	else:
 		_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
 		_board_dark_material = _material(Color("542536"), 0.43, 0.06)
@@ -338,10 +259,8 @@ func _create_board() -> void:
 	# on the camera-right side. Keep this structural backing uniformly matte;
 	# the rails above it provide the intended lit material variation.
 	var base_material: StandardMaterial3D
-	if board_theme == "royal":
-		# Continue the green marble beyond the 8x8 field without another texture.
-		base_material = (load("res://assets/materials/royal/royal_green_board.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
-		base_material.roughness = 0.30
+	if board_theme == "marble":
+		base_material = _material(Color("101014"), 0.16, 0.10)
 	else:
 		base_material = _matte_material(Color("201820"), 0.62)
 		base_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -354,10 +273,14 @@ func _create_board() -> void:
 	# reflectors. In particular, the camera-right rail caught the cool fill over
 	# its full length and projected as the persistent bright wedge. Keep the dark
 	# structural rail unshaded; the narrow metallic inset remains light-reactive.
-	var wood_color := Color("382218") if board_theme == "royal" else (Color("142735") if board_theme == "frost" else Color("241418"))
+	var wood_color := Color("4a2d18") if board_theme == "wood" else (Color("2b2020") if board_theme == "marble" else (Color("101820") if board_theme == "cyber" else Color("241418")))
 	var wood := _matte_material(wood_color, 0.82)
 	wood.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var gold := _material(Color("c69a4a") if board_theme == "royal" else (Color("9bbfcb") if board_theme == "frost" else Color("9f7440")), 0.24, 0.92 if board_theme == "royal" else 0.72)
+	var gold := _material(Color("c59b27") if board_theme in ["wood", "marble"] else (Color("34cfe5") if board_theme == "cyber" else Color("9f7440")), 0.20, 0.92 if board_theme == "marble" else 0.55)
+	if board_theme == "cyber":
+		gold.emission_enabled = true
+		gold.emission = Color("178a9b")
+		gold.emission_energy_multiplier = 0.60
 	for rail in [
 		[Vector3(0, -0.02, -4.38), Vector3(9.15, 0.26, 0.42)],
 		[Vector3(0, -0.02, 4.38), Vector3(9.15, 0.26, 0.42)],
@@ -377,8 +300,8 @@ func _create_board() -> void:
 	# old CylinderMesh. On mobile that fan produced a bright triangular facet at
 	# the right edge of the table. Separate matte tiers add depth without extra
 	# shaders, transparency, or per-frame work.
-	var table_material := _matte_material(Color("1f130e") if board_theme == "royal" else Color("1d1116"), 0.78)
-	var table_edge_material := _matte_material(Color("42281c") if board_theme == "royal" else Color("281820"), 0.72)
+	var table_material := _matte_material(Color("1f130e") if board_theme == "marble" else Color("1d1116"), 0.78)
+	var table_edge_material := _matte_material(Color("42281c") if board_theme == "marble" else Color("281820"), 0.72)
 	# The broad plinth is a visual backdrop, not a light receiver. On the target
 	# mobile GPU a BoxMesh top face still exposed one diagonal lighting facet.
 	# Unshaded matte tiers guarantee a uniform surface while the stepped geometry
@@ -451,8 +374,14 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 	piece.set_meta("square", Vector2i(file, rank))
 	pieces_root.add_child(piece)
 
-	if piece_theme == "persian":
-		_add_persian_model(piece, kind, is_white, material, accent)
+	if piece_theme == "bauhaus":
+		_add_bauhaus_piece(piece, kind, material, accent)
+		return
+	if piece_theme == "gothic":
+		_add_gothic_piece(piece, kind, material, accent)
+		return
+	if piece_theme == "abstract":
+		_add_abstract_piece(piece, kind, material, accent)
 		return
 
 	var model := MeshInstance3D.new()
@@ -478,73 +407,86 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 		_add_torus(piece, collar_data.x, 0.009, collar_data.y, accent)
 
 
-func _persian_role_material(is_white: bool, kind: String) -> ShaderMaterial:
-	var key := ("ivory_gold:" if is_white else "black_gold:") + kind
-	if _persian_role_materials.has(key):
-		return _persian_role_materials[key]
-	if not is_instance_valid(_persian_role_shader):
-		_persian_role_shader = load("res://assets/shaders/persian_role.gdshader") as Shader
-	var result := ShaderMaterial.new()
-	result.shader = _persian_role_shader
-	result.set_shader_parameter("marble_colour", Color("f5e8d1"))
-	result.set_shader_parameter("marble_shadow", Color("e1d5c1"))
-	result.set_shader_parameter("bronze_colour", Color("26211d"))
-	result.set_shader_parameter("inlay_colour", Color("3d2716") if is_white else Color("181512"))
-	result.set_shader_parameter("gold_colour", Color("f5c542"))
-	result.set_shader_parameter("is_ivory", 1.0 if is_white else 0.0)
-	var role_modes := {"pawn": 0.0, "rook": 1.0, "knight": 2.0, "bishop": 3.0, "queen": 4.0, "king": 5.0}
-	result.set_shader_parameter("role_mode", role_modes[kind])
-	result.set_shader_parameter("readability_lift", 0.006 if is_white else 0.035)
-	_persian_role_materials[key] = result
-	return result
-
-
-func _add_persian_model(piece: Node3D, kind: String, is_white: bool, material: Material, accent: Material) -> void:
-	# The source sculptures are normalized to one unit high, then decimated to a
-	# rank-specific mobile budget. Packed scenes and their meshes are shared by
-	# every matching chessman; only lightweight scene instances are created.
-	var heights := {"pawn": 1.10, "rook": 1.22, "knight": 1.38, "bishop": 1.42, "queen": 1.52, "king": 1.60}
-	var height: float = heights[kind]
-	var sculpture: Node3D = PERSIAN_MODELS[kind].instantiate()
-	sculpture.name = "PersianSculpture"
-	sculpture.scale = Vector3.ONE * height
-	sculpture.position.y = height * 0.50
-	var base_rotation := PI if is_white else 0.0
-	var display_angle := deg_to_rad(22.0) if kind in ["rook", "bishop", "knight"] else 0.0
-	if kind in ["rook", "bishop", "knight"]:
-		# Each left/right pair uses mirrored three-quarter presentation. This rule
-		# already fixed the rooks and now applies identically to horses and griffins.
-		var side_sign := -1.0 if piece.position.x < 0.0 else 1.0
-		var army_sign := 1.0 if is_white else -1.0
-		sculpture.rotation.y = base_rotation + display_angle * side_sign * army_sign
+func _add_common_base(piece: Node3D, material: Material, accent: Material, angular := false) -> void:
+	if angular:
+		_add_box(piece, Vector3(0.56, 0.12, 0.56), Vector3(0, 0.08, 0), material)
+		_add_box(piece, Vector3(0.45, 0.08, 0.45), Vector3(0, 0.18, 0), accent)
 	else:
-		sculpture.rotation.y = base_rotation
-	ChessMaterials.apply_to_tree(sculpture, is_white, kind in ["king", "queen"])
-	piece.add_child(sculpture)
-	_add_royal_back_emblem(piece, kind, is_white, accent)
-	# A real shared gold ring anchors every piece at gameplay distance.
-	_add_torus(piece, 0.27 if kind == "pawn" else 0.31, 0.016, 0.075, accent)
+		_add_cylinder(piece, 0.25, 0.31, 0.13, 0.08, material)
+		_add_torus(piece, 0.25, 0.018, 0.16, accent)
 
 
-func _apply_sculpture_material(node: Node, material: Material, cast_shadow := true) -> void:
-	if node is MeshInstance3D:
-		node.material_override = material
-		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if cast_shadow else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	for child in node.get_children():
-		_apply_sculpture_material(child, material, cast_shadow)
+func _add_bauhaus_piece(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
+	# Deliberately architectural silhouettes: only cached boxes, cylinders and
+	# spheres, so all 32 pieces add no imported geometry or texture memory.
+	_add_common_base(piece, material, accent, true)
+	match kind:
+		"pawn":
+			_add_cylinder(piece, 0.13, 0.17, 0.48, 0.46, material)
+			_add_sphere(piece, 0.18, 0.79, accent)
+		"rook":
+			_add_box(piece, Vector3(0.40, 0.68, 0.40), Vector3(0, 0.55, 0), material)
+			_add_box(piece, Vector3(0.52, 0.16, 0.52), Vector3(0, 0.95, 0), accent)
+		"knight":
+			_add_box(piece, Vector3(0.24, 0.62, 0.34), Vector3(-0.09, 0.52, 0), material)
+			_add_box(piece, Vector3(0.46, 0.25, 0.34), Vector3(0.08, 0.88, 0), accent)
+		"bishop":
+			_add_cylinder(piece, 0.16, 0.22, 0.70, 0.57, material, Vector3(0, 0, -8))
+			_add_box(piece, Vector3(0.34, 0.12, 0.34), Vector3(0, 0.98, 0), accent, Vector3(0, 0, -28))
+		"queen":
+			_add_cylinder(piece, 0.16, 0.23, 0.68, 0.56, material)
+			_add_cylinder(piece, 0.08, 0.28, 0.28, 1.02, accent)
+		"king":
+			_add_box(piece, Vector3(0.34, 0.72, 0.34), Vector3(0, 0.58, 0), material)
+			_add_box(piece, Vector3(0.22, 0.18, 0.22), Vector3(0, 1.05, 0), accent)
+			_add_box(piece, Vector3(0.11, 0.20, 0.11), Vector3(0, 1.25, 0), material)
 
 
-func _add_royal_back_emblem(piece: Node3D, kind: String, is_white: bool, gold: Material) -> void:
-	# A restrained Achaemenid-inspired winged-sun seal enriches the reverse of
-	# major pieces without changing their role silhouette. Pawns remain clean.
-	if kind == "pawn":
-		return
-	var heights := {"rook": 1.22, "knight": 1.38, "bishop": 1.42, "queen": 1.52, "king": 1.60}
-	var badge_y: float = heights[kind] * (0.68 if kind in ["knight", "bishop"] else 0.62)
-	var back_z := 0.205 if is_white else -0.205
-	_add_sphere(piece, 0.050, badge_y, gold, Vector3(0.0, 0.0, back_z))
-	_add_box(piece, Vector3(0.17, 0.035, 0.025), Vector3(-0.105, badge_y, back_z), gold, Vector3(0, 0, -14))
-	_add_box(piece, Vector3(0.17, 0.035, 0.025), Vector3(0.105, badge_y, back_z), gold, Vector3(0, 0, 14))
+func _add_gothic_piece(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
+	# Opaque frosted crystal avoids order-dependent mobile transparency while
+	# low radial counts create genuine jewel facets and sharp silhouettes.
+	_add_common_base(piece, material, accent)
+	var height: float = {"pawn": 0.82, "rook": 1.02, "knight": 1.12, "bishop": 1.20, "queen": 1.34, "king": 1.46}[kind]
+	_add_cylinder(piece, 0.10, 0.24, height * 0.62, 0.22 + height * 0.31, material)
+	match kind:
+		"pawn": _add_sphere(piece, 0.17, 0.87, accent)
+		"rook":
+			_add_cylinder(piece, 0.26, 0.17, 0.20, 0.94, accent)
+			for a in [0, 90, 180, 270]:
+				_add_box(piece, Vector3(0.10, 0.22, 0.10), Vector3(cos(deg_to_rad(a))*0.20, 1.10, sin(deg_to_rad(a))*0.20), material)
+		"knight":
+			_add_box(piece, Vector3(0.24, 0.50, 0.30), Vector3(0, 0.94, -0.10), accent, Vector3(-28, 0, 0))
+			_add_box(piece, Vector3(0.22, 0.24, 0.40), Vector3(0, 1.20, -0.22), material)
+		"bishop":
+			_add_cylinder(piece, 0.0, 0.22, 0.48, 1.16, accent, Vector3(0, 0, -8))
+		"queen":
+			_add_cylinder(piece, 0.04, 0.28, 0.38, 1.22, accent)
+			_add_sphere(piece, 0.08, 1.46, material)
+		"king":
+			_add_cylinder(piece, 0.0, 0.29, 0.52, 1.27, accent)
+			_add_box(piece, Vector3(0.08, 0.28, 0.08), Vector3(0, 1.60, 0), material)
+			_add_box(piece, Vector3(0.25, 0.07, 0.08), Vector3(0, 1.64, 0), material)
+
+
+func _add_abstract_piece(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
+	# A lightweight sculptural family: staggered rings imply a spiral without
+	# runtime curves, skinning, CSG, custom textures, or unique per-piece meshes.
+	_add_common_base(piece, material, accent)
+	var height: float = {"pawn": 0.72, "rook": 0.92, "knight": 1.05, "bishop": 1.14, "queen": 1.27, "king": 1.38}[kind]
+	_add_cylinder(piece, 0.09, 0.20, height * 0.72, 0.20 + height * 0.36, material, Vector3(0, 0, -10 if kind in ["knight", "bishop"] else 0))
+	for i in 3:
+		var y := 0.42 + float(i) * height * 0.22
+		var offset := Vector3((float(i)-1.0)*0.045, 0, 0)
+		_add_torus(piece, 0.17 - i*0.025, 0.022, y, accent, Vector3(62, i*35, 0), offset)
+	match kind:
+		"pawn": _add_sphere(piece, 0.16, 0.86, accent)
+		"rook": _add_box(piece, Vector3(0.38, 0.20, 0.38), Vector3(0, 1.03, 0), accent, Vector3(0, 45, 0))
+		"knight": _add_box(piece, Vector3(0.22, 0.42, 0.34), Vector3(0, 1.10, -0.15), accent, Vector3(-35, 0, 12))
+		"bishop": _add_cylinder(piece, 0.02, 0.19, 0.36, 1.19, accent, Vector3(0, 0, -20))
+		"queen": _add_torus(piece, 0.24, 0.035, 1.31, accent, Vector3(25, 0, 0))
+		"king":
+			_add_torus(piece, 0.23, 0.035, 1.38, accent, Vector3(40, 0, 0))
+			_add_box(piece, Vector3(0.08, 0.32, 0.08), Vector3(0, 1.53, 0), material, Vector3(0, 0, 18))
 
 
 func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
@@ -1072,18 +1014,18 @@ func _load_piece_theme() -> void:
 	if FileAccess.file_exists(PIECE_THEME_PATH):
 		var file := FileAccess.open(PIECE_THEME_PATH, FileAccess.READ)
 		if file: piece_theme = file.get_as_text().strip_edges()
-	if piece_theme not in ["classic", "persian", "frost"]: piece_theme = "classic"
+	if piece_theme not in ["classic", "bauhaus", "gothic", "abstract"]: piece_theme = "classic"
 
 
 func _load_board_theme() -> void:
 	if FileAccess.file_exists(BOARD_THEME_PATH):
 		var file := FileAccess.open(BOARD_THEME_PATH, FileAccess.READ)
 		if file: board_theme = file.get_as_text().strip_edges()
-	if board_theme not in ["classic", "royal", "frost"]: board_theme = "classic"
+	if board_theme not in ["classic", "wood", "marble", "cyber"]: board_theme = "classic"
 
 
 func _cycle_piece_theme() -> void:
-	var themes := ["classic", "persian", "frost"]
+	var themes := ["classic", "bauhaus", "gothic", "abstract"]
 	piece_theme = themes[(themes.find(piece_theme) + 1) % themes.size()]
 	var file := FileAccess.open(PIECE_THEME_PATH, FileAccess.WRITE)
 	if file: file.store_string(piece_theme)
@@ -1091,7 +1033,7 @@ func _cycle_piece_theme() -> void:
 
 
 func _cycle_board_theme() -> void:
-	var themes := ["classic", "royal", "frost"]
+	var themes := ["classic", "wood", "marble", "cyber"]
 	board_theme = themes[(themes.find(board_theme) + 1) % themes.size()]
 	var file := FileAccess.open(BOARD_THEME_PATH, FileAccess.WRITE)
 	if file: file.store_string(board_theme)
@@ -1256,9 +1198,9 @@ func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
 		# Persian marble stores its complete palette in generated textures; a white
 		# multiplier preserves those colors instead of tinting them slate blue.
-		_board_light_material.albedo_color = Color.WHITE if board_theme == "royal" else (Color("d9edf2") if board_theme == "frost" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d")))
+		_board_light_material.albedo_color = Color.WHITE if board_theme == "marble" else (Color("d9edf2") if board_theme == "cyber" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d")))
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color.WHITE if board_theme == "royal" else (Color("183247") if board_theme == "frost" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536"))))
+		_board_dark_material.albedo_color = Color.WHITE if board_theme == "marble" else (Color("183247") if board_theme == "cyber" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536"))))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	for child in $UI.get_children():
