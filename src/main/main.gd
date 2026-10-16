@@ -241,7 +241,7 @@ func _create_board() -> void:
 	# on the camera-right side. Keep this structural backing uniformly matte;
 	# the rails above it provide the intended lit material variation.
 	var base_material := _matte_material(Color("201820"), 0.62)
-		base_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	base_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	base_mesh.material = base_material
 	base.mesh = base_mesh
 	base.position.y = -0.22
