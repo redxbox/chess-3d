@@ -118,13 +118,17 @@ var white_time := 600.0
 var black_time := 600.0
 var _autosave_accumulator := 0.0
 const AUTOSAVE_PATH := "user://autosave.json"
-const VISUAL_THEME_PATH := "user://visual_theme.txt"
-var visual_theme := "classic"
-var _visual_theme_button: Button
+const PIECE_THEME_PATH := "user://piece_theme.txt"
+const BOARD_THEME_PATH := "user://board_theme.txt"
+var piece_theme := "classic"
+var board_theme := "classic"
+var _piece_theme_button: Button
+var _board_theme_button: Button
 
 
 func _ready() -> void:
-	_load_visual_theme()
+	_load_piece_theme()
+	_load_board_theme()
 	_setup_environment()
 	_setup_piece_materials()
 	decor_root.name = "EnvironmentDetails"
@@ -186,10 +190,10 @@ func _notification(what: int) -> void:
 func _setup_environment() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_SKY
-	environment.background_color = Color("120d0a") if visual_theme == "metal" else Color("111725")
+	environment.background_color = Color("120d0a") if piece_theme == "persian" or board_theme != "classic" else Color("111725")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.tonemap_exposure = 1.05 if visual_theme == "metal" else 1.0
-	if visual_theme == "metal":
+	environment.tonemap_exposure = 1.05 if piece_theme == "persian" or board_theme != "classic" else 1.0
+	if piece_theme == "persian" or board_theme != "classic":
 		# Mobile-safe equivalent of a warm studio HDRI. Godot prefilters this Sky
 		# into radiance levels once, giving polished marble and gold something to
 		# reflect without shipping a large HDR texture in the Android package.
@@ -221,12 +225,16 @@ func _setup_environment() -> void:
 func _setup_piece_materials() -> void:
 	# Create the three premium materials once. All 32 ModelInstances share these
 	# resources, preventing per-move allocations and shader recompilation.
-	if visual_theme == "metal":
+	if piece_theme == "persian":
 		# Geometry-only GLBs and generated ornaments share three cached mobile PBR
 		# resources. No model texture or broken UV data is consulted.
 		_piece_ivory_material = ChessMaterials.white_body()
 		_piece_obsidian_material = ChessMaterials.black_body()
 		_piece_gold_material = ChessMaterials.gold_trim()
+	elif piece_theme == "frost":
+		_piece_ivory_material = _luxury_piece_material(Color("c9edf4"), 0.16, 0.22)
+		_piece_obsidian_material = _luxury_piece_material(Color("17354f"), 0.20, 0.48)
+		_piece_gold_material = _luxury_piece_material(Color("a9d4df"), 0.14, 0.72, false)
 	else:
 		_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.40, 0.01)
 		_piece_ivory_material.metallic_specular = 0.34
@@ -295,11 +303,14 @@ void fragment() {
 
 
 func _create_board() -> void:
-	if visual_theme == "metal":
+	if board_theme == "royal":
 		# Baked 256px marble maps replace runtime noise. Both materials stay lit so
 		# roughness/specular respond naturally to the one key and two subtle fills.
 		_board_light_material = (load("res://assets/materials/royal/ivory_marble_board.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
 		_board_dark_material = (load("res://assets/materials/royal/royal_green_board.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
+	elif board_theme == "frost":
+		_board_light_material = _material(Color("d9edf2"), 0.22, 0.08)
+		_board_dark_material = _material(Color("183247"), 0.18, 0.34)
 	else:
 		_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
 		_board_dark_material = _material(Color("542536"), 0.43, 0.06)
@@ -327,7 +338,7 @@ func _create_board() -> void:
 	# on the camera-right side. Keep this structural backing uniformly matte;
 	# the rails above it provide the intended lit material variation.
 	var base_material: StandardMaterial3D
-	if visual_theme == "metal":
+	if board_theme == "royal":
 		# Continue the green marble beyond the 8x8 field without another texture.
 		base_material = (load("res://assets/materials/royal/royal_green_board.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
 		base_material.roughness = 0.30
@@ -343,10 +354,10 @@ func _create_board() -> void:
 	# reflectors. In particular, the camera-right rail caught the cool fill over
 	# its full length and projected as the persistent bright wedge. Keep the dark
 	# structural rail unshaded; the narrow metallic inset remains light-reactive.
-	var wood_color := Color("382218") if visual_theme == "metal" else Color("241418")
+	var wood_color := Color("382218") if board_theme == "royal" else (Color("142735") if board_theme == "frost" else Color("241418"))
 	var wood := _matte_material(wood_color, 0.82)
 	wood.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var gold := _material(Color("c69a4a") if visual_theme == "metal" else Color("9f7440"), 0.24, 0.92 if visual_theme == "metal" else 0.72)
+	var gold := _material(Color("c69a4a") if board_theme == "royal" else (Color("9bbfcb") if board_theme == "frost" else Color("9f7440")), 0.24, 0.92 if board_theme == "royal" else 0.72)
 	for rail in [
 		[Vector3(0, -0.02, -4.38), Vector3(9.15, 0.26, 0.42)],
 		[Vector3(0, -0.02, 4.38), Vector3(9.15, 0.26, 0.42)],
@@ -366,8 +377,8 @@ func _create_board() -> void:
 	# old CylinderMesh. On mobile that fan produced a bright triangular facet at
 	# the right edge of the table. Separate matte tiers add depth without extra
 	# shaders, transparency, or per-frame work.
-	var table_material := _matte_material(Color("1f130e") if visual_theme == "metal" else Color("1d1116"), 0.78)
-	var table_edge_material := _matte_material(Color("42281c") if visual_theme == "metal" else Color("281820"), 0.72)
+	var table_material := _matte_material(Color("1f130e") if board_theme == "royal" else Color("1d1116"), 0.78)
+	var table_edge_material := _matte_material(Color("42281c") if board_theme == "royal" else Color("281820"), 0.72)
 	# The broad plinth is a visual backdrop, not a light receiver. On the target
 	# mobile GPU a BoxMesh top face still exposed one diagonal lighting facet.
 	# Unshaded matte tiers guarantee a uniform surface while the stepped geometry
@@ -440,7 +451,7 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 	piece.set_meta("square", Vector2i(file, rank))
 	pieces_root.add_child(piece)
 
-	if visual_theme == "metal":
+	if piece_theme == "persian":
 		_add_persian_model(piece, kind, is_white, material, accent)
 		return
 
@@ -895,8 +906,10 @@ func _create_main_menu() -> void:
 	settings.add_child(_difficulty_button)
 	_language_button = _menu_button("ENGLISH", _cycle_language, Vector2(130, 50))
 	settings.add_child(_language_button)
-	_visual_theme_button = _menu_button("THEME: " + visual_theme.to_upper(), _cycle_visual_theme, Vector2(130, 50))
-	settings.add_child(_visual_theme_button)
+	_board_theme_button = _menu_button("BOARD: " + board_theme.to_upper(), _cycle_board_theme, Vector2(130, 50))
+	settings.add_child(_board_theme_button)
+	_piece_theme_button = _menu_button("PIECES: " + piece_theme.to_upper(), _cycle_piece_theme, Vector2(130, 50))
+	settings.add_child(_piece_theme_button)
 
 	var play_title := Label.new()
 	play_title.text = "PLAY"
@@ -1055,20 +1068,33 @@ func _text(key: String) -> String:
 	return fa.get(key, key) if language == "fa" else en.get(key, key)
 
 
-func _load_visual_theme() -> void:
-	if FileAccess.file_exists(VISUAL_THEME_PATH):
-		var file := FileAccess.open(VISUAL_THEME_PATH, FileAccess.READ)
-		if file:
-			visual_theme = file.get_as_text().strip_edges()
-	if visual_theme not in ["classic", "metal"]:
-		visual_theme = "classic"
+func _load_piece_theme() -> void:
+	if FileAccess.file_exists(PIECE_THEME_PATH):
+		var file := FileAccess.open(PIECE_THEME_PATH, FileAccess.READ)
+		if file: piece_theme = file.get_as_text().strip_edges()
+	if piece_theme not in ["classic", "persian", "frost"]: piece_theme = "classic"
 
 
-func _cycle_visual_theme() -> void:
-	visual_theme = "metal" if visual_theme == "classic" else "classic"
-	var file := FileAccess.open(VISUAL_THEME_PATH, FileAccess.WRITE)
-	if file:
-		file.store_string(visual_theme)
+func _load_board_theme() -> void:
+	if FileAccess.file_exists(BOARD_THEME_PATH):
+		var file := FileAccess.open(BOARD_THEME_PATH, FileAccess.READ)
+		if file: board_theme = file.get_as_text().strip_edges()
+	if board_theme not in ["classic", "royal", "frost"]: board_theme = "classic"
+
+
+func _cycle_piece_theme() -> void:
+	var themes := ["classic", "persian", "frost"]
+	piece_theme = themes[(themes.find(piece_theme) + 1) % themes.size()]
+	var file := FileAccess.open(PIECE_THEME_PATH, FileAccess.WRITE)
+	if file: file.store_string(piece_theme)
+	get_tree().reload_current_scene()
+
+
+func _cycle_board_theme() -> void:
+	var themes := ["classic", "royal", "frost"]
+	board_theme = themes[(themes.find(board_theme) + 1) % themes.size()]
+	var file := FileAccess.open(BOARD_THEME_PATH, FileAccess.WRITE)
+	if file: file.store_string(board_theme)
 	get_tree().reload_current_scene()
 
 
@@ -1230,9 +1256,9 @@ func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
 		# Persian marble stores its complete palette in generated textures; a white
 		# multiplier preserves those colors instead of tinting them slate blue.
-		_board_light_material.albedo_color = Color.WHITE if visual_theme == "metal" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d"))
+		_board_light_material.albedo_color = Color.WHITE if board_theme == "royal" else (Color("d9edf2") if board_theme == "frost" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d")))
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color.WHITE if visual_theme == "metal" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536")))
+		_board_dark_material.albedo_color = Color.WHITE if board_theme == "royal" else (Color("183247") if board_theme == "frost" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536"))))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	for child in $UI.get_children():

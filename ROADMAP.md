@@ -275,3 +275,5 @@
 - GitHub Actions سبز باشد.
 - APK همان مرحله در Artifacts موجود باشد.
 - قابلیت روی حداقل یک گوشی Android آزمایش شده باشد.
+
+- **Beta 22.37:** Independent cached selection of three board themes (Classic, Royal Marble, Frost) and three piece themes (Classic Staunton, Persian Kingdoms, Frost), yielding nine mobile-safe combinations without changing chess logic.
