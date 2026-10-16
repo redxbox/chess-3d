@@ -281,3 +281,5 @@
 - **Beta 22.38:** Full-project audit fixed stale preview preferences and expanded authentic CI rendering to all nine independent board/piece combinations.
 
 - **Beta 22.39:** Replaced active Persian set with three cached procedural geometry families (Bauhaus, Gothic Crystal, Abstract Spiral), added Wood/Marble/Cyber boards alongside Classic, and calibrated two-directional-light ACES rendering for 16 combinations.
+
+- **Beta 22.40:** Removed rejected alternate boards and procedural sets from active runtime; retained the original Classic presentation and added one reference-matched carved Royal Wood set with role-specific gold metalwork.

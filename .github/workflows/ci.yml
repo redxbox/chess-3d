@@ -66,8 +66,8 @@ jobs:
       - name: Render real Godot screenshot
         run: |
           mkdir -p build/preview
-          for board in classic wood marble cyber; do
-            for pieces in classic bauhaus gothic abstract; do
+          for board in classic; do
+            for pieces in classic royal_wood; do
               name="${board}-${pieces}.png"
               CHESS_BOARD_THEME="$board" CHESS_PIECE_THEME="$pieces" CHESS_PREVIEW_NAME="$name" \
                 xvfb-run -a -s "-screen 0 1536x864x24" \
@@ -76,7 +76,7 @@ jobs:
               test -s "build/preview/$name"
             done
           done
-          cp build/preview/marble-gothic.png build/preview/theme-showcase-preview.png
+          cp build/preview/classic-royal_wood.png build/preview/theme-showcase-preview.png
       - name: Upload visual preview
         uses: actions/upload-artifact@v4
         with:
@@ -168,7 +168,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: chess-3d-v0.12.0-beta.22.39-build-${{ github.run_number }}
+          name: chess-3d-v0.12.0-beta.22.40-build-${{ github.run_number }}
           path: build/android/chess-3d.apk
           if-no-files-found: error
           retention-days: 14

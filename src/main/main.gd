@@ -109,16 +109,13 @@ var black_time := 600.0
 var _autosave_accumulator := 0.0
 const AUTOSAVE_PATH := "user://autosave.json"
 const PIECE_THEME_PATH := "user://piece_theme.txt"
-const BOARD_THEME_PATH := "user://board_theme.txt"
 var piece_theme := "classic"
 var board_theme := "classic"
 var _piece_theme_button: Button
-var _board_theme_button: Button
 
 
 func _ready() -> void:
 	_load_piece_theme()
-	_load_board_theme()
 	_setup_environment()
 	_setup_piece_materials()
 	decor_root.name = "EnvironmentDetails"
@@ -205,39 +202,21 @@ func _setup_environment() -> void:
 
 
 func _setup_piece_materials() -> void:
-	# One material triplet per active style; primitive meshes are cached below.
-	match piece_theme:
-		"bauhaus":
-			_piece_ivory_material = _material(Color("d7d1c3"), 0.40, 0.60)
-			_piece_obsidian_material = _material(Color("252a30"), 0.40, 0.60)
-			_piece_gold_material = _material(Color("b98535"), 0.34, 0.72)
-		"gothic":
-			_piece_ivory_material = _material(Color("b9e7ee"), 0.15, 0.18)
-			_piece_obsidian_material = _material(Color("334268"), 0.18, 0.24)
-			_piece_gold_material = _material(Color("88cddd"), 0.12, 0.42)
-		"abstract":
-			_piece_ivory_material = _material(Color("e8ddca"), 0.24, 0.18)
-			_piece_obsidian_material = _material(Color("382c43"), 0.24, 0.30)
-			_piece_gold_material = _material(Color("d06f42"), 0.22, 0.55)
-		_:
-			_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.25, 0.05)
-			_piece_obsidian_material = _luxury_piece_material(Color("30343a"), 0.25, 0.05)
-			_piece_gold_material = _luxury_piece_material(Color("bd8b43"), 0.30, 0.78, false)
+	if piece_theme == "royal_wood":
+		# Reference-inspired carved charcoal and pale ash, with restrained gold.
+		_piece_ivory_material = _luxury_piece_material(Color("c9b99d"), 0.34, 0.02)
+		_piece_obsidian_material = _luxury_piece_material(Color("292726"), 0.38, 0.03)
+		_piece_gold_material = _luxury_piece_material(Color("c28a2c"), 0.24, 0.82, false)
+	else:
+		_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.25, 0.05)
+		_piece_obsidian_material = _luxury_piece_material(Color("30343a"), 0.25, 0.05)
+		_piece_gold_material = _luxury_piece_material(Color("bd8b43"), 0.30, 0.78, false)
 
 
 func _create_board() -> void:
-	if board_theme == "wood":
-		_board_light_material = _material(Color("e8d5b7"), 0.30, 0.02)
-		_board_dark_material = _material(Color("4a2d18"), 0.30, 0.03)
-	elif board_theme == "marble":
-		_board_light_material = _material(Color("f0ede6"), 0.10, 0.04)
-		_board_dark_material = _material(Color("151517"), 0.10, 0.08)
-	elif board_theme == "cyber":
-		_board_light_material = _material(Color("22252a"), 0.20, 0.10)
-		_board_dark_material = _material(Color("0f1115"), 0.80, 0.02)
-	else:
-		_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
-		_board_dark_material = _material(Color("542536"), 0.43, 0.06)
+	# The original Classic board remains the sole board presentation.
+	_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
+	_board_dark_material = _material(Color("542536"), 0.43, 0.06)
 	var light_material := _board_light_material
 	var dark_material := _board_dark_material
 
@@ -261,11 +240,7 @@ func _create_board() -> void:
 	# The exposed half-unit border around the squares projects as a large wedge
 	# on the camera-right side. Keep this structural backing uniformly matte;
 	# the rails above it provide the intended lit material variation.
-	var base_material: StandardMaterial3D
-	if board_theme == "marble":
-		base_material = _material(Color("101014"), 0.16, 0.10)
-	else:
-		base_material = _matte_material(Color("201820"), 0.62)
+	var base_material := _matte_material(Color("201820"), 0.62)
 		base_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	base_mesh.material = base_material
 	base.mesh = base_mesh
@@ -276,14 +251,10 @@ func _create_board() -> void:
 	# reflectors. In particular, the camera-right rail caught the cool fill over
 	# its full length and projected as the persistent bright wedge. Keep the dark
 	# structural rail unshaded; the narrow metallic inset remains light-reactive.
-	var wood_color := Color("4a2d18") if board_theme == "wood" else (Color("2b2020") if board_theme == "marble" else (Color("101820") if board_theme == "cyber" else Color("241418")))
+	var wood_color := Color("241418")
 	var wood := _matte_material(wood_color, 0.82)
 	wood.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var gold := _material(Color("c59b27") if board_theme in ["wood", "marble"] else (Color("34cfe5") if board_theme == "cyber" else Color("9f7440")), 0.20, 0.92 if board_theme == "marble" else 0.55)
-	if board_theme == "cyber":
-		gold.emission_enabled = true
-		gold.emission = Color("178a9b")
-		gold.emission_energy_multiplier = 0.60
+	var gold := _material(Color("9f7440"), 0.24, 0.72)
 	for rail in [
 		[Vector3(0, -0.02, -4.38), Vector3(9.15, 0.26, 0.42)],
 		[Vector3(0, -0.02, 4.38), Vector3(9.15, 0.26, 0.42)],
@@ -303,8 +274,8 @@ func _create_board() -> void:
 	# old CylinderMesh. On mobile that fan produced a bright triangular facet at
 	# the right edge of the table. Separate matte tiers add depth without extra
 	# shaders, transparency, or per-frame work.
-	var table_material := _matte_material(Color("1f130e") if board_theme == "marble" else Color("1d1116"), 0.78)
-	var table_edge_material := _matte_material(Color("42281c") if board_theme == "marble" else Color("281820"), 0.72)
+	var table_material := _matte_material(Color("1d1116"), 0.78)
+	var table_edge_material := _matte_material(Color("281820"), 0.72)
 	# The broad plinth is a visual backdrop, not a light receiver. On the target
 	# mobile GPU a BoxMesh top face still exposed one diagonal lighting facet.
 	# Unshaded matte tiers guarantee a uniform surface while the stepped geometry
@@ -377,14 +348,8 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 	piece.set_meta("square", Vector2i(file, rank))
 	pieces_root.add_child(piece)
 
-	if piece_theme == "bauhaus":
-		_add_bauhaus_piece(piece, kind, material, accent)
-		return
-	if piece_theme == "gothic":
-		_add_gothic_piece(piece, kind, material, accent)
-		return
-	if piece_theme == "abstract":
-		_add_abstract_piece(piece, kind, material, accent)
+	if piece_theme == "royal_wood":
+		_add_royal_wood_piece(piece, kind, is_white, material, accent)
 		return
 
 	var model := MeshInstance3D.new()
@@ -410,86 +375,43 @@ func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Ma
 		_add_torus(piece, collar_data.x, 0.009, collar_data.y, accent)
 
 
-func _add_common_base(piece: Node3D, material: Material, accent: Material, angular := false) -> void:
-	if angular:
-		_add_box(piece, Vector3(0.56, 0.12, 0.56), Vector3(0, 0.08, 0), material)
-		_add_box(piece, Vector3(0.45, 0.08, 0.45), Vector3(0, 0.18, 0), accent)
-	else:
-		_add_cylinder(piece, 0.25, 0.31, 0.13, 0.08, material)
-		_add_torus(piece, 0.25, 0.018, 0.16, accent)
-
-
-func _add_bauhaus_piece(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
-	# Deliberately architectural silhouettes: only cached boxes, cylinders and
-	# spheres, so all 32 pieces add no imported geometry or texture memory.
-	_add_common_base(piece, material, accent, true)
+func _add_royal_wood_piece(piece: Node3D, kind: String, is_white: bool, wood: Material, gold: Material) -> void:
+	# Uses the proven sculpted Staunton topology as a carved-wood foundation,
+	# then adds role-specific metalwork matching the supplied reference.
+	var model := MeshInstance3D.new()
+	model.name = "RoyalWoodSculpture"
+	model.mesh = PIECE_MODELS[kind]
+	model.material_override = wood
+	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	if kind == "knight": model.rotation.y = 0.0 if is_white else PI
+	elif kind == "bishop": model.rotation.y = PI * 0.25 if is_white else PI * 1.25
+	piece.add_child(model)
+	var base_radius := 0.235 if kind == "pawn" else 0.295
+	_add_torus(piece, base_radius, 0.014, 0.095, gold)
 	match kind:
 		"pawn":
-			_add_cylinder(piece, 0.13, 0.17, 0.48, 0.46, material)
-			_add_sphere(piece, 0.18, 0.79, accent)
+			_add_torus(piece, 0.145, 0.010, 0.67, gold)
 		"rook":
-			_add_box(piece, Vector3(0.40, 0.68, 0.40), Vector3(0, 0.55, 0), material)
-			_add_box(piece, Vector3(0.52, 0.16, 0.52), Vector3(0, 0.95, 0), accent)
+			_add_torus(piece, 0.235, 0.026, 1.17, gold)
+			for angle in [0.0, 60.0, 120.0, 180.0, 240.0, 300.0]:
+				var r := deg_to_rad(angle)
+				_add_box(piece, Vector3(0.065, 0.12, 0.065), Vector3(cos(r)*0.22, 1.27, sin(r)*0.22), gold)
 		"knight":
-			_add_box(piece, Vector3(0.24, 0.62, 0.34), Vector3(-0.09, 0.52, 0), material)
-			_add_box(piece, Vector3(0.46, 0.25, 0.34), Vector3(0.08, 0.88, 0), accent)
+			# A segmented gold mane follows the horse-head profile.
+			for i in 5:
+				_add_sphere(piece, 0.035, 1.00 + i*0.075, gold, Vector3(0, 0, 0.12 - i*0.018))
 		"bishop":
-			_add_cylinder(piece, 0.16, 0.22, 0.70, 0.57, material, Vector3(0, 0, -8))
-			_add_box(piece, Vector3(0.34, 0.12, 0.34), Vector3(0, 0.98, 0), accent, Vector3(0, 0, -28))
+			_add_torus(piece, 0.19, 0.020, 1.03, gold)
+			_add_sphere(piece, 0.048, 1.35, gold)
 		"queen":
-			_add_cylinder(piece, 0.16, 0.23, 0.68, 0.56, material)
-			_add_cylinder(piece, 0.08, 0.28, 0.28, 1.02, accent)
+			_add_torus(piece, 0.235, 0.026, 1.16, gold)
+			for angle in [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]:
+				var r := deg_to_rad(angle)
+				_add_sphere(piece, 0.045, 1.34, gold, Vector3(cos(r)*0.18, 0, sin(r)*0.18))
 		"king":
-			_add_box(piece, Vector3(0.34, 0.72, 0.34), Vector3(0, 0.58, 0), material)
-			_add_box(piece, Vector3(0.22, 0.18, 0.22), Vector3(0, 1.05, 0), accent)
-			_add_box(piece, Vector3(0.11, 0.20, 0.11), Vector3(0, 1.25, 0), material)
-
-
-func _add_gothic_piece(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
-	# Opaque frosted crystal avoids order-dependent mobile transparency while
-	# low radial counts create genuine jewel facets and sharp silhouettes.
-	_add_common_base(piece, material, accent)
-	var height: float = {"pawn": 0.82, "rook": 1.02, "knight": 1.12, "bishop": 1.20, "queen": 1.34, "king": 1.46}[kind]
-	_add_cylinder(piece, 0.10, 0.24, height * 0.62, 0.22 + height * 0.31, material)
-	match kind:
-		"pawn": _add_sphere(piece, 0.17, 0.87, accent)
-		"rook":
-			_add_cylinder(piece, 0.26, 0.17, 0.20, 0.94, accent)
-			for a in [0, 90, 180, 270]:
-				_add_box(piece, Vector3(0.10, 0.22, 0.10), Vector3(cos(deg_to_rad(a))*0.20, 1.10, sin(deg_to_rad(a))*0.20), material)
-		"knight":
-			_add_box(piece, Vector3(0.24, 0.50, 0.30), Vector3(0, 0.94, -0.10), accent, Vector3(-28, 0, 0))
-			_add_box(piece, Vector3(0.22, 0.24, 0.40), Vector3(0, 1.20, -0.22), material)
-		"bishop":
-			_add_cylinder(piece, 0.0, 0.22, 0.48, 1.16, accent, Vector3(0, 0, -8))
-		"queen":
-			_add_cylinder(piece, 0.04, 0.28, 0.38, 1.22, accent)
-			_add_sphere(piece, 0.08, 1.46, material)
-		"king":
-			_add_cylinder(piece, 0.0, 0.29, 0.52, 1.27, accent)
-			_add_box(piece, Vector3(0.08, 0.28, 0.08), Vector3(0, 1.60, 0), material)
-			_add_box(piece, Vector3(0.25, 0.07, 0.08), Vector3(0, 1.64, 0), material)
-
-
-func _add_abstract_piece(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
-	# A lightweight sculptural family: staggered rings imply a spiral without
-	# runtime curves, skinning, CSG, custom textures, or unique per-piece meshes.
-	_add_common_base(piece, material, accent)
-	var height: float = {"pawn": 0.72, "rook": 0.92, "knight": 1.05, "bishop": 1.14, "queen": 1.27, "king": 1.38}[kind]
-	_add_cylinder(piece, 0.09, 0.20, height * 0.72, 0.20 + height * 0.36, material, Vector3(0, 0, -10 if kind in ["knight", "bishop"] else 0))
-	for i in 3:
-		var y := 0.42 + float(i) * height * 0.22
-		var offset := Vector3((float(i)-1.0)*0.045, 0, 0)
-		_add_torus(piece, 0.17 - i*0.025, 0.022, y, accent, Vector3(62, i*35, 0), offset)
-	match kind:
-		"pawn": _add_sphere(piece, 0.16, 0.86, accent)
-		"rook": _add_box(piece, Vector3(0.38, 0.20, 0.38), Vector3(0, 1.03, 0), accent, Vector3(0, 45, 0))
-		"knight": _add_box(piece, Vector3(0.22, 0.42, 0.34), Vector3(0, 1.10, -0.15), accent, Vector3(-35, 0, 12))
-		"bishop": _add_cylinder(piece, 0.02, 0.19, 0.36, 1.19, accent, Vector3(0, 0, -20))
-		"queen": _add_torus(piece, 0.24, 0.035, 1.31, accent, Vector3(25, 0, 0))
-		"king":
-			_add_torus(piece, 0.23, 0.035, 1.38, accent, Vector3(40, 0, 0))
-			_add_box(piece, Vector3(0.08, 0.32, 0.08), Vector3(0, 1.53, 0), material, Vector3(0, 0, 18))
+			_add_torus(piece, 0.22, 0.022, 1.20, gold)
+			_add_box(piece, Vector3(0.075, 0.29, 0.075), Vector3(0, 1.48, 0), gold)
+			_add_box(piece, Vector3(0.26, 0.075, 0.075), Vector3(0, 1.53, 0), gold)
 
 
 func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
@@ -851,8 +773,6 @@ func _create_main_menu() -> void:
 	settings.add_child(_difficulty_button)
 	_language_button = _menu_button("ENGLISH", _cycle_language, Vector2(130, 50))
 	settings.add_child(_language_button)
-	_board_theme_button = _menu_button("BOARD: " + board_theme.to_upper(), _cycle_board_theme, Vector2(130, 50))
-	settings.add_child(_board_theme_button)
 	_piece_theme_button = _menu_button("PIECES: " + piece_theme.to_upper(), _cycle_piece_theme, Vector2(130, 50))
 	settings.add_child(_piece_theme_button)
 
@@ -1017,29 +937,14 @@ func _load_piece_theme() -> void:
 	if FileAccess.file_exists(PIECE_THEME_PATH):
 		var file := FileAccess.open(PIECE_THEME_PATH, FileAccess.READ)
 		if file: piece_theme = file.get_as_text().strip_edges()
-	if piece_theme not in ["classic", "bauhaus", "gothic", "abstract"]: piece_theme = "classic"
-
-
-func _load_board_theme() -> void:
-	if FileAccess.file_exists(BOARD_THEME_PATH):
-		var file := FileAccess.open(BOARD_THEME_PATH, FileAccess.READ)
-		if file: board_theme = file.get_as_text().strip_edges()
-	if board_theme not in ["classic", "wood", "marble", "cyber"]: board_theme = "classic"
+	if piece_theme not in ["classic", "royal_wood"]: piece_theme = "classic"
 
 
 func _cycle_piece_theme() -> void:
-	var themes := ["classic", "bauhaus", "gothic", "abstract"]
+	var themes := ["classic", "royal_wood"]
 	piece_theme = themes[(themes.find(piece_theme) + 1) % themes.size()]
 	var file := FileAccess.open(PIECE_THEME_PATH, FileAccess.WRITE)
 	if file: file.store_string(piece_theme)
-	get_tree().reload_current_scene()
-
-
-func _cycle_board_theme() -> void:
-	var themes := ["classic", "wood", "marble", "cyber"]
-	board_theme = themes[(themes.find(board_theme) + 1) % themes.size()]
-	var file := FileAccess.open(BOARD_THEME_PATH, FileAccess.WRITE)
-	if file: file.store_string(board_theme)
 	get_tree().reload_current_scene()
 
 
@@ -1199,11 +1104,9 @@ func _update_accessibility_buttons() -> void:
 
 func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
-		# Persian marble stores its complete palette in generated textures; a white
-		# multiplier preserves those colors instead of tinting them slate blue.
-		_board_light_material.albedo_color = Color("f0ede6") if board_theme == "marble" else (Color("22252a") if board_theme == "cyber" else (Color("e8d5b7") if board_theme == "wood" else (Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d"))))
+		_board_light_material.albedo_color = Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d")
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color("151517") if board_theme == "marble" else (Color("0f1115") if board_theme == "cyber" else (Color("4a2d18") if board_theme == "wood" else (Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536")))))
+		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536"))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	for child in $UI.get_children():
