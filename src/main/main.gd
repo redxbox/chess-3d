@@ -21,6 +21,9 @@ const PIECE_MODELS := {
 	"queen": preload("res://assets/models/staunton/queen.obj"),
 	"king": preload("res://assets/models/staunton/king.obj")
 }
+const BOARD_SIZE := 8
+const SQUARE_SIZE := 1.0
+
 @onready var board: Node3D = $Board
 @onready var camera_rig: Node3D = $CameraRig
 @onready var camera: Camera3D = $CameraRig/Camera3D
