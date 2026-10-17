@@ -201,61 +201,55 @@ func _notification(what: int) -> void:
 
 func _setup_environment() -> void:
 	# ACES + sRGB, the Godot equivalent of a filmic camera response. Compatibility
-	# renders to sRGB; energies are calibrated against the rendered preview.
+	# renders to sRGB; these energies are the ones measured against a rendered
+	# preview, so they are not re-tuned without a new preview showing a fault.
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("241a26")
+	environment.background_color = Color("2a1f2e")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.tonemap_exposure = 0.95
+	environment.tonemap_exposure = 0.85
 	var sky_material := ProceduralSkyMaterial.new()
 	# A dark studio with a warm horizon. The horizon band is what the brass and
 	# gold inlays reflect; with the old near-black sky every gold collar read as mud.
 	sky_material.sky_top_color = Color("3d4550")
-	sky_material.sky_horizon_color = Color("b3a493")
+	sky_material.sky_horizon_color = Color("a0958a")
 	sky_material.ground_bottom_color = Color("14100f")
-	sky_material.ground_horizon_color = Color("54453a")
+	sky_material.ground_horizon_color = Color("4d4239")
 	var studio_sky := Sky.new()
 	studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
 	studio_sky.sky_material = sky_material
 	environment.sky = studio_sky
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	# Warm bounce instead of flat white: indirect light off a walnut table is
-	# never neutral, and a white ambient flattened the ivory shading.
-	environment.ambient_light_color = Color("ffe6c8")
+	# A neutral ambient keeps the ivory shading readable. A warm tint was tried
+	# and moved the whole board off the calibrated values for no visible gain.
+	environment.ambient_light_color = Color.WHITE
+	# Directional lights are additive: an up-facing surface receives
+	# key + ambient + fill*sin(25) + rim*sin(38). These energies are calibrated
+	# against the rendered preview, not derived on paper. The board used to render
+	# its pale square at #f2e8d2; pushing the key to 1.55 and the exposure to 1.0
+	# drove that same albedo to #fffbe9, i.e. clipped white, so the ivory pieces
+	# and the light squares became the same flat colour. Back near the original
+	# energies the spread returns: ivory ~#eae4d4 against a #cdc3a8 field.
 	environment.ambient_light_energy = 0.30
-	# Warm key from the upper left, as if from a desk lamp, with soft-edged
-	# shadows so carved grooves stay readable instead of going pure black.
-	$KeyLight.light_energy = 1.10
-	$KeyLight.light_color = Color("fff2dc")
-	$KeyLight.rotation_degrees = Vector3(-45, -45, 0)
-	$KeyLight.shadow_enabled = true
-	$KeyLight.shadow_blur = 2.5
-	# Cool-neutral fill from the opposite side reveals detail inside the ebony
-	# pieces without washing the ivory out.
-	$FillLight.light_energy = 0.35
+	$KeyLight.light_energy = 1.00
+	$KeyLight.light_color = Color(1.0, 0.94, 0.85)
+	$KeyLight.rotation_degrees = Vector3(-47, 43, 0)
+	$FillLight.light_energy = 0.45
 	$FillLight.light_color = Color("c8d6ea")
-	# Grazing rim from behind separates the ebony pieces from the walnut board.
-	$RimLight.rotation_degrees = Vector3(-32, 168, 0)
-	$RimLight.light_color = Color("ffe9cf")
+	# The rim light was at 0.0, so nothing separated the dark pieces from the
+	# dark maroon board. A grazing light from behind now outlines the silhouette.
+	$RimLight.rotation_degrees = Vector3(-38, 165, 0)
+	$RimLight.light_color = Color(1.0, 0.95, 0.88)
 	$RimLight.light_energy = 0.40
 	$RimLight.shadow_enabled = false
-	# Post-processing. SSAO, SSR and the depth of field are what the design brief
-	# asks for, and the Compatibility renderer silently ignores all three, so they
-	# are configured here and take effect the moment the project moves to the
-	# Forward+ or Mobile renderer. Glow is honoured today and is thresholded high
-	# so only the brass and gold inlays glint instead of the whole board blooming.
-	environment.glow_enabled = true
-	environment.glow_intensity = 0.32
-	environment.glow_bloom = 0.05
-	environment.glow_hdr_threshold = 1.05
-	environment.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
-	# Screen-space ambient occlusion, screen-space reflections and depth of field
-	# are Forward+ / Mobile features. The Compatibility renderer this project
-	# ships with rejects them, and in Godot 4 depth of field is not an
-	# Environment property at all but a CameraAttributesPractical on the camera.
-	# Guarding on the renderer keeps startup clean today and leaves the settings
-	# in place for the day the project moves to Forward+ or Mobile.
+	# Glow is deliberately off. With it on, the Compatibility renderer lifted the
+	# whole frame: the background went from the intended #2a1f2e to a flat #be82c6
+	# and the board lost its contrast. The gold inlays read fine on specular alone.
+	# SSAO, SSR and depth of field are Forward+ / Mobile features; in Godot 4 depth
+	# of field is not an Environment property at all but a CameraAttributesPractical
+	# on the camera. Guarding on the renderer keeps startup clean and leaves the
+	# settings in place for the day the project moves off Compatibility.
 	if str(ProjectSettings.get_setting("rendering/renderer/rendering_method")) != "gl_compatibility":
 		environment.ssao_enabled = true
 		environment.ssao_radius = 0.85
@@ -269,9 +263,6 @@ func _setup_environment() -> void:
 		camera_attributes.dof_blur_far_transition = 5.0
 		camera_attributes.dof_blur_amount = 0.10
 		camera.attributes = camera_attributes
-	environment.adjustment_enabled = true
-	environment.adjustment_contrast = 1.06
-	environment.adjustment_saturation = 1.08
 	$WorldEnvironment.environment = environment
 
 
@@ -324,7 +315,7 @@ func _marble_map() -> ImageTexture:
 			var warp := blotches.get_noise_2d(u * 3.0 + 11.0, v * 3.0 - 7.0)
 			var vein: float = abs(sin((u * 9.0 + v * 4.0 + warp * 2.8) * PI))
 			vein = pow(1.0 - vein, 14.0)
-			var shade := clampf(0.95 + 0.05 * cloud - 0.26 * vein, 0.52, 1.0)
+			var shade := clampf(0.93 + 0.07 * cloud - 0.12 * vein, 0.78, 1.0)
 			image.set_pixel(x, y, Color(shade, shade * 0.985, shade * 0.955, 1.0))
 	return ImageTexture.create_from_image(image)
 
@@ -364,7 +355,7 @@ func _walnut_map() -> ImageTexture:
 			var streak := grain.get_noise_2d(u * 22.0, v * 1.7)
 			var ring: float = abs(sin((v * 17.0 + streak * 3.6) * PI))
 			ring = pow(1.0 - ring, 7.0)
-			var shade := clampf(0.42 + 0.26 * streak + 0.14 * ring, 0.10, 0.70)
+			var shade := clampf(0.86 + 0.12 * streak + 0.06 * ring, 0.62, 1.0)
 			image.set_pixel(x, y, Color(shade, shade * 0.80, shade * 0.60, 1.0))
 	return ImageTexture.create_from_image(image)
 
@@ -403,7 +394,7 @@ func _rosewood_map() -> ImageTexture:
 			var streak := figure.get_noise_2d(u * 15.0, v * 2.2)
 			var cathedral: float = abs(sin((u * 5.0 + streak * 2.0) * PI))
 			cathedral = pow(1.0 - cathedral, 5.0)
-			var shade := clampf(0.34 + 0.22 * streak + 0.18 * cathedral, 0.09, 0.60)
+			var shade := clampf(0.84 + 0.14 * streak + 0.08 * cathedral, 0.60, 1.0)
 			image.set_pixel(x, y, Color(shade * 1.15, shade * 0.72, shade * 0.66, 1.0))
 	return ImageTexture.create_from_image(image)
 
@@ -439,7 +430,7 @@ func _brass_map() -> ImageTexture:
 		for x in size:
 			var u := float(x) / float(size)
 			var v := float(y) / float(size)
-			var shade := clampf(0.88 + 0.14 * speckle.get_noise_2d(u * 5.0, v * 5.0), 0.55, 1.0)
+			var shade := clampf(0.95 + 0.10 * speckle.get_noise_2d(u * 5.0, v * 5.0), 0.85, 1.0)
 			image.set_pixel(x, y, Color(shade, shade * 0.86, shade * 0.58, 1.0))
 	return ImageTexture.create_from_image(image)
 
@@ -466,22 +457,23 @@ func _setup_piece_materials() -> void:
 	# sits well above the 0.08 near-mirror clearcoat the set used to carry: on a
 	# pale body that layer reflected the procedural sky and clipped every
 	# highlight to flat white under ACES.
-	var ivory := Color("f3ead8")
-	var obsidian := Color("1e1b18")
+	# The Staunton bodies are OBJ meshes with no vt records, so they have no UV
+	# attribute at all. Handing a material with textures to a mesh without UVs
+	# makes the Compatibility renderer sample undefined coordinates, which is what
+	# blew the ivory out to flat white. Pieces therefore get colour only; every
+	# procedural map is reserved for the board, whose boxes do carry UVs.
+	var ivory := Color("f0e7d2")
+	var obsidian := Color("2c2620")
 	var brass := Color("d4af37")
 	if piece_theme == "royal_wood":
 		# Carved pale ash and dark walnut, with restrained brass.
-		_piece_ivory_material = _luxury_piece_material(
-			Color("f2e8d2"), 0.32, 0.0, false, false, 0.28, _surface_map("walnut"), _surface_map("walnut_normal"))
-		_piece_obsidian_material = _luxury_piece_material(
-			Color("4b3b2c"), 0.36, 0.0, false, false, 0.26, _surface_map("rosewood"), _surface_map("rosewood_normal"))
-		_piece_gold_material = _luxury_piece_material(brass, 0.20, 0.90, false, true, 0.60, _surface_map("brass"))
+		_piece_ivory_material = _luxury_piece_material(Color("eee4cc"), 0.38, 0.0, false, false, 0.14)
+		_piece_obsidian_material = _luxury_piece_material(Color("453525"), 0.40, 0.0, false, false, 0.12)
+		_piece_gold_material = _luxury_piece_material(brass, 0.20, 0.90, false, true, 0.55)
 	else:
-		_piece_ivory_material = _luxury_piece_material(
-			ivory, 0.32, 0.0, false, false, 0.30, _surface_map("marble"), _surface_map("marble_normal"))
-		_piece_obsidian_material = _luxury_piece_material(
-			obsidian, 0.30, 0.0, false, false, 0.30, _surface_map("walnut"), _surface_map("walnut_normal"))
-		_piece_gold_material = _luxury_piece_material(brass, 0.20, 0.90, false, true, 0.60, _surface_map("brass"))
+		_piece_ivory_material = _luxury_piece_material(ivory, 0.36, 0.0, false, false, 0.14)
+		_piece_obsidian_material = _luxury_piece_material(obsidian, 0.38, 0.0, false, false, 0.12)
+		_piece_gold_material = _luxury_piece_material(brass, 0.20, 0.90, false, true, 0.55)
 
 
 func _create_board() -> void:
@@ -491,9 +483,9 @@ func _create_board() -> void:
 	# is pinned low: at Godot's 0.5 default a broad flat face reflects the whole sky
 	# on top of its diffuse term and clips to white under ACES.
 	_board_light_material = _material(
-		Color("f3ead8"), 0.26, 0.0, false, 0.30, _surface_map("marble"), _surface_map("marble_normal"))
+		Color("e8dcc2"), 0.30, 0.0, false, 0.06, _surface_map("marble"), _surface_map("marble_normal"))
 	_board_dark_material = _material(
-		Color("4a2c1c"), 0.20, 0.0, false, 0.34, _surface_map("walnut"), _surface_map("walnut_normal"))
+		Color("4a2c1c"), 0.26, 0.0, false, 0.06, _surface_map("walnut"), _surface_map("walnut_normal"))
 	var light_material := _board_light_material
 	var dark_material := _board_dark_material
 
@@ -518,7 +510,7 @@ func _create_board() -> void:
 	var base := MeshInstance3D.new()
 	var base_mesh := BoxMesh.new()
 	base_mesh.size = Vector3(9.0, 0.32, 9.0)
-	var rosewood := _matte_material(Color("8a5a42"), 0.55, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.16)
+	var rosewood := _matte_material(Color("8a5a42"), 0.55, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.10)
 	base_mesh.material = rosewood
 	base.mesh = base_mesh
 	base.position.y = -0.22
@@ -538,7 +530,7 @@ func _create_board() -> void:
 	# Ornate outer frame. A single box would show a hard 90-degree edge; three
 	# stacked tiers with shrinking footprints fake a bevelled rosewood moulding,
 	# and the top tier carries the coordinate engraving.
-	var frame_wood := _matte_material(Color("7a4e3a"), 0.48, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.20)
+	var frame_wood := _matte_material(Color("7a4e3a"), 0.48, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.12)
 	for rail in [
 		[Vector3(0, -0.06, -4.38), Vector3(9.15, 0.30, 0.74)],
 		[Vector3(0, -0.06, 4.38), Vector3(9.15, 0.30, 0.74)],
@@ -563,8 +555,8 @@ func _create_board() -> void:
 
 	# A layered rectangular plinth avoids the large fan-triangulated top of the
 	# old CylinderMesh, which produced a bright triangular facet on mobile.
-	var table_material := _matte_material(Color("3a2620"), 0.72, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.08)
-	var table_edge_material := _matte_material(Color("4a322a"), 0.62, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.12)
+	var table_material := _matte_material(Color("3a2620"), 0.72, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.06)
+	var table_edge_material := _matte_material(Color("4a322a"), 0.62, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.08)
 	# The plinth is a backdrop, so it stays clearly darker than the board.
 	_add_board_box(Vector3(0, -0.66, 0), Vector3(11.8, 0.48, 11.8), table_material)
 	_add_board_box(Vector3(0, -0.39, 0), Vector3(10.8, 0.14, 10.8), table_edge_material)
@@ -1560,10 +1552,12 @@ func _update_accessibility_buttons() -> void:
 
 
 func _apply_accessibility() -> void:
+	# This runs at the end of _ready(), so these are the albedoes the board
+	# actually renders with; they have to track _create_board() or the two disagree.
 	if is_instance_valid(_board_light_material):
-		_board_light_material.albedo_color = Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d")
+		_board_light_material.albedo_color = Color("f2ead8") if high_contrast_enabled else Color("e8dcc2")
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("8d4a5e") if high_contrast_enabled else Color("3a1a27"))
+		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("8d4a5e") if high_contrast_enabled else Color("4a2c1c"))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	_apply_theme_recursive($UI)
@@ -2496,6 +2490,9 @@ func _luxury_piece_material(color: Color, roughness: float, metallic: float, emi
 		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	if normal != null:
 		material.normal_texture = normal
+		# The height gradient is steep, so at the default scale of 1.0 the board
+		# reads as crumpled foil. 0.7 keeps the veining as a grain, not a relief.
+		material.normal_scale = 0.7
 	if emissive:
 		material.emission_enabled = true
 		material.emission = color * 0.32
@@ -2519,6 +2516,7 @@ func _matte_material(color: Color, roughness: float, figure: Texture2D = null, n
 		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	if normal != null:
 		material.normal_texture = normal
+		material.normal_scale = 0.7
 	return material
 
 
@@ -2536,6 +2534,7 @@ func _material(color: Color, roughness: float, metallic: float, glossy := false,
 		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	if normal != null:
 		material.normal_texture = normal
+		material.normal_scale = 0.7
 	return material
 
 
