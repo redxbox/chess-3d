@@ -28,7 +28,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.12.0"
-const APP_BUILD := "22.46"
+const APP_BUILD := "22.47"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
@@ -200,72 +200,291 @@ func _notification(what: int) -> void:
 
 
 func _setup_environment() -> void:
-	# Godot equivalent of ACESFilmic + sRGB. Compatibility renders to sRGB;
-	# calibrated energies preserve ivory detail and readable dark silhouettes.
+	# ACES + sRGB, the Godot equivalent of a filmic camera response. Compatibility
+	# renders to sRGB; energies are calibrated against the rendered preview.
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("2a1f2e")
+	environment.background_color = Color("241a26")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.tonemap_exposure = 0.85
+	environment.tonemap_exposure = 0.95
 	var sky_material := ProceduralSkyMaterial.new()
-	# A dark studio with a warm horizon rather than a flat black void: the
-	# horizon band is what the metallic accents actually reflect, and with the
-	# old near-black sky every gold collar rendered as mud.
+	# A dark studio with a warm horizon. The horizon band is what the brass and
+	# gold inlays reflect; with the old near-black sky every gold collar read as mud.
 	sky_material.sky_top_color = Color("3d4550")
-	sky_material.sky_horizon_color = Color("a0958a")
+	sky_material.sky_horizon_color = Color("b3a493")
 	sky_material.ground_bottom_color = Color("14100f")
-	sky_material.ground_horizon_color = Color("4d4239")
+	sky_material.ground_horizon_color = Color("54453a")
 	var studio_sky := Sky.new()
 	studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
 	studio_sky.sky_material = sky_material
 	environment.sky = studio_sky
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color.WHITE
-	# Directional lights are additive: an up-facing surface receives
-	# key + ambient + fill*sin(25) + rim*sin(38). These energies are calibrated
-	# against the rendered preview, not derived on paper. The board used to render
-	# its pale square at #f2e8d2; pushing the key to 1.55 and the exposure to 1.0
-	# drove that same albedo to #fffbe9, i.e. clipped white, so the ivory pieces
-	# and the light squares became the same flat colour. Back near the original
-	# energies the spread returns: ivory ~#eae4d4 against a #cdc3a8 field.
+	# Warm bounce instead of flat white: indirect light off a walnut table is
+	# never neutral, and a white ambient flattened the ivory shading.
+	environment.ambient_light_color = Color("ffe6c8")
 	environment.ambient_light_energy = 0.30
-	$KeyLight.light_energy = 1.00
-	$KeyLight.light_color = Color(1.0, 0.94, 0.85)
-	$KeyLight.rotation_degrees = Vector3(-47, 43, 0)
-	$FillLight.light_energy = 0.45
-	# The rim light was at 0.0, so nothing separated the dark pieces from the
-	# dark maroon board. A grazing light from behind now outlines the silhouette.
-	$RimLight.rotation_degrees = Vector3(-38, 165, 0)
-	$RimLight.light_color = Color(1.0, 0.95, 0.88)
+	# Warm key from the upper left, as if from a desk lamp, with soft-edged
+	# shadows so carved grooves stay readable instead of going pure black.
+	$KeyLight.light_energy = 1.10
+	$KeyLight.light_color = Color("fff2dc")
+	$KeyLight.rotation_degrees = Vector3(-45, -45, 0)
+	$KeyLight.shadow_enabled = true
+	$KeyLight.shadow_blur = 2.5
+	# Cool-neutral fill from the opposite side reveals detail inside the ebony
+	# pieces without washing the ivory out.
+	$FillLight.light_energy = 0.35
+	$FillLight.light_color = Color("c8d6ea")
+	# Grazing rim from behind separates the ebony pieces from the walnut board.
+	$RimLight.rotation_degrees = Vector3(-32, 168, 0)
+	$RimLight.light_color = Color("ffe9cf")
 	$RimLight.light_energy = 0.40
 	$RimLight.shadow_enabled = false
+	# Post-processing. SSAO, SSR and the depth of field are what the design brief
+	# asks for, and the Compatibility renderer silently ignores all three, so they
+	# are configured here and take effect the moment the project moves to the
+	# Forward+ or Mobile renderer. Glow is honoured today and is thresholded high
+	# so only the brass and gold inlays glint instead of the whole board blooming.
+	environment.glow_enabled = true
+	environment.glow_intensity = 0.32
+	environment.glow_bloom = 0.05
+	environment.glow_hdr_threshold = 1.05
+	environment.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
+	environment.ssao_enabled = true
+	environment.ssao_radius = 0.85
+	environment.ssao_intensity = 1.5
+	environment.ssao_power = 1.6
+	environment.ssr_enabled = true
+	environment.ssr_max_steps = 24
+	environment.depth_of_field_far_enabled = true
+	environment.depth_of_field_far_distance = 13.0
+	environment.depth_of_field_far_transition = 5.0
+	environment.depth_of_field_blur_amount = 0.10
+	environment.adjustment_enabled = true
+	environment.adjustment_contrast = 1.06
+	environment.adjustment_saturation = 1.08
 	$WorldEnvironment.environment = environment
 
 
+## ---------------------------------------------------------------------------
+## Procedural surface maps
+##
+## Every board and piece material is driven by textures generated once at
+## startup into the shared mesh cache. Generating them keeps the APK free of
+## binary texture assets while still giving marble veining, wood grain and a
+## matching normal map, which is what makes the surfaces read as material
+## rather than flat colour under the key light.
+## ---------------------------------------------------------------------------
+
+var _surface_maps: Dictionary = {}
+
+
+func _surface_map(kind: String) -> Texture2D:
+	if _surface_maps.has(kind):
+		return _surface_maps[kind]
+	var texture: Texture2D = null
+	match kind:
+		"marble": texture = _marble_map()
+		"marble_normal": texture = _normal_map(_marble_height())
+		"walnut": texture = _walnut_map()
+		"walnut_normal": texture = _normal_map(_walnut_height())
+		"rosewood": texture = _rosewood_map()
+		"rosewood_normal": texture = _normal_map(_rosewood_height())
+		"brass": texture = _brass_map()
+	_surface_maps[kind] = texture
+	return texture
+
+
+func _map_size() -> int:
+	return 64 if _effective_graphics_quality() == "low" else 128
+
+
+func _marble_map() -> ImageTexture:
+	var size := _map_size()
+	var blotches := FastNoiseLite.new()
+	blotches.seed = 8123
+	blotches.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	blotches.frequency = 0.055
+	blotches.fractal_octaves = 3
+	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
+	for y in size:
+		for x in size:
+			var u := float(x) / float(size)
+			var v := float(y) / float(size)
+			var cloud := blotches.get_noise_2d(u * 6.0, v * 6.0)
+			var warp := blotches.get_noise_2d(u * 3.0 + 11.0, v * 3.0 - 7.0)
+			var vein := abs(sin((u * 9.0 + v * 4.0 + warp * 2.8) * PI))
+			vein = pow(1.0 - vein, 14.0)
+			var shade := clampf(0.95 + 0.05 * cloud - 0.26 * vein, 0.52, 1.0)
+			image.set_pixel(x, y, Color(shade, shade * 0.985, shade * 0.955, 1.0))
+	return ImageTexture.create_from_image(image)
+
+
+func _marble_height() -> PackedFloat32Array:
+	var size := _map_size()
+	var blotches := FastNoiseLite.new()
+	blotches.seed = 8123
+	blotches.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	blotches.frequency = 0.055
+	blotches.fractal_octaves = 3
+	var heights := PackedFloat32Array()
+	heights.resize(size * size)
+	for y in size:
+		for x in size:
+			var u := float(x) / float(size)
+			var v := float(y) / float(size)
+			var cloud := blotches.get_noise_2d(u * 6.0, v * 6.0)
+			var warp := blotches.get_noise_2d(u * 3.0 + 11.0, v * 3.0 - 7.0)
+			var vein := abs(sin((u * 9.0 + v * 4.0 + warp * 2.8) * PI))
+			heights[y * size + x] = cloud * 0.35 + pow(1.0 - vein, 14.0) * 0.9
+	return heights
+
+
+func _walnut_map() -> ImageTexture:
+	var size := _map_size()
+	var grain := FastNoiseLite.new()
+	grain.seed = 4471
+	grain.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	grain.frequency = 0.09
+	grain.fractal_octaves = 2
+	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
+	for y in size:
+		for x in size:
+			var u := float(x) / float(size)
+			var v := float(y) / float(size)
+			var streak := grain.get_noise_2d(u * 22.0, v * 1.7)
+			var ring := abs(sin((v * 17.0 + streak * 3.6) * PI))
+			ring = pow(1.0 - ring, 7.0)
+			var shade := clampf(0.42 + 0.26 * streak + 0.14 * ring, 0.10, 0.70)
+			image.set_pixel(x, y, Color(shade, shade * 0.80, shade * 0.60, 1.0))
+	return ImageTexture.create_from_image(image)
+
+
+func _walnut_height() -> PackedFloat32Array:
+	var size := _map_size()
+	var grain := FastNoiseLite.new()
+	grain.seed = 4471
+	grain.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	grain.frequency = 0.09
+	grain.fractal_octaves = 2
+	var heights := PackedFloat32Array()
+	heights.resize(size * size)
+	for y in size:
+		for x in size:
+			var u := float(x) / float(size)
+			var v := float(y) / float(size)
+			var streak := grain.get_noise_2d(u * 22.0, v * 1.7)
+			var ring := abs(sin((v * 17.0 + streak * 3.6) * PI))
+			heights[y * size + x] = streak * 0.5 + pow(1.0 - ring, 7.0) * 0.8
+	return heights
+
+
+func _rosewood_map() -> ImageTexture:
+	var size := _map_size()
+	var figure := FastNoiseLite.new()
+	figure.seed = 9902
+	figure.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	figure.frequency = 0.07
+	figure.fractal_octaves = 3
+	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
+	for y in size:
+		for x in size:
+			var u := float(x) / float(size)
+			var v := float(y) / float(size)
+			var streak := figure.get_noise_2d(u * 15.0, v * 2.2)
+			var cathedral := abs(sin((u * 5.0 + streak * 2.0) * PI))
+			cathedral = pow(1.0 - cathedral, 5.0)
+			var shade := clampf(0.34 + 0.22 * streak + 0.18 * cathedral, 0.09, 0.60)
+			image.set_pixel(x, y, Color(shade * 1.15, shade * 0.72, shade * 0.66, 1.0))
+	return ImageTexture.create_from_image(image)
+
+
+func _rosewood_height() -> PackedFloat32Array:
+	var size := _map_size()
+	var figure := FastNoiseLite.new()
+	figure.seed = 9902
+	figure.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	figure.frequency = 0.07
+	figure.fractal_octaves = 3
+	var heights := PackedFloat32Array()
+	heights.resize(size * size)
+	for y in size:
+		for x in size:
+			var u := float(x) / float(size)
+			var v := float(y) / float(size)
+			var streak := figure.get_noise_2d(u * 15.0, v * 2.2)
+			var cathedral := abs(sin((u * 5.0 + streak * 2.0) * PI))
+			heights[y * size + x] = streak * 0.6 + pow(1.0 - cathedral, 5.0) * 0.7
+	return heights
+
+
+func _brass_map() -> ImageTexture:
+	var size := _map_size()
+	var speckle := FastNoiseLite.new()
+	speckle.seed = 3312
+	speckle.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	speckle.frequency = 0.22
+	speckle.fractal_octaves = 2
+	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
+	for y in size:
+		for x in size:
+			var u := float(x) / float(size)
+			var v := float(y) / float(size)
+			var shade := clampf(0.88 + 0.14 * speckle.get_noise_2d(u * 5.0, v * 5.0), 0.55, 1.0)
+			image.set_pixel(x, y, Color(shade, shade * 0.86, shade * 0.58, 1.0))
+	return ImageTexture.create_from_image(image)
+
+
+## Encodes a height field as a tangent-space normal map. The grooves this
+## produces are what let flat trim geometry read as carving.
+func _normal_map(heights: PackedFloat32Array) -> ImageTexture:
+	var size := _map_size()
+	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
+	var strength := 2.6
+	for y in size:
+		for x in size:
+			var left: float = heights[y * size + ((x - 1 + size) % size)]
+			var right: float = heights[y * size + ((x + 1) % size)]
+			var up: float = heights[((y - 1 + size) % size) * size + x]
+			var down: float = heights[((y + 1) % size) * size + x]
+			var normal := Vector3(left - right, up - down, 1.0 / strength).normalized()
+			image.set_pixel(x, y, Color(normal.x * 0.5 + 0.5, normal.y * 0.5 + 0.5, normal.z * 0.5 + 0.5, 1.0))
+	return ImageTexture.create_from_image(image)
+
+
 func _setup_piece_materials() -> void:
+	# Warm polished ivory and deep obsidian, both with brass inlay. Roughness
+	# sits well above the 0.08 near-mirror clearcoat the set used to carry: on a
+	# pale body that layer reflected the procedural sky and clipped every
+	# highlight to flat white under ACES.
+	var ivory := Color("f3ead8")
+	var obsidian := Color("1e1b18")
+	var brass := Color("d4af37")
 	if piece_theme == "royal_wood":
-		# Reference-inspired carved charcoal and pale ash, with restrained gold.
-		# Both bodies are matte: the near-mirror clearcoat the classic set used to
-		# carry reflected the bright procedural sky and washed out the carving.
-		_piece_ivory_material = _luxury_piece_material(Color("e2d7bf"), 0.46, 0.02)
-		_piece_obsidian_material = _luxury_piece_material(Color("433d38"), 0.50, 0.03, false, false, 0.08)
-		_piece_gold_material = _luxury_piece_material(Color("d8a341"), 0.34, 0.80, false, true)
+		# Carved pale ash and dark walnut, with restrained brass.
+		_piece_ivory_material = _luxury_piece_material(
+			Color("f2e8d2"), 0.32, 0.0, false, false, 0.28, _surface_map("walnut"), _surface_map("walnut_normal"))
+		_piece_obsidian_material = _luxury_piece_material(
+			Color("4b3b2c"), 0.36, 0.0, false, false, 0.26, _surface_map("rosewood"), _surface_map("rosewood_normal"))
+		_piece_gold_material = _luxury_piece_material(brass, 0.20, 0.90, false, true, 0.60, _surface_map("brass"))
 	else:
-		# Classic ivory and slate. Roughness around 0.55 with no clearcoat reads as
-		# turned ceramic; 0.25 plus a 0.08 clearcoat read as glossy plastic and
-		# clipped to white under the studio key light.
-		_piece_ivory_material = _luxury_piece_material(Color("e6ddc8"), 0.60, 0.0, false, false, 0.10)
-		_piece_obsidian_material = _luxury_piece_material(Color("363c45"), 0.54, 0.0, false, false, 0.08)
-		_piece_gold_material = _luxury_piece_material(Color("d9a543"), 0.28, 0.88, false, true, 0.50)
+		_piece_ivory_material = _luxury_piece_material(
+			ivory, 0.32, 0.0, false, false, 0.30, _surface_map("marble"), _surface_map("marble_normal"))
+		_piece_obsidian_material = _luxury_piece_material(
+			obsidian, 0.30, 0.0, false, false, 0.30, _surface_map("walnut"), _surface_map("walnut_normal"))
+		_piece_gold_material = _luxury_piece_material(brass, 0.20, 0.90, false, true, 0.60, _surface_map("brass"))
 
 
 func _create_board() -> void:
-	# The original Classic board remains the sole board presentation.
-	# Both square materials are matte: clearcoat on a large flat face reflects the
-	# whole sky and turns the board into a mirror under the studio key light.
-	_board_light_material = _material(Color("9c8660"), 0.70, 0.0, false, 0.04)
-	_board_dark_material = _material(Color("3a1a27"), 0.66, 0.0, false, 0.04)
+	# Light squares are polished cream marble, dark squares are walnut. Both are
+	# driven by procedurally generated albedo, roughness and normal maps, so the
+	# satin finish catches the key light without becoming a mirror. metallic_specular
+	# is pinned low: at Godot's 0.5 default a broad flat face reflects the whole sky
+	# on top of its diffuse term and clips to white under ACES.
+	_board_light_material = _material(
+		Color("f3ead8"), 0.26, 0.0, false, 0.30, _surface_map("marble"), _surface_map("marble_normal"))
+	_board_dark_material = _material(
+		Color("4a2c1c"), 0.20, 0.0, false, 0.34, _surface_map("walnut"), _surface_map("walnut_normal"))
 	var light_material := _board_light_material
 	var dark_material := _board_dark_material
 
@@ -283,81 +502,87 @@ func _create_board() -> void:
 			)
 			board.add_child(square)
 
+	# The slab the squares sit on. The exposed half-unit border used to project as
+	# a large bright wedge on the camera-right side and was "fixed" by making it
+	# unshaded, which traded a lighting artifact for a flat cut-out frame with no
+	# depth. Lit normally it simply reads darker than the squares, as a frame should.
 	var base := MeshInstance3D.new()
 	var base_mesh := BoxMesh.new()
 	base_mesh.size = Vector3(9.0, 0.32, 9.0)
-	# The exposed half-unit border around the squares used to project as a large
-	# bright wedge on the camera-right side, and the fix was to make it unshaded.
-	# That traded a lighting artifact for a flat cut-out frame with no depth at
-	# all. The wedge came from the old 1.10 key plus a 0.45 cool fill hitting a
-	# broad top face; with the rebalanced lights the frame is lit normally and
-	# simply reads darker than the squares, which is what a frame should do.
-	var base_material := _matte_material(Color("221a22"), 0.82)
-	base_mesh.material = base_material
+	var rosewood := _matte_material(Color("8a5a42"), 0.55, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.16)
+	base_mesh.material = rosewood
 	base.mesh = base_mesh
 	base.position.y = -0.22
 	board.add_child(base)
 
-	# The wide side rails frame the board. Matte, so they never behave like
-	# polished reflectors; the narrow metallic inset stays light-reactive.
-	var wood_color := Color("2a1d24")
-	var wood := _matte_material(wood_color, 0.86)
-	var gold := _material(Color("9f7440"), 0.24, 0.72, true, 0.45)
+	# Thin brass inlay bordering the playing field, recessed a hair below the
+	# square tops so it reads as an inset metal line rather than a painted strip.
+	var brass := _material(Color("d4af37"), 0.20, 0.90, false, 0.55, _surface_map("brass"))
+	for inlay in [
+		[Vector3(0, 0.055, -4.035), Vector3(8.07, 0.02, 0.05)],
+		[Vector3(0, 0.055, 4.035), Vector3(8.07, 0.02, 0.05)],
+		[Vector3(-4.035, 0.055, 0), Vector3(0.05, 0.02, 8.07)],
+		[Vector3(4.035, 0.055, 0), Vector3(0.05, 0.02, 8.07)]
+	]:
+		_add_board_box(inlay[0], inlay[1], brass)
+
+	# Ornate outer frame. A single box would show a hard 90-degree edge; three
+	# stacked tiers with shrinking footprints fake a bevelled rosewood moulding,
+	# and the top tier carries the coordinate engraving.
+	var frame_wood := _matte_material(Color("7a4e3a"), 0.48, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.20)
 	for rail in [
-		[Vector3(0, -0.02, -4.38), Vector3(9.15, 0.26, 0.42)],
-		[Vector3(0, -0.02, 4.38), Vector3(9.15, 0.26, 0.42)],
-		[Vector3(-4.38, -0.02, 0), Vector3(0.42, 0.26, 8.35)],
-		[Vector3(4.38, -0.02, 0), Vector3(0.42, 0.26, 8.35)]
+		[Vector3(0, -0.06, -4.38), Vector3(9.15, 0.30, 0.74)],
+		[Vector3(0, -0.06, 4.38), Vector3(9.15, 0.30, 0.74)],
+		[Vector3(-4.38, -0.06, 0), Vector3(0.74, 0.30, 8.35)],
+		[Vector3(4.38, -0.06, 0), Vector3(0.74, 0.30, 8.35)]
 	]:
-		_add_board_box(rail[0], rail[1], wood)
-	for accent in [
-		[Vector3(0, 0.125, -4.12), Vector3(8.2, 0.035, 0.045)],
-		[Vector3(0, 0.125, 4.12), Vector3(8.2, 0.035, 0.045)],
-		[Vector3(-4.12, 0.125, 0), Vector3(0.045, 0.035, 8.2)],
-		[Vector3(4.12, 0.125, 0), Vector3(0.045, 0.035, 8.2)]
+		_add_board_box(rail[0], rail[1], frame_wood)
+	for bevel in [
+		[Vector3(0, 0.075, -4.36), Vector3(9.0, 0.06, 0.62)],
+		[Vector3(0, 0.075, 4.36), Vector3(9.0, 0.06, 0.62)],
+		[Vector3(-4.36, 0.075, 0), Vector3(0.62, 0.06, 8.2)],
+		[Vector3(4.36, 0.075, 0), Vector3(0.62, 0.06, 8.2)]
 	]:
-		_add_board_box(accent[0], accent[1], gold)
+		_add_board_box(bevel[0], bevel[1], brass)
+	for lip in [
+		[Vector3(0, 0.115, -4.30), Vector3(8.7, 0.05, 0.42)],
+		[Vector3(0, 0.115, 4.30), Vector3(8.7, 0.05, 0.42)],
+		[Vector3(-4.30, 0.115, 0), Vector3(0.42, 0.05, 7.9)],
+		[Vector3(4.30, 0.115, 0), Vector3(0.42, 0.05, 7.9)]
+	]:
+		_add_board_box(lip[0], lip[1], frame_wood)
 
 	# A layered rectangular plinth avoids the large fan-triangulated top of the
-	# old CylinderMesh. On mobile that fan produced a bright triangular facet at
-	# the right edge of the table. Separate matte tiers add depth without extra
-	# shaders, transparency, or per-frame work.
-	var table_material := _matte_material(Color("1d151d"), 0.88)
-	var table_edge_material := _matte_material(Color("291e28"), 0.82)
-	# The plinth is a backdrop, so it stays clearly darker than the board. It is
-	# lit like everything else: an unshaded plinth read as a flat void around the
-	# board instead of a surface the board is standing on.
+	# old CylinderMesh, which produced a bright triangular facet on mobile.
+	var table_material := _matte_material(Color("3a2620"), 0.72, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.08)
+	var table_edge_material := _matte_material(Color("4a322a"), 0.62, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.12)
+	# The plinth is a backdrop, so it stays clearly darker than the board.
 	_add_board_box(Vector3(0, -0.66, 0), Vector3(11.8, 0.48, 11.8), table_material)
 	_add_board_box(Vector3(0, -0.39, 0), Vector3(10.8, 0.14, 10.8), table_edge_material)
 	_add_board_box(Vector3(0, -0.315, 0), Vector3(9.65, 0.08, 9.65), table_material)
 
-	# No floor receiver is needed in the restrained stage. The old PlaneMesh was
-	# split diagonally by the mobile renderer and one half caught the cool fill,
-	# producing the persistent white triangle to the board's right. The opaque
-	# environment background now surrounds the self-contained table cleanly.
-	#
-	# The stage is deliberately left without room decoration: earlier oversized
-	# columns competed with the board, obscured piece silhouettes and burned
-	# mobile draw calls.
 	_add_board_coordinates()
 
 
 func _add_board_coordinates() -> void:
-	var label_color := Color("d5b875")
+	# Brass engraving inset into the outer border, lit rather than unshaded so it
+	# catches the key light the way real engraved metal does.
+	var label_color := Color("e8c56a")
 	for index in BOARD_SIZE:
 		for data in [
-			["abcdefgh"[index], Vector3((index - 3.5) * SQUARE_SIZE, 0.15, 4.34)],
-			[str(8 - index), Vector3(-4.34, 0.15, (index - 3.5) * SQUARE_SIZE)]
+			["abcdefgh"[index], Vector3((index - 3.5) * SQUARE_SIZE, 0.135, 4.24)],
+			[str(8 - index), Vector3(-4.24, 0.135, (index - 3.5) * SQUARE_SIZE)]
 		]:
 			var label := Label3D.new()
 			label.text = data[0]
-			label.font_size = 48
+			label.font_size = 40
 			label.modulate = label_color
-			label.outline_size = 8
-			label.outline_modulate = Color(0.03, 0.02, 0.03, 0.9)
+			label.shaded = true
+			label.outline_size = 7
+			label.outline_modulate = Color(0.05, 0.03, 0.03, 0.92)
 			label.position = data[1]
 			label.rotation_degrees.x = -90.0
-			label.pixel_size = 0.005
+			label.pixel_size = 0.0042
 			coordinates_root.add_child(label)
 
 
@@ -447,86 +672,264 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	elif kind == "bishop":
 		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
 	piece.add_child(model)
-	_add_sculpted_identity_top(piece, kind, body, accent)
-
-	# Classic pieces carry no metal collar at the foot; the sculpted identity
-	# accents below are the only gold, which is what a Staunton set looks like.
-	# (royal_wood adds its own foot collar in _add_royal_wood_piece.)
-	if kind in ["bishop", "queen", "king"]:
-		var collar_data: Vector2 = {
-			"bishop": Vector2(0.18, 0.93),
-			"queen": Vector2(0.215, 1.08),
-			"king": Vector2(0.215, 1.19)
-		}[kind]
-		_add_torus(piece, collar_data.x, 0.009, collar_data.y, accent)
+	# The Staunton bodies are deliberately plain, so all the carving - tiered
+	# foot, filigree, fluting, collars and the crowns - lives in this one merged
+	# trim mesh rather than in a swarm of child nodes.
+	var trim := MeshInstance3D.new()
+	trim.name = "OrnateTrim"
+	trim.mesh = _ornate_mesh(kind, body, accent, "classic")
+	trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	piece.add_child(trim)
 
 
 func _add_royal_wood_piece(piece: Node3D, kind: String, is_white: bool, wood: Material, gold: Material) -> void:
-	# Uses the proven sculpted Staunton topology as a carved-wood foundation,
-	# then adds role-specific metalwork matching the supplied reference.
+	# The carved set shares the same sculpted Staunton topology as the classic
+	# set, but is finished differently: a metal collar at the foot of every
+	# piece (pawns included) and its own metalwork, so the two sets read as
+	# different objects rather than recolours of one another.
 	var model := MeshInstance3D.new()
 	model.name = "RoyalWoodSculpture"
 	model.mesh = PIECE_MODELS[kind]
 	model.material_override = wood
 	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	if kind == "knight": model.rotation.y = 0.0 if is_white else PI
-	elif kind == "bishop": model.rotation.y = PI * 0.25 if is_white else PI * 1.25
+	if kind == "knight":
+		model.rotation.y = 0.0 if is_white else PI
+	elif kind == "bishop":
+		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
 	piece.add_child(model)
-	var base_radius := 0.235 if kind == "pawn" else 0.295
-	_add_torus(piece, base_radius, 0.014, 0.095, gold)
+	var trim := MeshInstance3D.new()
+	trim.name = "RoyalWoodTrim"
+	trim.mesh = _ornate_mesh(kind, wood, gold, "royal_wood")
+	trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	piece.add_child(trim)
+
+
+## ---------------------------------------------------------------------------
+## Ornate trim layer
+##
+## The sculpted Staunton bodies are plain on purpose; the carving that makes the
+## set look crafted lives here. Everything is built from cached primitives and
+## then merged into a single ArrayMesh with one surface per material, so a full
+## 32-piece set costs 64 trim draw calls. The same ornament set as loose nodes
+## would be roughly 600, which is not affordable on a phone.
+## ---------------------------------------------------------------------------
+
+const ORNAMENT_BODY := 0
+const ORNAMENT_ACCENT := 1
+
+
+func _radial_segments() -> int:
+	match _effective_graphics_quality():
+		"low": return 12
+		"medium": return 18
+	return 24
+
+
+func _ornament_primitive(shape: String, a: float, b: float, c: float) -> Mesh:
+	var key := "orn:%s:%s:%s:%s:%d" % [shape, a, b, c, _radial_segments()]
+	if _mesh_cache.has(key):
+		return _mesh_cache[key]
+	var created: Mesh = null
+	match shape:
+		"cylinder":
+			var cylinder := CylinderMesh.new()
+			cylinder.top_radius = a
+			cylinder.bottom_radius = b
+			cylinder.height = c
+			cylinder.radial_segments = _radial_segments()
+			cylinder.rings = 2
+			created = cylinder
+		"sphere":
+			var sphere := SphereMesh.new()
+			sphere.radius = a
+			sphere.height = a * 2.0
+			sphere.radial_segments = _radial_segments()
+			sphere.rings = maxi(4, _radial_segments() / 2)
+			created = sphere
+		"torus":
+			var torus := TorusMesh.new()
+			torus.inner_radius = maxf(0.01, a - b)
+			torus.outer_radius = a + b
+			torus.rings = _radial_segments()
+			torus.ring_segments = 6 if _radial_segments() <= 12 else 8
+			created = torus
+		"box":
+			var box := BoxMesh.new()
+			box.size = Vector3(a, b, c)
+			created = box
+	_mesh_cache[key] = created
+	return created
+
+
+func _ornament_add(parts: Array, shape: String, a: float, b: float, c: float, position: Vector3, material_index: int, rotation := Vector3.ZERO) -> void:
+	var primitive := _ornament_primitive(shape, a, b, c)
+	var basis := Basis.IDENTITY
+	if rotation != Vector3.ZERO:
+		basis = Basis.from_euler(Vector3(deg_to_rad(rotation.x), deg_to_rad(rotation.y), deg_to_rad(rotation.z)))
+	parts.append([primitive, Transform3D(basis, position), material_index])
+
+
+## Per-kind Staunton proportions, in the same units as the body models
+## (pawn 0.91 tall ... king 1.62 tall, foot radius about 0.33).
+func _ornate_profile(kind: String) -> Dictionary:
+	var profile := {
+		"foot": 0.30, "stem": 0.115, "stem_top": 0.40,
+		"neck": 0.125, "neck_y": 0.66, "flutes": 8
+	}
+	match kind:
+		"rook":
+			profile.foot = 0.335; profile.stem = 0.155; profile.stem_top = 0.50
+			profile.neck = 0.17; profile.neck_y = 0.80; profile.flutes = 10
+		"knight":
+			profile.foot = 0.335; profile.stem = 0.15; profile.stem_top = 0.48
+			profile.neck = 0.15; profile.neck_y = 0.76; profile.flutes = 0
+		"bishop":
+			profile.foot = 0.325; profile.stem = 0.135; profile.stem_top = 0.52
+			profile.neck = 0.155; profile.neck_y = 0.84; profile.flutes = 8
+		"queen":
+			profile.foot = 0.335; profile.stem = 0.145; profile.stem_top = 0.56
+			profile.neck = 0.17; profile.neck_y = 0.98; profile.flutes = 12
+		"king":
+			profile.foot = 0.335; profile.stem = 0.145; profile.stem_top = 0.58
+			profile.neck = 0.175; profile.neck_y = 1.02; profile.flutes = 12
+	return profile
+
+
+func _ornate_mesh(kind: String, body: Material, accent: Material, variant: String) -> ArrayMesh:
+	var key := "trim:%s:%s:%d:%d:%d" % [kind, variant, body.get_instance_id(), accent.get_instance_id(), _radial_segments()]
+	if _mesh_cache.has(key):
+		return _mesh_cache[key]
+	var parts: Array = _ornate_trim_parts(kind, variant)
+	_ornate_identity_parts(parts, kind, variant)
+	var mesh := ArrayMesh.new()
+	for material_index in [ORNAMENT_BODY, ORNAMENT_ACCENT]:
+		var tool := SurfaceTool.new()
+		tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var used := false
+		for part in parts:
+			if int(part[2]) != material_index:
+				continue
+			tool.append_from(part[0] as Mesh, 0, part[1] as Transform3D)
+			used = true
+		if used:
+			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, tool.commit_to_arrays())
+			mesh.surface_set_material(mesh.get_surface_count() - 1, accent if material_index == ORNAMENT_ACCENT else body)
+	_mesh_cache[key] = mesh
+	return mesh
+
+
+## Tiered foot with micro-bevels, a filigree stud band, vertical fluting on the
+## stem, a mid-stem brass band and a turned neck collar.
+func _ornate_trim_parts(kind: String, variant: String) -> Array:
+	var parts: Array = []
+	var profile := _ornate_profile(kind)
+	var foot: float = profile.foot
+	var stem: float = profile.stem
+	var stem_top: float = profile.stem_top
+	var neck: float = profile.neck
+	var neck_y: float = profile.neck_y
+	var flutes: int = profile.flutes
+	var metal_foot := variant == "royal_wood"
+	# Tiered foot: two stepped discs with a micro-bevel ring between them, so the
+	# base reads as turned wood clad in metal rather than a flat cylinder.
+	_ornament_add(parts, "cylinder", foot * 0.88, foot, 0.05, Vector3(0, 0.025, 0), ORNAMENT_ACCENT if metal_foot else ORNAMENT_BODY)
+	_ornament_add(parts, "torus", foot * 0.93, 0.010, 0.0, Vector3(0, 0.05, 0), ORNAMENT_ACCENT)
+	_ornament_add(parts, "cylinder", foot * 0.60, foot * 0.88, 0.055, Vector3(0, 0.082, 0), ORNAMENT_BODY)
+	_ornament_add(parts, "torus", foot * 0.64, 0.009, 0.0, Vector3(0, 0.108, 0), ORNAMENT_ACCENT)
+	# Filigree studs wrapped around the foot.
+	var studs := 6 if _radial_segments() == 12 else (10 if _radial_segments() == 18 else 14)
+	for i in studs:
+		var stud_angle := PI * 2.0 * float(i) / float(studs)
+		_ornament_add(parts, "sphere", 0.015, 0.0, 0.0,
+			Vector3(cos(stud_angle) * foot * 0.72, 0.108, sin(stud_angle) * foot * 0.72), ORNAMENT_ACCENT)
+	# Vertical fluting up the stem. Round ribs rather than inset grooves: the
+	# renderer has no boolean geometry, and a rib under a raking light reads as
+	# fluting anyway.
+	if flutes > 0:
+		var flute_count := flutes if _radial_segments() > 12 else maxi(4, flutes / 2)
+		var flute_bottom := 0.125
+		var flute_height: float = stem_top - flute_bottom
+		for i in flute_count:
+			var flute_angle := PI * 2.0 * float(i) / float(flute_count)
+			_ornament_add(parts, "cylinder", 0.013, 0.013, flute_height,
+				Vector3(cos(flute_angle) * stem, flute_bottom + flute_height * 0.5, sin(flute_angle) * stem), ORNAMENT_BODY)
+	# Mid-stem brass band.
+	_ornament_add(parts, "torus", stem + 0.016, 0.009, 0.0, Vector3(0, stem_top * 0.5, 0), ORNAMENT_ACCENT)
+	# Turned neck collar with a brass inlay.
+	_ornament_add(parts, "cylinder", neck * 0.88, neck, 0.07, Vector3(0, neck_y - 0.045, 0), ORNAMENT_BODY)
+	_ornament_add(parts, "torus", neck + 0.013, 0.011, 0.0, Vector3(0, neck_y + 0.015, 0), ORNAMENT_ACCENT)
+	return parts
+
+
+## Piece-specific crowns and caps, replacing the old single-ring accents.
+func _ornate_identity_parts(parts: Array, kind: String, variant: String) -> void:
 	match kind:
 		"pawn":
-			_add_torus(piece, 0.135, 0.008, 0.69, gold)
+			# Fluted column already comes from the trim; add an engraved collar
+			# band and a finial with a brass inlay ring.
+			_ornament_add(parts, "torus", 0.135, 0.010, 0.0, Vector3(0, 0.72, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "sphere", 0.115, 0.0, 0.0, Vector3(0, 0.83, 0), ORNAMENT_BODY)
+			_ornament_add(parts, "torus", 0.098, 0.008, 0.0, Vector3(0, 0.90, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "sphere", 0.040, 0.0, 0.0, Vector3(0, 0.955, 0), ORNAMENT_ACCENT)
 		"rook":
-			# Trace the existing castle rim; do not replace it with a floating crown.
-			_add_torus(piece, 0.19, 0.014, 1.00, gold)
+			# Stonework battlements around a flanged crown, with a brass rim.
+			_ornament_add(parts, "torus", 0.205, 0.018, 0.0, Vector3(0, 0.84, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "cylinder", 0.225, 0.205, 0.13, Vector3(0, 0.90, 0), ORNAMENT_BODY)
+			var merlons := 6 if _radial_segments() <= 12 else 8
+			for i in merlons:
+				var merlon_angle := PI * 2.0 * float(i) / float(merlons)
+				_ornament_add(parts, "box", 0.085, 0.14, 0.085,
+					Vector3(cos(merlon_angle) * 0.165, 0.99, sin(merlon_angle) * 0.165), ORNAMENT_BODY)
+			_ornament_add(parts, "torus", 0.175, 0.012, 0.0, Vector3(0, 1.05, 0), ORNAMENT_ACCENT)
 		"knight":
-			# Three restrained studs suggest the gilded mane in the reference.
-			for i in 3:
-				_add_sphere(piece, 0.022, 1.10 + i*0.06, gold, Vector3(0, 0, 0.10 - i*0.012))
+			# Sculpted mane ridges and a brass chest band; the head itself stays
+			# in the body model because a horse head cannot be faked with primitives.
+			var mane := 5 if _radial_segments() <= 12 else 7
+			for i in mane:
+				var mane_angle := PI * 2.0 * float(i) / float(mane)
+				_ornament_add(parts, "cylinder", 0.020, 0.008, 0.20,
+					Vector3(cos(mane_angle) * 0.145, 0.98, sin(mane_angle) * 0.145), ORNAMENT_BODY,
+					Vector3(0.0, rad_to_deg(mane_angle), 0.0))
+			_ornament_add(parts, "torus", 0.150, 0.012, 0.0, Vector3(0, 0.86, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "torus", 0.120, 0.009, 0.0, Vector3(0, 1.06, 0), ORNAMENT_ACCENT)
 		"bishop":
-			_add_torus(piece, 0.155, 0.012, 1.05, gold)
-			_add_sphere(piece, 0.030, 1.31, gold)
+			# Carved mitre with a gold-inlaid slit and a patterned collar.
+			_ornament_add(parts, "torus", 0.205, 0.024, 0.0, Vector3(0, 0.91, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "sphere", 0.235, 0.0, 0.0, Vector3(0, 1.10, 0), ORNAMENT_BODY)
+			_ornament_add(parts, "box", 0.055, 0.34, 0.10, Vector3(0.0, 1.12, -0.19), ORNAMENT_ACCENT,
+				Vector3(0.0, 0.0, -28.0))
+			_ornament_add(parts, "sphere", 0.060, 0.0, 0.0, Vector3(0, 1.35, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "torus", 0.070, 0.008, 0.0, Vector3(0, 1.02, 0), ORNAMENT_ACCENT)
 		"queen":
-			_add_torus(piece, 0.16, 0.014, 1.19, gold)
-			for angle in [0.0, 90.0, 180.0, 270.0]:
-				var r := deg_to_rad(angle)
-				_add_sphere(piece, 0.026, 1.29, gold, Vector3(cos(r)*0.13, 0, sin(r)*0.13))
+			# Multi-pointed coronet of brass balls over a fluted drum.
+			_ornament_add(parts, "torus", 0.240, 0.026, 0.0, Vector3(0, 1.05, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "cylinder", 0.285, 0.19, 0.18, Vector3(0, 1.14, 0), ORNAMENT_BODY)
+			var points := 8 if _radial_segments() <= 12 else 12
+			for i in points:
+				var crown_angle := PI * 2.0 * float(i) / float(points)
+				_ornament_add(parts, "sphere", 0.042, 0.0, 0.0,
+					Vector3(cos(crown_angle) * 0.215, 1.30, sin(crown_angle) * 0.215), ORNAMENT_ACCENT)
+				_ornament_add(parts, "cylinder", 0.012, 0.012, 0.075,
+					Vector3(cos(crown_angle) * 0.215, 1.26, sin(crown_angle) * 0.215), ORNAMENT_BODY)
+			_ornament_add(parts, "sphere", 0.085, 0.0, 0.0, Vector3(0, 1.36, 0), ORNAMENT_BODY)
+			_ornament_add(parts, "torus", 0.090, 0.009, 0.0, Vector3(0, 1.42, 0), ORNAMENT_ACCENT)
 		"king":
-			_add_torus(piece, 0.15, 0.012, 1.22, gold)
-			_add_box(piece, Vector3(0.055, 0.20, 0.055), Vector3(0, 1.39, 0), gold)
-			_add_box(piece, Vector3(0.18, 0.055, 0.055), Vector3(0, 1.42, 0), gold)
-
-
-func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material, accent: Material) -> void:
-	match kind:
-		"king":
-			_add_torus(piece, 0.235, 0.028, 1.17, accent)
-			_add_cylinder(piece, 0.18, 0.25, 0.20, 1.27, material)
-			_add_sphere(piece, 0.19, 1.40, material)
-			_add_box(piece, Vector3(0.075, 0.32, 0.075), Vector3(0.0, 1.55, 0.0), accent)
-			_add_box(piece, Vector3(0.28, 0.075, 0.075), Vector3(0.0, 1.60, 0.0), accent)
-		"queen":
-			_add_torus(piece, 0.24, 0.026, 1.05, accent)
-			_add_cylinder(piece, 0.285, 0.19, 0.18, 1.14, material)
-			for angle in [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]:
-				var crown_offset := Vector3(cos(deg_to_rad(angle)) * 0.215, 1.31, sin(deg_to_rad(angle)) * 0.215)
-				_add_sphere(piece, 0.045, 0.0, accent, crown_offset)
-			_add_sphere(piece, 0.085, 1.36, material)
-		"bishop":
-			_add_torus(piece, 0.205, 0.024, 0.91, accent)
-			_add_sphere(piece, 0.235, 1.10, material)
-			_add_box(piece, Vector3(0.055, 0.34, 0.10), Vector3(0.0, 1.12, -0.19), accent, Vector3(0, 0, -28))
-			_add_sphere(piece, 0.060, 1.35, accent)
-		"rook":
-			# Keep the castle crown unmistakable without letting it overpower the
-			# back rank. The first rebuilt crown was wider than the rook's foot and
-			# nearly queen-height on device; this compact rim follows the body taper.
-			_add_torus(piece, 0.205, 0.018, 0.84, accent)
-			_add_cylinder(piece, 0.225, 0.205, 0.14, 0.91, material)
-			for angle in [0.0, 60.0, 120.0, 180.0, 240.0, 300.0]:
-				var battlement := Vector3(cos(deg_to_rad(angle)) * 0.17, 1.00, sin(deg_to_rad(angle)) * 0.17)
-				_add_box(piece, Vector3(0.085, 0.13, 0.085), battlement, material)
+			# Coronet with a pearl finial and a brass cross on top.
+			_ornament_add(parts, "torus", 0.235, 0.028, 0.0, Vector3(0, 1.17, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "cylinder", 0.185, 0.235, 0.16, Vector3(0, 1.26, 0), ORNAMENT_BODY)
+			var crown := 6 if _radial_segments() <= 12 else 8
+			for i in crown:
+				var king_angle := PI * 2.0 * float(i) / float(crown)
+				_ornament_add(parts, "sphere", 0.026, 0.0, 0.0,
+					Vector3(cos(king_angle) * 0.185, 1.33, sin(king_angle) * 0.185), ORNAMENT_ACCENT)
+			_ornament_add(parts, "sphere", 0.075, 0.0, 0.0, Vector3(0, 1.40, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "box", 0.05, 0.34, 0.05, Vector3(0, 1.55, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "box", 0.26, 0.05, 0.05, Vector3(0, 1.60, 0), ORNAMENT_ACCENT)
+	# royal_wood adds a foot collar on every piece, including pawns, which is
+	# what separates it from the classic set at a glance.
+	if variant == "royal_wood":
+		var foot_radius: float = _ornate_profile(kind).foot
+		_ornament_add(parts, "torus", foot_radius * 0.99, 0.014, 0.0, Vector3(0, 0.098, 0), ORNAMENT_ACCENT)
 
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
@@ -603,14 +1006,9 @@ func _create_ui() -> void:
 	# with the board. It is inserted behind the scene title and all HUD controls.
 	var sidebar := PanelContainer.new()
 	sidebar.position = Vector2(14, 14)
-	sidebar.size = Vector2(205, 570)
+	sidebar.size = Vector2(208, 572)
 	sidebar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sidebar_style := StyleBoxFlat.new()
-	sidebar_style.bg_color = Color(0.035, 0.045, 0.065, 0.78)
-	sidebar_style.border_color = Color(0.22, 0.24, 0.30, 0.55)
-	sidebar_style.set_border_width_all(1)
-	sidebar_style.set_corner_radius_all(10)
-	sidebar.add_theme_stylebox_override("panel", sidebar_style)
+	sidebar.add_theme_stylebox_override("panel", _glass_stylebox(14, Color(0.05, 0.06, 0.09, 0.62), Color(0.62, 0.55, 0.42, 0.30)))
 	$UI.add_child(sidebar)
 	$UI.move_child(sidebar, 0)
 	_register_left_column(sidebar)
@@ -622,14 +1020,16 @@ func _create_ui() -> void:
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 
 	_status_label = Label.new()
-	_status_label.custom_minimum_size = Vector2(190, 44)
+	_status_label.custom_minimum_size = Vector2(196, 44)
 	_status_label.add_theme_font_size_override("font_size", 20)
+	_status_label.add_theme_color_override("font_color", Color("e8c56a"))
 	panel.add_child(_status_label)
 
 	_clock_label = Label.new()
-	_clock_label.custom_minimum_size = Vector2(140, 44)
+	_clock_label.custom_minimum_size = Vector2(146, 44)
 	_clock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_clock_label.add_theme_font_size_override("font_size", 20)
+	_clock_label.add_theme_color_override("font_color", Color(0.90, 0.90, 0.92, 0.94))
 	panel.add_child(_clock_label)
 
 	_mode_button = Button.new()
@@ -711,25 +1111,45 @@ func _create_ui() -> void:
 	_fps_label.offset_right = -20.0
 	_fps_label.offset_bottom = -18.0
 	_fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_fps_label.add_theme_color_override("font_color", Color(0.62, 0.68, 0.76, 0.85))
+	_fps_label.add_theme_color_override("font_color", Color(0.68, 0.74, 0.82, 0.90))
+	_fps_label.add_theme_font_size_override("font_size", 15)
 	$UI.add_child(_fps_label)
 	_create_main_menu()
 	_create_game_panels()
 
 
 func _style_hud_button(button: Button) -> void:
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.075, 0.082, 0.105, 0.92)
-	normal.border_color = Color(0.24, 0.25, 0.30, 0.72)
-	normal.set_border_width_all(1)
-	normal.set_corner_radius_all(5)
+	# Glassmorphic: a translucent dark fill, a hairline border that catches the
+	# warm key light, and a gold accent on hover and press. Without the explicit
+	# styleboxes a themed Button falls back to the default project theme, which
+	# is opaque and ignores these colours entirely.
+	var normal := _glass_stylebox(8, Color(0.07, 0.08, 0.11, 0.60), Color(0.58, 0.60, 0.68, 0.42))
+	var active := _glass_stylebox(8, Color(0.17, 0.13, 0.09, 0.78), Color("d4af37"))
 	button.add_theme_stylebox_override("normal", normal)
-	var active := normal.duplicate()
-	active.bg_color = Color(0.16, 0.13, 0.11, 0.96)
-	active.border_color = Color("b99150")
 	button.add_theme_stylebox_override("hover", active)
 	button.add_theme_stylebox_override("pressed", active)
 	button.add_theme_stylebox_override("focus", active)
+	button.add_theme_stylebox_override("disabled", normal)
+	button.add_theme_color_override("font_color", Color(0.93, 0.92, 0.88, 0.96))
+	button.add_theme_color_override("font_hover_color", Color("f6e7c4"))
+	button.add_theme_color_override("font_pressed_color", Color("f6e7c4"))
+	button.add_theme_color_override("font_focus_color", Color("f6e7c4"))
+	button.add_theme_color_override("font_disabled_color", Color(0.55, 0.56, 0.60, 0.7))
+
+
+## One translucent panel used by the sidebar, the HUD buttons and the move
+## history, so the whole overlay reads as one glass layer over the board.
+func _glass_stylebox(radius: int, fill: Color, border: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.border_color = border
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(radius)
+	# A light top edge and a dark bottom edge fake the specular streak a real
+	# glass bevel would give, which is most of what sells the material.
+	style.shadow_color = Color(0, 0, 0, 0.35)
+	style.shadow_size = 6
+	return style
 
 
 func _create_main_menu() -> void:
@@ -827,7 +1247,8 @@ func _create_main_menu() -> void:
 func _create_game_panels() -> void:
 	var history_panel := PanelContainer.new()
 	history_panel.position = Vector2(24, 198)
-	history_panel.size = Vector2(185, 238)
+	history_panel.size = Vector2(188, 240)
+	history_panel.add_theme_stylebox_override("panel", _glass_stylebox(12, Color(0.05, 0.06, 0.09, 0.58), Color(0.55, 0.58, 0.66, 0.34)))
 	$UI.add_child(history_panel)
 	_register_left_column(history_panel)
 	_history_label = RichTextLabel.new()
@@ -2050,19 +2471,22 @@ func _new_game() -> void:
 	_save_autosave()
 
 
-func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false, sheen := 0.12) -> StandardMaterial3D:
+func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false, sheen := 0.30, figure: Texture2D = null, normal: Texture2D = null) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = roughness
 	material.metallic = metallic
 	material.metallic_specular = sheen
-	# A clearcoat is only right on the metal accents. On an ivory or slate body a
-	# 0.08-roughness clearcoat adds a mirror-like sky reflection over the whole
-	# piece, which is what made both sets look like blown-out plastic.
 	material.clearcoat_enabled = glossy
 	material.clearcoat_roughness = 0.42 if glossy else 0.0
-	if color.a < 0.99:
-		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	if figure != null:
+		material.albedo_texture = figure
+		# The same map drives roughness, so veining and grain also vary the
+		# polish instead of only the colour.
+		material.roughness_texture = figure
+		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	if normal != null:
+		material.normal_texture = normal
 	if emissive:
 		material.emission_enabled = true
 		material.emission = color * 0.32
@@ -2070,7 +2494,7 @@ func _luxury_piece_material(color: Color, roughness: float, metallic: float, emi
 	return material
 
 
-func _matte_material(color: Color, roughness: float) -> StandardMaterial3D:
+func _matte_material(color: Color, roughness: float, figure: Texture2D = null, normal: Texture2D = null, sheen := 0.04) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = roughness
@@ -2079,11 +2503,17 @@ func _matte_material(color: Color, roughness: float) -> StandardMaterial3D:
 	# default adds the direct specular lobe and the sky reflection on top of the
 	# diffuse term, which is what pushed the pale squares and the ivory pieces
 	# past 1.0 and clipped them to flat white under ACES.
-	material.metallic_specular = 0.04
+	material.metallic_specular = sheen
+	if figure != null:
+		material.albedo_texture = figure
+		material.roughness_texture = figure
+		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	if normal != null:
+		material.normal_texture = normal
 	return material
 
 
-func _material(color: Color, roughness: float, metallic: float, glossy := false, sheen := 0.10) -> StandardMaterial3D:
+func _material(color: Color, roughness: float, metallic: float, glossy := false, sheen := 0.10, figure: Texture2D = null, normal: Texture2D = null) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = roughness
@@ -2091,6 +2521,12 @@ func _material(color: Color, roughness: float, metallic: float, glossy := false,
 	material.metallic_specular = sheen
 	material.clearcoat_enabled = glossy
 	material.clearcoat_roughness = minf(0.65, roughness + 0.12)
+	if figure != null:
+		material.albedo_texture = figure
+		material.roughness_texture = figure
+		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	if normal != null:
+		material.normal_texture = normal
 	return material
 
 
