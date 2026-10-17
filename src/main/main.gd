@@ -28,7 +28,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.12.0"
-const APP_BUILD := "22.45"
+const APP_BUILD := "22.46"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
@@ -206,7 +206,7 @@ func _setup_environment() -> void:
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color("2a1f2e")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.tonemap_exposure = 1.0
+	environment.tonemap_exposure = 0.85
 	var sky_material := ProceduralSkyMaterial.new()
 	# A dark studio with a warm horizon rather than a flat black void: the
 	# horizon band is what the metallic accents actually reflect, and with the
@@ -223,21 +223,22 @@ func _setup_environment() -> void:
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color.WHITE
 	# Directional lights are additive: an up-facing surface receives
-	# key + ambient + fill/2. Keeping that sum near 2.0 is what puts the ivory's
-	# lit face at ~0.88 after ACES while its underside still falls to ~0.27 —
-	# that spread is the whole difference between "white piece with form" and
-	# "grey blob". Ambient stays low on purpose: ACES lifts midtones hard, so a
-	# high ambient washes every shadow side up into one flat mid-grey.
-	environment.ambient_light_energy = 0.28
-	$KeyLight.light_energy = 1.55
+	# key + ambient + fill*sin(25) + rim*sin(38). These energies are calibrated
+	# against the rendered preview, not derived on paper. The board used to render
+	# its pale square at #f2e8d2; pushing the key to 1.55 and the exposure to 1.0
+	# drove that same albedo to #fffbe9, i.e. clipped white, so the ivory pieces
+	# and the light squares became the same flat colour. Back near the original
+	# energies the spread returns: ivory ~#eae4d4 against a #cdc3a8 field.
+	environment.ambient_light_energy = 0.30
+	$KeyLight.light_energy = 1.00
 	$KeyLight.light_color = Color(1.0, 0.94, 0.85)
 	$KeyLight.rotation_degrees = Vector3(-47, 43, 0)
-	$FillLight.light_energy = 0.50
+	$FillLight.light_energy = 0.45
 	# The rim light was at 0.0, so nothing separated the dark pieces from the
 	# dark maroon board. A grazing light from behind now outlines the silhouette.
 	$RimLight.rotation_degrees = Vector3(-38, 165, 0)
 	$RimLight.light_color = Color(1.0, 0.95, 0.88)
-	$RimLight.light_energy = 0.45
+	$RimLight.light_energy = 0.40
 	$RimLight.shadow_enabled = false
 	$WorldEnvironment.environment = environment
 
@@ -248,14 +249,14 @@ func _setup_piece_materials() -> void:
 		# Both bodies are matte: the near-mirror clearcoat the classic set used to
 		# carry reflected the bright procedural sky and washed out the carving.
 		_piece_ivory_material = _luxury_piece_material(Color("e2d7bf"), 0.46, 0.02)
-		_piece_obsidian_material = _luxury_piece_material(Color("4f4944"), 0.50, 0.03, false, false, 0.08)
+		_piece_obsidian_material = _luxury_piece_material(Color("433d38"), 0.50, 0.03, false, false, 0.08)
 		_piece_gold_material = _luxury_piece_material(Color("d8a341"), 0.34, 0.80, false, true)
 	else:
 		# Classic ivory and slate. Roughness around 0.55 with no clearcoat reads as
 		# turned ceramic; 0.25 plus a 0.08 clearcoat read as glossy plastic and
 		# clipped to white under the studio key light.
 		_piece_ivory_material = _luxury_piece_material(Color("e6ddc8"), 0.60, 0.0, false, false, 0.10)
-		_piece_obsidian_material = _luxury_piece_material(Color("3d434c"), 0.54, 0.0, false, false, 0.08)
+		_piece_obsidian_material = _luxury_piece_material(Color("363c45"), 0.54, 0.0, false, false, 0.08)
 		_piece_gold_material = _luxury_piece_material(Color("d9a543"), 0.28, 0.88, false, true, 0.50)
 
 
@@ -291,7 +292,7 @@ func _create_board() -> void:
 	# all. The wedge came from the old 1.10 key plus a 0.45 cool fill hitting a
 	# broad top face; with the rebalanced lights the frame is lit normally and
 	# simply reads darker than the squares, which is what a frame should do.
-	var base_material := _matte_material(Color("2b2028"), 0.82)
+	var base_material := _matte_material(Color("221a22"), 0.82)
 	base_mesh.material = base_material
 	base.mesh = base_mesh
 	base.position.y = -0.22
@@ -299,7 +300,7 @@ func _create_board() -> void:
 
 	# The wide side rails frame the board. Matte, so they never behave like
 	# polished reflectors; the narrow metallic inset stays light-reactive.
-	var wood_color := Color("33222a")
+	var wood_color := Color("2a1d24")
 	var wood := _matte_material(wood_color, 0.86)
 	var gold := _material(Color("9f7440"), 0.24, 0.72, true, 0.45)
 	for rail in [
@@ -321,8 +322,8 @@ func _create_board() -> void:
 	# old CylinderMesh. On mobile that fan produced a bright triangular facet at
 	# the right edge of the table. Separate matte tiers add depth without extra
 	# shaders, transparency, or per-frame work.
-	var table_material := _matte_material(Color("241a22"), 0.88)
-	var table_edge_material := _matte_material(Color("332430"), 0.82)
+	var table_material := _matte_material(Color("1d151d"), 0.88)
+	var table_edge_material := _matte_material(Color("291e28"), 0.82)
 	# The plinth is a backdrop, so it stays clearly darker than the board. It is
 	# lit like everything else: an unshaded plinth read as a flat void around the
 	# board instead of a surface the board is standing on.
