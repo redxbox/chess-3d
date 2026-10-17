@@ -313,7 +313,7 @@ func _marble_map() -> ImageTexture:
 			var v := float(y) / float(size)
 			var cloud := blotches.get_noise_2d(u * 6.0, v * 6.0)
 			var warp := blotches.get_noise_2d(u * 3.0 + 11.0, v * 3.0 - 7.0)
-			var vein := abs(sin((u * 9.0 + v * 4.0 + warp * 2.8) * PI))
+			var vein: float = abs(sin((u * 9.0 + v * 4.0 + warp * 2.8) * PI))
 			vein = pow(1.0 - vein, 14.0)
 			var shade := clampf(0.95 + 0.05 * cloud - 0.26 * vein, 0.52, 1.0)
 			image.set_pixel(x, y, Color(shade, shade * 0.985, shade * 0.955, 1.0))
@@ -335,7 +335,7 @@ func _marble_height() -> PackedFloat32Array:
 			var v := float(y) / float(size)
 			var cloud := blotches.get_noise_2d(u * 6.0, v * 6.0)
 			var warp := blotches.get_noise_2d(u * 3.0 + 11.0, v * 3.0 - 7.0)
-			var vein := abs(sin((u * 9.0 + v * 4.0 + warp * 2.8) * PI))
+			var vein: float = abs(sin((u * 9.0 + v * 4.0 + warp * 2.8) * PI))
 			heights[y * size + x] = cloud * 0.35 + pow(1.0 - vein, 14.0) * 0.9
 	return heights
 
@@ -353,7 +353,7 @@ func _walnut_map() -> ImageTexture:
 			var u := float(x) / float(size)
 			var v := float(y) / float(size)
 			var streak := grain.get_noise_2d(u * 22.0, v * 1.7)
-			var ring := abs(sin((v * 17.0 + streak * 3.6) * PI))
+			var ring: float = abs(sin((v * 17.0 + streak * 3.6) * PI))
 			ring = pow(1.0 - ring, 7.0)
 			var shade := clampf(0.42 + 0.26 * streak + 0.14 * ring, 0.10, 0.70)
 			image.set_pixel(x, y, Color(shade, shade * 0.80, shade * 0.60, 1.0))
@@ -374,7 +374,7 @@ func _walnut_height() -> PackedFloat32Array:
 			var u := float(x) / float(size)
 			var v := float(y) / float(size)
 			var streak := grain.get_noise_2d(u * 22.0, v * 1.7)
-			var ring := abs(sin((v * 17.0 + streak * 3.6) * PI))
+			var ring: float = abs(sin((v * 17.0 + streak * 3.6) * PI))
 			heights[y * size + x] = streak * 0.5 + pow(1.0 - ring, 7.0) * 0.8
 	return heights
 
@@ -392,7 +392,7 @@ func _rosewood_map() -> ImageTexture:
 			var u := float(x) / float(size)
 			var v := float(y) / float(size)
 			var streak := figure.get_noise_2d(u * 15.0, v * 2.2)
-			var cathedral := abs(sin((u * 5.0 + streak * 2.0) * PI))
+			var cathedral: float = abs(sin((u * 5.0 + streak * 2.0) * PI))
 			cathedral = pow(1.0 - cathedral, 5.0)
 			var shade := clampf(0.34 + 0.22 * streak + 0.18 * cathedral, 0.09, 0.60)
 			image.set_pixel(x, y, Color(shade * 1.15, shade * 0.72, shade * 0.66, 1.0))
@@ -413,7 +413,7 @@ func _rosewood_height() -> PackedFloat32Array:
 			var u := float(x) / float(size)
 			var v := float(y) / float(size)
 			var streak := figure.get_noise_2d(u * 15.0, v * 2.2)
-			var cathedral := abs(sin((u * 5.0 + streak * 2.0) * PI))
+			var cathedral: float = abs(sin((u * 5.0 + streak * 2.0) * PI))
 			heights[y * size + x] = streak * 0.6 + pow(1.0 - cathedral, 5.0) * 0.7
 	return heights
 
