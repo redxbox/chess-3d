@@ -28,7 +28,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.12.0"
-const APP_BUILD := "22.42"
+const APP_BUILD := "22.43"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
@@ -206,7 +206,7 @@ func _setup_environment() -> void:
 	environment.background_mode = Environment.BG_SKY
 	environment.background_color = Color("100d0f")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.tonemap_exposure = 0.82
+	environment.tonemap_exposure = 0.95
 	var sky_material := ProceduralSkyMaterial.new()
 	sky_material.sky_top_color = Color("252a33")
 	sky_material.sky_horizon_color = Color("776f65")
@@ -219,29 +219,46 @@ func _setup_environment() -> void:
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color.WHITE
-	environment.ambient_light_energy = 0.35
-	$KeyLight.light_energy = 1.10
+	environment.ambient_light_energy = 0.55
+	# Irradiance on an up-facing surface is key + ambient + fill/2. The classic
+	# set used 1.10 + 0.35 + 0.45/2 = 1.6, which pushed the ivory albedo past 1.0
+	# and clipped every piece to flat white under ACES. Lowering the key and
+	# raising the ambient keeps the ivory inside the tone range while lifting the
+	# shadow side of the dark pieces, which used to crush to near-black.
+	$KeyLight.light_energy = 0.85
 	$FillLight.light_energy = 0.45
-	$RimLight.light_energy = 0.0
+	# The rim light was at 0.0, so nothing separated the dark pieces from the
+	# dark maroon board. A grazing light from behind now outlines the silhouette.
+	$RimLight.rotation_degrees = Vector3(-38, 165, 0)
+	$RimLight.light_color = Color(1.0, 0.95, 0.88)
+	$RimLight.light_energy = 0.38
+	$RimLight.shadow_enabled = false
 	$WorldEnvironment.environment = environment
 
 
 func _setup_piece_materials() -> void:
 	if piece_theme == "royal_wood":
 		# Reference-inspired carved charcoal and pale ash, with restrained gold.
-		_piece_ivory_material = _luxury_piece_material(Color("c9b99d"), 0.34, 0.02)
-		_piece_obsidian_material = _luxury_piece_material(Color("292726"), 0.38, 0.03)
-		_piece_gold_material = _luxury_piece_material(Color("c28a2c"), 0.24, 0.82, false)
+		# Both bodies are matte: the near-mirror clearcoat the classic set used to
+		# carry reflected the bright procedural sky and washed out the carving.
+		_piece_ivory_material = _luxury_piece_material(Color("dccfb6"), 0.44, 0.02)
+		_piece_obsidian_material = _luxury_piece_material(Color("514c48"), 0.48, 0.03)
+		_piece_gold_material = _luxury_piece_material(Color("c99a3a"), 0.34, 0.80, false, true)
 	else:
-		_piece_ivory_material = _luxury_piece_material(Color("c6b9a4"), 0.25, 0.05)
-		_piece_obsidian_material = _luxury_piece_material(Color("30343a"), 0.25, 0.05)
-		_piece_gold_material = _luxury_piece_material(Color("bd8b43"), 0.30, 0.78, false)
+		# Classic ivory and slate. Roughness around 0.55 with no clearcoat reads as
+		# turned ceramic; 0.25 plus a 0.08 clearcoat read as glossy plastic and
+		# clipped to white under the studio key light.
+		_piece_ivory_material = _luxury_piece_material(Color("ddd2bc"), 0.58, 0.0)
+		_piece_obsidian_material = _luxury_piece_material(Color("545b66"), 0.52, 0.0)
+		_piece_gold_material = _luxury_piece_material(Color("c39440"), 0.30, 0.85, false, true)
 
 
 func _create_board() -> void:
 	# The original Classic board remains the sole board presentation.
-	_board_light_material = _material(Color("cbbb9d"), 0.48, 0.0)
-	_board_dark_material = _material(Color("542536"), 0.43, 0.06)
+	# Both square materials are matte: clearcoat on a large flat face reflects the
+	# whole sky and turns the board into a mirror under the studio key light.
+	_board_light_material = _material(Color("cbbb9d"), 0.62, 0.0)
+	_board_dark_material = _material(Color("6d3547"), 0.58, 0.0)
 	var light_material := _board_light_material
 	var dark_material := _board_dark_material
 
@@ -262,24 +279,23 @@ func _create_board() -> void:
 	var base := MeshInstance3D.new()
 	var base_mesh := BoxMesh.new()
 	base_mesh.size = Vector3(9.0, 0.32, 9.0)
-	# The exposed half-unit border around the squares projects as a large wedge
-	# on the camera-right side. Keep this structural backing uniformly matte;
-	# the rails above it provide the intended lit material variation.
-	var base_material := _matte_material(Color("201820"), 0.62)
-	base_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# The exposed half-unit border around the squares used to project as a large
+	# bright wedge on the camera-right side, and the fix was to make it unshaded.
+	# That traded a lighting artifact for a flat cut-out frame with no depth at
+	# all. The wedge came from the old 1.10 key plus a 0.45 cool fill hitting a
+	# broad top face; with the rebalanced lights the frame is lit normally and
+	# simply reads darker than the squares, which is what a frame should do.
+	var base_material := _matte_material(Color("2b2028"), 0.82)
 	base_mesh.material = base_material
 	base.mesh = base_mesh
 	base.position.y = -0.22
 	board.add_child(base)
 
-	# The wide side rails frame the board but must not behave like polished
-	# reflectors. In particular, the camera-right rail caught the cool fill over
-	# its full length and projected as the persistent bright wedge. Keep the dark
-	# structural rail unshaded; the narrow metallic inset remains light-reactive.
-	var wood_color := Color("241418")
-	var wood := _matte_material(wood_color, 0.82)
-	wood.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var gold := _material(Color("9f7440"), 0.24, 0.72)
+	# The wide side rails frame the board. Matte, so they never behave like
+	# polished reflectors; the narrow metallic inset stays light-reactive.
+	var wood_color := Color("33222a")
+	var wood := _matte_material(wood_color, 0.86)
+	var gold := _material(Color("9f7440"), 0.24, 0.72, true)
 	for rail in [
 		[Vector3(0, -0.02, -4.38), Vector3(9.15, 0.26, 0.42)],
 		[Vector3(0, -0.02, 4.38), Vector3(9.15, 0.26, 0.42)],
@@ -299,14 +315,11 @@ func _create_board() -> void:
 	# old CylinderMesh. On mobile that fan produced a bright triangular facet at
 	# the right edge of the table. Separate matte tiers add depth without extra
 	# shaders, transparency, or per-frame work.
-	var table_material := _matte_material(Color("1d1116"), 0.78)
-	var table_edge_material := _matte_material(Color("281820"), 0.72)
-	# The broad plinth is a visual backdrop, not a light receiver. On the target
-	# mobile GPU a BoxMesh top face still exposed one diagonal lighting facet.
-	# Unshaded matte tiers guarantee a uniform surface while the stepped geometry
-	# itself preserves depth around the board.
-	table_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	table_edge_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var table_material := _matte_material(Color("241a22"), 0.88)
+	var table_edge_material := _matte_material(Color("332430"), 0.82)
+	# The plinth is a backdrop, so it stays clearly darker than the board. It is
+	# lit like everything else: an unshaded plinth read as a flat void around the
+	# board instead of a surface the board is standing on.
 	_add_board_box(Vector3(0, -0.66, 0), Vector3(11.8, 0.48, 11.8), table_material)
 	_add_board_box(Vector3(0, -0.39, 0), Vector3(10.8, 0.14, 10.8), table_edge_material)
 	_add_board_box(Vector3(0, -0.315, 0), Vector3(9.65, 0.08, 9.65), table_material)
@@ -429,8 +442,9 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	piece.add_child(model)
 	_add_sculpted_identity_top(piece, kind, body, accent)
 
-	var base_radius := 0.235 if kind == "pawn" else 0.295
-	_add_torus(piece, base_radius, 0.012, 0.095, accent)
+	# Classic pieces carry no metal collar at the foot; the sculpted identity
+	# accents below are the only gold, which is what a Staunton set looks like.
+	# (royal_wood adds its own foot collar in _add_royal_wood_piece.)
 	if kind in ["bishop", "queen", "king"]:
 		var collar_data: Vector2 = {
 			"bishop": Vector2(0.18, 0.93),
@@ -1112,7 +1126,7 @@ func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
 		_board_light_material.albedo_color = Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d")
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536"))
+		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("8d4a5e") if high_contrast_enabled else Color("6d3547"))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	_apply_theme_recursive($UI)
@@ -2029,13 +2043,16 @@ func _new_game() -> void:
 	_save_autosave()
 
 
-func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false) -> StandardMaterial3D:
+func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = roughness
 	material.metallic = metallic
-	material.clearcoat_enabled = true
-	material.clearcoat_roughness = 0.08
+	# A clearcoat is only right on the metal accents. On an ivory or slate body a
+	# 0.08-roughness clearcoat adds a mirror-like sky reflection over the whole
+	# piece, which is what made both sets look like blown-out plastic.
+	material.clearcoat_enabled = glossy
+	material.clearcoat_roughness = 0.42 if glossy else 0.0
 	if color.a < 0.99:
 		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	if emissive:
@@ -2054,12 +2071,12 @@ func _matte_material(color: Color, roughness: float) -> StandardMaterial3D:
 	return material
 
 
-func _material(color: Color, roughness: float, metallic: float) -> StandardMaterial3D:
+func _material(color: Color, roughness: float, metallic: float, glossy := false) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = roughness
 	material.metallic = metallic
-	material.clearcoat_enabled = true
+	material.clearcoat_enabled = glossy
 	material.clearcoat_roughness = minf(0.65, roughness + 0.12)
 	return material
 

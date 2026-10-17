@@ -112,6 +112,41 @@ jobs:
               content: fs.readFileSync('build/preview/theme-showcase-preview.png').toString('base64'),
               ...(sha ? { sha } : {})
             });
+      # Committing the per-theme renders back to the branch gives a real visual
+      # feedback loop: the sandbox that edits the code has no Godot binary, so
+      # without this step lighting and material changes could only be judged by
+      # the arithmetic behind them.
+      - name: Publish per-theme renders on this branch
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/arena/')
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const branch = context.ref.replace('refs/heads/', '');
+            for (const name of ['classic-classic.png', 'classic-royal_wood.png']) {
+              const path = `docs/previews/${name}`;
+              let sha;
+              try {
+                const current = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path,
+                  ref: context.ref
+                });
+                sha = current.data.sha;
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              await github.rest.repos.createOrUpdateFileContents({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path,
+                branch,
+                message: `Update ${name} render [skip ci]`,
+                content: fs.readFileSync(`build/preview/${name}`).toString('base64'),
+                ...(sha ? { sha } : {})
+              });
+            }
 
   android-debug:
     name: Build Android debug APK
@@ -168,7 +203,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: chess-3d-v0.12.0-beta.22.42-build-${{ github.run_number }}
+          name: chess-3d-v0.12.0-beta.22.43-build-${{ github.run_number }}
           path: build/android/chess-3d.apk
           if-no-files-found: error
           retention-days: 14
