@@ -152,8 +152,8 @@ func _test_push_and_pop_move() -> void:
 	var pawn_moves := game.legal_moves(Vector2i(4, 6))
 	_expect(pawn_moves.size() == 2, "a pawn pinned on a file may still advance along it")
 	var captures_off_file := false
-	for move in pawn_moves:
-		if move.to.x != 4:
+	for pawn_move in pawn_moves:
+		if pawn_move.to.x != 4:
 			captures_off_file = true
 	_expect(not captures_off_file, "a pawn pinned on a file may not capture off it")
 
