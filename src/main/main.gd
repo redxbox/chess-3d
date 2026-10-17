@@ -504,37 +504,49 @@ func _piece_mesh(kind: String) -> Mesh:
 	# PIECE_MODELS is a Dictionary, so indexing it yields Variant; an explicit
 	# type is what lets the rest of this function be checked at all.
 	var source: Mesh = PIECE_MODELS[kind]
+	if source.get_surface_count() == 0:
+		return source
 	var arrays := source.surface_get_arrays(0)
 	var positions: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var source_uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
-	if source_uvs.size() == positions.size():
-		# Already textured, so there is nothing to project.
-		_mesh_cache[cache_key] = source
-		return source
-	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
-	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var has_uvs: bool = arrays[Mesh.ARRAY_TEX_UV] != null
+	var has_normals: bool = arrays[Mesh.ARRAY_NORMAL] != null
+	if has_uvs and has_normals:
+		var existing_uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+		if existing_uvs.size() == positions.size():
+			# Already complete, so there is nothing to project.
+			_mesh_cache[cache_key] = source
+			return source
+	var source_normals: PackedVector3Array = PackedVector3Array()
+	if has_normals:
+		source_normals = arrays[Mesh.ARRAY_NORMAL]
+	var indices: PackedInt32Array = PackedInt32Array()
+	if arrays[Mesh.ARRAY_INDEX] != null:
+		indices = arrays[Mesh.ARRAY_INDEX]
 	var lowest := 0.0
 	var highest := 0.0
 	for point in positions:
 		lowest = minf(lowest, point.y)
 		highest = maxf(highest, point.y)
 	var span := maxf(0.0001, highest - lowest)
-	var uvs := PackedVector2Array()
-	uvs.resize(positions.size())
+	var tool := SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in positions.size():
 		var vertex: Vector3 = positions[i]
 		var angle := atan2(vertex.z, vertex.x)
 		# Two wraps around the piece keeps the carving fine enough to read as
 		# detail rather than as one big smear.
-		uvs[i] = Vector2(angle / TAU + 0.5, (vertex.y - lowest) / span) * 2.0
-	var tool := SurfaceTool.new()
-	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i in positions.size():
-		tool.set_normal(normals[i])
-		tool.set_uv(uvs[i])
-		tool.add_vertex(positions[i])
+		if has_normals:
+			tool.set_normal(source_normals[i])
+		tool.set_uv(Vector2(angle / TAU + 0.5, (vertex.y - lowest) / span) * 2.0)
+		tool.add_vertex(vertex)
 	for index in indices:
 		tool.add_index(index)
+	# The Staunton bodies carry neither vt nor vn records, so they arrive with no
+	# UV and no normal attribute. Both are produced here: without them the
+	# renderer samples undefined coordinates, which is what used to blow the ivory
+	# out to flat white, and without tangents the carve map cannot be applied.
+	if not has_normals:
+		tool.generate_normals()
 	tool.generate_tangents()
 	var mesh := tool.commit()
 	_mesh_cache[cache_key] = mesh
@@ -884,12 +896,14 @@ func _fluted_cylinder_arrays(top_radius: float, bottom_radius: float, height: fl
 				indices.append(centre)
 				indices.append(next)
 				indices.append(here)
-	var result := [
-		PackedVector3Array(vertices),
-		PackedVector3Array(normals),
-		PackedVector2Array(uvs),
-		PackedInt32Array(indices)
-	]
+	# Mesh arrays are indexed by the ARRAY_* constants and are expected to be
+	# ARRAY_MAX long; a short four-entry list is rejected outright.
+	var result := []
+	result.resize(Mesh.ARRAY_MAX)
+	result[Mesh.ARRAY_VERTEX] = vertices
+	result[Mesh.ARRAY_NORMAL] = normals
+	result[Mesh.ARRAY_TEX_UV] = uvs
+	result[Mesh.ARRAY_INDEX] = indices
 	return result
 
 
