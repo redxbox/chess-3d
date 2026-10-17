@@ -501,7 +501,9 @@ func _piece_mesh(kind: String) -> Mesh:
 	var cache_key := "piece:%s" % kind
 	if _mesh_cache.has(cache_key):
 		return _mesh_cache[cache_key]
-	var source := PIECE_MODELS[kind]
+	# PIECE_MODELS is a Dictionary, so indexing it yields Variant; an explicit
+	# type is what lets the rest of this function be checked at all.
+	var source: Mesh = PIECE_MODELS[kind]
 	var arrays := source.surface_get_arrays(0)
 	var positions: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var source_uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
