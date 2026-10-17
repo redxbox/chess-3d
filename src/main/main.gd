@@ -28,7 +28,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.12.0"
-const APP_BUILD := "22.43"
+const APP_BUILD := "22.44"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
@@ -206,12 +206,15 @@ func _setup_environment() -> void:
 	environment.background_mode = Environment.BG_SKY
 	environment.background_color = Color("100d0f")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.tonemap_exposure = 0.95
+	environment.tonemap_exposure = 1.0
 	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color("252a33")
-	sky_material.sky_horizon_color = Color("776f65")
-	sky_material.ground_bottom_color = Color("0b0c10")
-	sky_material.ground_horizon_color = Color("302b29")
+	# A dark studio with a warm horizon rather than a flat black void: the
+	# horizon band is what the metallic accents actually reflect, and with the
+	# old near-black sky every gold collar rendered as mud.
+	sky_material.sky_top_color = Color("3d4550")
+	sky_material.sky_horizon_color = Color("a0958a")
+	sky_material.ground_bottom_color = Color("14100f")
+	sky_material.ground_horizon_color = Color("4d4239")
 	var studio_sky := Sky.new()
 	studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
 	studio_sky.sky_material = sky_material
@@ -219,19 +222,22 @@ func _setup_environment() -> void:
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color.WHITE
-	environment.ambient_light_energy = 0.55
-	# Irradiance on an up-facing surface is key + ambient + fill/2. The classic
-	# set used 1.10 + 0.35 + 0.45/2 = 1.6, which pushed the ivory albedo past 1.0
-	# and clipped every piece to flat white under ACES. Lowering the key and
-	# raising the ambient keeps the ivory inside the tone range while lifting the
-	# shadow side of the dark pieces, which used to crush to near-black.
-	$KeyLight.light_energy = 0.85
-	$FillLight.light_energy = 0.45
+	# Directional lights are additive: an up-facing surface receives
+	# key + ambient + fill/2. Keeping that sum near 2.0 is what puts the ivory's
+	# lit face at ~0.88 after ACES while its underside still falls to ~0.27 —
+	# that spread is the whole difference between "white piece with form" and
+	# "grey blob". Ambient stays low on purpose: ACES lifts midtones hard, so a
+	# high ambient washes every shadow side up into one flat mid-grey.
+	environment.ambient_light_energy = 0.28
+	$KeyLight.light_energy = 1.55
+	$KeyLight.light_color = Color(1.0, 0.94, 0.85)
+	$KeyLight.rotation_degrees = Vector3(-47, 43, 0)
+	$FillLight.light_energy = 0.50
 	# The rim light was at 0.0, so nothing separated the dark pieces from the
 	# dark maroon board. A grazing light from behind now outlines the silhouette.
 	$RimLight.rotation_degrees = Vector3(-38, 165, 0)
 	$RimLight.light_color = Color(1.0, 0.95, 0.88)
-	$RimLight.light_energy = 0.38
+	$RimLight.light_energy = 0.45
 	$RimLight.shadow_enabled = false
 	$WorldEnvironment.environment = environment
 
@@ -241,16 +247,16 @@ func _setup_piece_materials() -> void:
 		# Reference-inspired carved charcoal and pale ash, with restrained gold.
 		# Both bodies are matte: the near-mirror clearcoat the classic set used to
 		# carry reflected the bright procedural sky and washed out the carving.
-		_piece_ivory_material = _luxury_piece_material(Color("dccfb6"), 0.44, 0.02)
-		_piece_obsidian_material = _luxury_piece_material(Color("514c48"), 0.48, 0.03)
-		_piece_gold_material = _luxury_piece_material(Color("c99a3a"), 0.34, 0.80, false, true)
+		_piece_ivory_material = _luxury_piece_material(Color("e2d7bf"), 0.46, 0.02)
+		_piece_obsidian_material = _luxury_piece_material(Color("5b544e"), 0.50, 0.03)
+		_piece_gold_material = _luxury_piece_material(Color("d8a341"), 0.34, 0.80, false, true)
 	else:
 		# Classic ivory and slate. Roughness around 0.55 with no clearcoat reads as
 		# turned ceramic; 0.25 plus a 0.08 clearcoat read as glossy plastic and
 		# clipped to white under the studio key light.
-		_piece_ivory_material = _luxury_piece_material(Color("ddd2bc"), 0.58, 0.0)
-		_piece_obsidian_material = _luxury_piece_material(Color("545b66"), 0.52, 0.0)
-		_piece_gold_material = _luxury_piece_material(Color("c39440"), 0.30, 0.85, false, true)
+		_piece_ivory_material = _luxury_piece_material(Color("e6ddc8"), 0.60, 0.0)
+		_piece_obsidian_material = _luxury_piece_material(Color("474d57"), 0.54, 0.0)
+		_piece_gold_material = _luxury_piece_material(Color("d9a543"), 0.28, 0.88, false, true)
 
 
 func _create_board() -> void:
@@ -258,7 +264,7 @@ func _create_board() -> void:
 	# Both square materials are matte: clearcoat on a large flat face reflects the
 	# whole sky and turns the board into a mirror under the studio key light.
 	_board_light_material = _material(Color("cbbb9d"), 0.62, 0.0)
-	_board_dark_material = _material(Color("6d3547"), 0.58, 0.0)
+	_board_dark_material = _material(Color("4a2030"), 0.58, 0.0)
 	var light_material := _board_light_material
 	var dark_material := _board_dark_material
 
@@ -1126,7 +1132,7 @@ func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
 		_board_light_material.albedo_color = Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d")
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("8d4a5e") if high_contrast_enabled else Color("6d3547"))
+		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("8d4a5e") if high_contrast_enabled else Color("4a2030"))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	_apply_theme_recursive($UI)
