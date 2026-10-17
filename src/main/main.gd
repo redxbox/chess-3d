@@ -28,7 +28,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.12.0"
-const APP_BUILD := "22.44"
+const APP_BUILD := "22.45"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
@@ -203,8 +203,8 @@ func _setup_environment() -> void:
 	# Godot equivalent of ACESFilmic + sRGB. Compatibility renders to sRGB;
 	# calibrated energies preserve ivory detail and readable dark silhouettes.
 	var environment := Environment.new()
-	environment.background_mode = Environment.BG_SKY
-	environment.background_color = Color("100d0f")
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color("2a1f2e")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	environment.tonemap_exposure = 1.0
 	var sky_material := ProceduralSkyMaterial.new()
@@ -248,23 +248,23 @@ func _setup_piece_materials() -> void:
 		# Both bodies are matte: the near-mirror clearcoat the classic set used to
 		# carry reflected the bright procedural sky and washed out the carving.
 		_piece_ivory_material = _luxury_piece_material(Color("e2d7bf"), 0.46, 0.02)
-		_piece_obsidian_material = _luxury_piece_material(Color("5b544e"), 0.50, 0.03)
+		_piece_obsidian_material = _luxury_piece_material(Color("4f4944"), 0.50, 0.03, false, false, 0.08)
 		_piece_gold_material = _luxury_piece_material(Color("d8a341"), 0.34, 0.80, false, true)
 	else:
 		# Classic ivory and slate. Roughness around 0.55 with no clearcoat reads as
 		# turned ceramic; 0.25 plus a 0.08 clearcoat read as glossy plastic and
 		# clipped to white under the studio key light.
-		_piece_ivory_material = _luxury_piece_material(Color("e6ddc8"), 0.60, 0.0)
-		_piece_obsidian_material = _luxury_piece_material(Color("474d57"), 0.54, 0.0)
-		_piece_gold_material = _luxury_piece_material(Color("d9a543"), 0.28, 0.88, false, true)
+		_piece_ivory_material = _luxury_piece_material(Color("e6ddc8"), 0.60, 0.0, false, false, 0.10)
+		_piece_obsidian_material = _luxury_piece_material(Color("3d434c"), 0.54, 0.0, false, false, 0.08)
+		_piece_gold_material = _luxury_piece_material(Color("d9a543"), 0.28, 0.88, false, true, 0.50)
 
 
 func _create_board() -> void:
 	# The original Classic board remains the sole board presentation.
 	# Both square materials are matte: clearcoat on a large flat face reflects the
 	# whole sky and turns the board into a mirror under the studio key light.
-	_board_light_material = _material(Color("cbbb9d"), 0.62, 0.0)
-	_board_dark_material = _material(Color("4a2030"), 0.58, 0.0)
+	_board_light_material = _material(Color("9c8660"), 0.70, 0.0, false, 0.04)
+	_board_dark_material = _material(Color("3a1a27"), 0.66, 0.0, false, 0.04)
 	var light_material := _board_light_material
 	var dark_material := _board_dark_material
 
@@ -301,7 +301,7 @@ func _create_board() -> void:
 	# polished reflectors; the narrow metallic inset stays light-reactive.
 	var wood_color := Color("33222a")
 	var wood := _matte_material(wood_color, 0.86)
-	var gold := _material(Color("9f7440"), 0.24, 0.72, true)
+	var gold := _material(Color("9f7440"), 0.24, 0.72, true, 0.45)
 	for rail in [
 		[Vector3(0, -0.02, -4.38), Vector3(9.15, 0.26, 0.42)],
 		[Vector3(0, -0.02, 4.38), Vector3(9.15, 0.26, 0.42)],
@@ -1132,7 +1132,7 @@ func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
 		_board_light_material.albedo_color = Color("e2d8c3") if high_contrast_enabled else Color("cbbb9d")
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("8d4a5e") if high_contrast_enabled else Color("4a2030"))
+		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("8d4a5e") if high_contrast_enabled else Color("3a1a27"))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	_apply_theme_recursive($UI)
@@ -2049,11 +2049,12 @@ func _new_game() -> void:
 	_save_autosave()
 
 
-func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false) -> StandardMaterial3D:
+func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false, sheen := 0.12) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = roughness
 	material.metallic = metallic
+	material.metallic_specular = sheen
 	# A clearcoat is only right on the metal accents. On an ivory or slate body a
 	# 0.08-roughness clearcoat adds a mirror-like sky reflection over the whole
 	# piece, which is what made both sets look like blown-out plastic.
@@ -2073,15 +2074,20 @@ func _matte_material(color: Color, roughness: float) -> StandardMaterial3D:
 	material.albedo_color = color
 	material.roughness = roughness
 	material.metallic = 0.0
-	material.metallic_specular = 0.22
+	# Board furniture is a surround, not a mirror. metallic_specular at its 0.5
+	# default adds the direct specular lobe and the sky reflection on top of the
+	# diffuse term, which is what pushed the pale squares and the ivory pieces
+	# past 1.0 and clipped them to flat white under ACES.
+	material.metallic_specular = 0.04
 	return material
 
 
-func _material(color: Color, roughness: float, metallic: float, glossy := false) -> StandardMaterial3D:
+func _material(color: Color, roughness: float, metallic: float, glossy := false, sheen := 0.10) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = roughness
 	material.metallic = metallic
+	material.metallic_specular = sheen
 	material.clearcoat_enabled = glossy
 	material.clearcoat_roughness = minf(0.65, roughness + 0.12)
 	return material
