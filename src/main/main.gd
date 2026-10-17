@@ -463,16 +463,18 @@ func _setup_piece_materials() -> void:
 	# blew the ivory out to flat white. Pieces therefore get colour only; every
 	# procedural map is reserved for the board, whose boxes do carry UVs.
 	var ivory := Color("f0e7d2")
-	var obsidian := Color("2c2620")
+	var obsidian := Color("332b24")
 	var brass := Color("d4af37")
 	if piece_theme == "royal_wood":
-		# Carved pale ash and dark walnut, with restrained brass.
-		_piece_ivory_material = _luxury_piece_material(Color("eee4cc"), 0.38, 0.0, false, false, 0.14)
-		_piece_obsidian_material = _luxury_piece_material(Color("453525"), 0.40, 0.0, false, false, 0.12)
-		_piece_gold_material = _luxury_piece_material(brass, 0.20, 0.90, false, true, 0.55)
+		# Carved pale ash and dark walnut. Rougher and less specular than the
+		# classic set: turned wood absorbs light where polished ivory bounces it,
+		# which is most of what separates the two sets at a glance.
+		_piece_ivory_material = _luxury_piece_material(Color("e6dcc0"), 0.46, 0.0, false, false, 0.10)
+		_piece_obsidian_material = _luxury_piece_material(Color("4a3524"), 0.46, 0.0, false, false, 0.10)
+		_piece_gold_material = _luxury_piece_material(brass, 0.22, 0.88, false, true, 0.50)
 	else:
-		_piece_ivory_material = _luxury_piece_material(ivory, 0.36, 0.0, false, false, 0.14)
-		_piece_obsidian_material = _luxury_piece_material(obsidian, 0.38, 0.0, false, false, 0.12)
+		_piece_ivory_material = _luxury_piece_material(ivory, 0.40, 0.0, false, false, 0.10)
+		_piece_obsidian_material = _luxury_piece_material(obsidian, 0.40, 0.0, false, false, 0.14)
 		_piece_gold_material = _luxury_piece_material(brass, 0.20, 0.90, false, true, 0.55)
 
 
@@ -485,7 +487,7 @@ func _create_board() -> void:
 	_board_light_material = _material(
 		Color("e8dcc2"), 0.30, 0.0, false, 0.06, _surface_map("marble"), _surface_map("marble_normal"))
 	_board_dark_material = _material(
-		Color("4a2c1c"), 0.26, 0.0, false, 0.06, _surface_map("walnut"), _surface_map("walnut_normal"))
+		Color("553122"), 0.26, 0.0, false, 0.06, _surface_map("walnut"), _surface_map("walnut_normal"))
 	var light_material := _board_light_material
 	var dark_material := _board_dark_material
 
@@ -831,6 +833,12 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	var neck_y: float = profile.neck_y
 	var flutes: int = profile.flutes
 	var metal_foot := variant == "royal_wood"
+	# The carved set is finished differently from the classic one: a taller,
+	# wider turned foot and chunkier studs, so it reads as a different object
+	# rather than a recolour of the same one.
+	var stud_radius := 0.022 if metal_foot else 0.015
+	if metal_foot:
+		foot *= 1.14
 	# Tiered foot: two stepped discs with a micro-bevel ring between them, so the
 	# base reads as turned wood clad in metal rather than a flat cylinder.
 	_ornament_add(parts, "cylinder", foot * 0.88, foot, 0.05, Vector3(0, 0.025, 0), ORNAMENT_ACCENT if metal_foot else ORNAMENT_BODY)
@@ -841,8 +849,11 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	var studs := 6 if _radial_segments() == 12 else (10 if _radial_segments() == 18 else 14)
 	for i in studs:
 		var stud_angle := PI * 2.0 * float(i) / float(studs)
-		_ornament_add(parts, "sphere", 0.015, 0.0, 0.0,
+		_ornament_add(parts, "sphere", stud_radius, 0.0, 0.0,
 			Vector3(cos(stud_angle) * foot * 0.72, 0.108, sin(stud_angle) * foot * 0.72), ORNAMENT_ACCENT)
+	# A second collar at the top of the foot, only on the carved set.
+	if metal_foot:
+		_ornament_add(parts, "torus", foot * 0.98, 0.016, 0.0, Vector3(0, 0.135, 0), ORNAMENT_ACCENT)
 	# Vertical fluting up the stem. Round ribs rather than inset grooves: the
 	# renderer has no boolean geometry, and a rib under a raking light reads as
 	# fluting anyway.
@@ -1557,7 +1568,7 @@ func _apply_accessibility() -> void:
 	if is_instance_valid(_board_light_material):
 		_board_light_material.albedo_color = Color("f2ead8") if high_contrast_enabled else Color("e8dcc2")
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("8d4a5e") if high_contrast_enabled else Color("4a2c1c"))
+		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("8d4a5e") if high_contrast_enabled else Color("553122"))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	_apply_theme_recursive($UI)
