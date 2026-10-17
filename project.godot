@@ -21,7 +21,12 @@ stretch/aspect="expand"
 handheld/orientation=0
 
 [input_devices]
-pointing/emulate_mouse_from_touch=false
+; Must stay true: builtin Control nodes (every Button in the UI) only react to
+; mouse events on a touch screen. Turning it off makes the whole interface
+; untappable on Android. The duplicate mouse events it produces are filtered in
+; src/main/main.gd::_unhandled_input by rejecting InputEventMouse with
+; device == -1.
+pointing/emulate_mouse_from_touch=true
 
 [rendering]
 textures/vram_compression/import_etc2_astc=true

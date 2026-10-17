@@ -28,7 +28,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.12.0"
-const APP_BUILD := "22.41"
+const APP_BUILD := "22.42"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
@@ -2064,12 +2064,39 @@ func _material(color: Color, roughness: float, metallic: float) -> StandardMater
 	return material
 
 
+## True while a modal layer owns the screen: the setup menu, the promotion
+## picker, or one of the information windows.
+func _modal_ui_is_open() -> bool:
+	if is_instance_valid(_menu_overlay) and _menu_overlay.visible:
+		return true
+	if is_instance_valid(_promotion_popup):
+		return true
+	for window in [_archive_window, _accessibility_window, _tutorial_window, _about_window]:
+		if is_instance_valid(window) and window.visible:
+			return true
+	return false
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	# Android delivers the hardware back button as ui_cancel (Escape) because
 	# project.godot sets application/config/quit_on_go_back=false.
 	if event.is_action_pressed("ui_cancel"):
 		_handle_back_request()
 		get_viewport().set_input_as_handled()
+		return
+	# input_devices/pointing/emulate_mouse_from_touch must stay enabled, because
+	# builtin Control nodes only react to mouse events on a touch screen. It does
+	# mean every tap also produces a synthetic mouse event, which carries
+	# device == -1. Dropping those here is what keeps a single touch from being
+	# handled twice: without it the camera spun twice as fast on a drag, and
+	# dragging a piece also orbited the board.
+	var pointer := event as InputEventMouse
+	if pointer != null and pointer.device == -1:
+		return
+	# A tap on a HUD button or a dialog button must not also reach the board
+	# underneath it. While a modal layer is up the scene is paused, so this is
+	# belt-and-braces; it also covers a raw touch that a Control consumed.
+	if (event is InputEventScreenTouch or event is InputEventScreenDrag) and _modal_ui_is_open():
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed:

@@ -284,6 +284,8 @@
 
 - **Beta 22.40:** Removed rejected alternate boards and procedural sets from active runtime; retained the original Classic presentation and added one reference-matched carved Royal Wood set with role-specific gold metalwork.
 
+- **Beta 22.42 (رفع باگ لمسی):** تنظیم `input_devices/pointing/emulate_mouse_from_touch` در بازبینی قبلی به‌اشتباه `false` شده بود و **همهٔ دکمه‌های UI را روی اندروید از کار انداخته بود**؛ در گودوت، نودهای داخلی `Control` روی صفحهٔ لمسی فقط به رویداد موس واکنش می‌دهند (اشکالات شناخته‌شدهٔ godotengine/godot#71651 و #24589). تنظیم به `true` بازگشت و فیلتر کردن رویداد موس مصنوعی با `device == -1` در `_unhandled_input` جای تنظیم `false` را گرفت، بنابراین از دست دادن چرخش دوبرابر دوربین و چرخش دوربین هنگام درگ مهره برنمی‌گردد. یک محافظ `_modal_ui_is_open()` هم اضافه شد تا لمس روی دکمه هرگز روی تختهٔ زیرین اثر نگذارد.
+
 - **Beta 22.41 (رفع اشکال و پایداری):** بازبینی کامل پروژه و رفع ایرادهای واقعی پیش از انتشار:
   - `randomize()` در آغاز اجرا اضافه شد؛ تا پیش از آن انتخاب «تصادفی» هوش مصنوعی و شناسهٔ بازی‌های آرشیو در هر اجرا یکسان بود.
   - `emulate_mouse_from_touch=false` در `project.godot`؛ تا پیش از آن هر لمس اندروید دو بار پردازش می‌شد و چرخش دوربین دوبرابر اجرا می‌شد و درگ مهره هم‌زمان دوربین را می‌چرخاند.
