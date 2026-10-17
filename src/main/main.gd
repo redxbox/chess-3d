@@ -250,16 +250,25 @@ func _setup_environment() -> void:
 	environment.glow_bloom = 0.05
 	environment.glow_hdr_threshold = 1.05
 	environment.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
-	environment.ssao_enabled = true
-	environment.ssao_radius = 0.85
-	environment.ssao_intensity = 1.5
-	environment.ssao_power = 1.6
-	environment.ssr_enabled = true
-	environment.ssr_max_steps = 24
-	environment.dof_blur_far_enabled = true
-	environment.dof_blur_far_distance = 13.0
-	environment.dof_blur_far_transition = 5.0
-	environment.dof_blur_amount = 0.10
+	# Screen-space ambient occlusion, screen-space reflections and depth of field
+	# are Forward+ / Mobile features. The Compatibility renderer this project
+	# ships with rejects them, and in Godot 4 depth of field is not an
+	# Environment property at all but a CameraAttributesPractical on the camera.
+	# Guarding on the renderer keeps startup clean today and leaves the settings
+	# in place for the day the project moves to Forward+ or Mobile.
+	if str(ProjectSettings.get_setting("rendering/renderer/rendering_method")) != "gl_compatibility":
+		environment.ssao_enabled = true
+		environment.ssao_radius = 0.85
+		environment.ssao_intensity = 1.5
+		environment.ssao_power = 1.6
+		environment.ssr_enabled = true
+		environment.ssr_max_steps = 24
+		var camera_attributes := CameraAttributesPractical.new()
+		camera_attributes.dof_blur_far_enabled = true
+		camera_attributes.dof_blur_far_distance = 13.0
+		camera_attributes.dof_blur_far_transition = 5.0
+		camera_attributes.dof_blur_amount = 0.10
+		camera.attributes = camera_attributes
 	environment.adjustment_enabled = true
 	environment.adjustment_contrast = 1.06
 	environment.adjustment_saturation = 1.08
