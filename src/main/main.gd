@@ -420,14 +420,14 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	var model := MeshInstance3D.new()
 	model.name = "SculptedModel"
 	model.mesh = PIECE_MODELS[kind]
-	model.material_override = material
+	model.material_override = body
 	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	if kind == "knight":
 		model.rotation.y = 0.0 if is_white else PI
 	elif kind == "bishop":
 		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
 	piece.add_child(model)
-	_add_sculpted_identity_top(piece, kind, material, accent)
+	_add_sculpted_identity_top(piece, kind, body, accent)
 
 	var base_radius := 0.235 if kind == "pawn" else 0.295
 	_add_torus(piece, base_radius, 0.012, 0.095, accent)
