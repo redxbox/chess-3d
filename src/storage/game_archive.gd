@@ -31,7 +31,11 @@ func load_archive() -> bool:
 
 
 func add_game(pgn: String, result: String, metadata := {}) -> String:
-	var id := "%d-%d" % [int(Time.get_unix_time_from_system()), randi_range(1000, 9999)]
+	# A fresh RandomNumberGenerator keeps archive ids unpredictable without
+	# depending on the caller having seeded the global RNG.
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var id := "%d-%d" % [int(Time.get_unix_time_from_system()), rng.randi_range(1000, 9999)]
 	var entry: Dictionary = {
 		"id": id,
 		"saved_at": Time.get_unix_time_from_system(),
@@ -41,7 +45,8 @@ func add_game(pgn: String, result: String, metadata := {}) -> String:
 		"white_time": metadata.get("white_time", 0.0),
 		"black_time": metadata.get("black_time", 0.0),
 		"mode": metadata.get("mode", "ai"),
-		"difficulty": metadata.get("difficulty", "medium")
+		"difficulty": metadata.get("difficulty", "medium"),
+		"human_color": int(metadata.get("human_color", 0))
 	}
 	games.push_front(entry)
 	if games.size() > MAX_GAMES:

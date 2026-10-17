@@ -15,7 +15,13 @@
 2. این پوشه را از Project Manager باز کنید.
 3. کلید F6/F5 را بزنید.
 
-نمونه فعلی یک صفحه سه‌بعدی تولیدشده در زمان اجرا، نورپردازی اولیه و کنترل چرخش لمسی/ماوس دارد.
+بازی کامل است: موتور مستقل قوانین شطرنج، هوش مصنوعی آفلاین، دوربین لمسی (چرخش، زوم، جابه‌جایی مهره با کشیدن)، ساعت، آرشیو بازی، صدا و موسیقی، دسترس‌پذیری و رابط دوزبانه فارسی/انگلیسی.
+
+تست‌های خودکار:
+
+```bash
+godot --headless --path . --script res://tests/test_chess.gd
+```
 
 ## خروجی Android در سیستم محلی
 
@@ -51,6 +57,19 @@ Workflow موجود در `.github/workflows/ci.yml` در هر Push و Pull Reque
 - پروفایل‌های گرافیکی Low / Medium / High
 - هوش مصنوعی آفلاین
 
+
+## نکات فنی پیکربندی
+
+چند تنظیم در `project.godot` مستقیماً روی رفتار اندروید اثر می‌گذارد و نباید بدون دلیل تغییر کند:
+
+| تنظیم | مقدار | دلیل |
+|---|---|---|
+| `input_devices/pointing/emulate_mouse_from_touch` | `false` | هر لمس هم `InputEventScreenTouch` و هم `InputEventMouseButton` مصنوعی تولید می‌کند؛ با روشن بودن، چرخش دوربین دوبرابر اجرا می‌شود و درگ مهره دوربین را می‌چرخاند. |
+| `display/window/stretch/aspect` | `expand` | بدون آن، HUD روی گوشی‌های غیر ۱۶:۹ نامتناسب کشیده می‌شود. |
+| `application/config/quit_on_go_back` | `false` | دکمهٔ Back اندروید را به `ui_cancel` تبدیل می‌کند تا منو بسته شود، نه اینکه اپ بسته شود. |
+| `application/config/version` | `0.12.0` | منبع یگانهٔ شمارهٔ نسخه؛ برچسب داخل بازی از همین‌جا خوانده می‌شود. |
+
+شمارهٔ نسخهٔ نمایش‌داده‌شده در بازی از `APP_VERSION_FALLBACK` و `APP_BUILD` در `src/main/main.gd` به‌همراه `application/config/version` در `project.godot` می‌آید؛ آن را با `version/name` در `export_presets.cfg` هماهنگ نگه دارید.
 
 ## انتشار Beta
 

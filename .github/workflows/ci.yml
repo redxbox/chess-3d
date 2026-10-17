@@ -2,7 +2,7 @@ name: Godot CI
 
 on:
   push:
-    branches: [main, arena/01a0dc2e-chess-3d]
+    branches: [main, 'arena/*']
   pull_request:
     branches: [main]
   workflow_dispatch:

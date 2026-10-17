@@ -23,6 +23,13 @@ const PIECE_MODELS := {
 }
 const BOARD_SIZE := 8
 const SQUARE_SIZE := 1.0
+## Single source of truth for the in-game version label. project.godot carries
+## the same value in application/config/version, and export_presets.cfg carries
+## the matching version/name, so the UI, the About window and the store build
+## can never drift apart again.
+const APP_VERSION_FALLBACK := "0.12.0"
+const APP_BUILD := "22.40"
+const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
 @onready var camera_rig: Node3D = $CameraRig
@@ -110,11 +117,26 @@ var _autosave_accumulator := 0.0
 const AUTOSAVE_PATH := "user://autosave.json"
 const PIECE_THEME_PATH := "user://piece_theme.txt"
 var piece_theme := "classic"
-var board_theme := "classic"
 var _piece_theme_button: Button
+## Guards the pending move animation so a scene rebuild can never leave
+## animating_move stuck on true (which would freeze all board input).
+var _move_tween: Tween
+var _move_finished_callback: Callable
+var _promotion_popup: PopupPanel
+## Promotions change the piece kind, so the whole board is rebuilt for that move.
+var _needs_full_piece_rebuild := false
+## Left-hand HUD column, kept inset from notches and gesture bars.
+var _left_column_nodes: Array[Control] = []
+var _left_column_base: Dictionary = {}
+var _app_version := APP_VERSION_FALLBACK
 
 
 func _ready() -> void:
+	# Seed the global RNG. Without this, every "random" AI choice and every
+	# archive id is identical on each launch.
+	randomize()
+	var configured_version := str(ProjectSettings.get_setting("application/config/version", ""))
+	_app_version = configured_version if configured_version != "" else APP_VERSION_FALLBACK
 	_load_piece_theme()
 	_setup_environment()
 	_setup_piece_materials()
@@ -146,6 +168,7 @@ func _process(delta: float) -> void:
 	if _fps_accumulator >= 1.0:
 		_fps_accumulator = 0.0
 		_monitor_performance()
+	var clock_expired := false
 	if clock_enabled and game.result == "":
 		if game.turn == ChessRules.WHITE:
 			white_time = maxf(0.0, white_time - delta)
@@ -155,11 +178,13 @@ func _process(delta: float) -> void:
 			black_time = maxf(0.0, black_time - delta)
 			if black_time <= 0.0:
 				game.result = "White wins on time"
-		_update_clock_label()
-		if game.result != "":
-			_update_status()
-			_show_game_over_if_needed()
-			_save_autosave()
+		clock_expired = game.result != ""
+	if clock_expired:
+		# Runs exactly once, on the frame the clock ran out.
+		_update_status()
+		_show_game_over_if_needed()
+		_save_autosave()
+	_update_clock_label()
 	_autosave_accumulator += delta
 	if _autosave_accumulator >= 5.0:
 		_autosave_accumulator = 0.0
@@ -290,8 +315,11 @@ func _create_board() -> void:
 	# split diagonally by the mobile renderer and one half caught the cool fill,
 	# producing the persistent white triangle to the board's right. The opaque
 	# environment background now surrounds the self-contained table cleanly.
+	#
+	# The stage is deliberately left without room decoration: earlier oversized
+	# columns competed with the board, obscured piece silhouettes and burned
+	# mobile draw calls.
 	_add_board_coordinates()
-	_create_room_details(wood, gold)
 
 
 func _add_board_coordinates() -> void:
@@ -313,12 +341,6 @@ func _add_board_coordinates() -> void:
 			coordinates_root.add_child(label)
 
 
-func _create_room_details(_wood: Material, _gold: Material) -> void:
-	# Keep the stage intentionally restrained. Earlier oversized columns competed
-	# with the board, obscured silhouettes and consumed mobile draw calls.
-	pass
-
-
 func _add_board_box(position: Vector3, size: Vector3, material: Material) -> void:
 	var instance := MeshInstance3D.new()
 	var mesh := BoxMesh.new()
@@ -332,24 +354,67 @@ func _add_board_box(position: Vector3, size: Vector3, material: Material) -> voi
 func _create_pieces() -> void:
 	for child in pieces_root.get_children():
 		child.queue_free()
-	var names := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 	for rank in BOARD_SIZE:
 		for file in BOARD_SIZE:
 			var code: String = game.board[rank][file]
 			if code != "":
-				var is_white := code == code.to_upper()
-				_add_piece(names[code.to_lower()], file, rank, is_white, _piece_ivory_material if is_white else _piece_obsidian_material, _piece_gold_material)
+				_add_piece(_kind_for_code(code), code, file, rank, _body_material(code), _piece_gold_material)
 
 
-func _add_piece(kind: String, file: int, rank: int, is_white: bool, material: Material, accent: Material) -> void:
+## Reconciles the piece nodes with the current board without rebuilding all
+## thirty-two pieces after every move. Nodes that stay on the same square with
+## the same piece kind are reused; only the moved, captured and promoted pieces
+## are touched. _create_pieces() is still used for resets and quality changes.
+func _sync_pieces() -> void:
+	var existing: Dictionary = {}
+	for piece in pieces_root.get_children():
+		existing[piece.get_meta("square", Vector2i(-1, -1))] = piece
+	for rank in BOARD_SIZE:
+		for file in BOARD_SIZE:
+			var square := Vector2i(file, rank)
+			var code: String = game.board[rank][file]
+			if not existing.has(square):
+				if code != "":
+					_add_piece(_kind_for_code(code), code, file, rank, _body_material(code), _piece_gold_material)
+				continue
+			var node: Node3D = existing[square]
+			if code == "":
+				node.queue_free()
+				continue
+			var kind := _kind_for_code(code)
+			if String(node.get_meta("kind", "")) != kind:
+				node.queue_free()
+				_add_piece(kind, code, file, rank, _body_material(code), _piece_gold_material)
+			else:
+				node.name = _piece_node_name(kind, file, rank)
+				node.set_meta("square", square)
+				node.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.11, (rank - 3.5) * SQUARE_SIZE)
+
+
+func _kind_for_code(code: String) -> String:
+	return String(PIECE_KINDS.get(code.to_lower(), "pawn"))
+
+
+func _body_material(code: String) -> Material:
+	return _piece_ivory_material if code == code.to_upper() else _piece_obsidian_material
+
+
+func _piece_node_name(kind: String, file: int, rank: int) -> String:
+	return "%s_%d_%d" % [kind.capitalize(), file, rank]
+
+
+func _add_piece(kind: String, code: String, file: int, rank: int, body: Material, accent: Material) -> void:
+	var is_white := code == code.to_upper()
 	var piece := Node3D.new()
-	piece.name = "%s_%d_%d" % [kind.capitalize(), file, rank]
+	piece.name = _piece_node_name(kind, file, rank)
 	piece.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.11, (rank - 3.5) * SQUARE_SIZE)
 	piece.set_meta("square", Vector2i(file, rank))
+	piece.set_meta("kind", kind)
+	piece.set_meta("code", code)
 	pieces_root.add_child(piece)
 
 	if piece_theme == "royal_wood":
-		_add_royal_wood_piece(piece, kind, is_white, material, accent)
+		_add_royal_wood_piece(piece, kind, is_white, body, accent)
 		return
 
 	var model := MeshInstance3D.new()
@@ -443,77 +508,6 @@ func _add_sculpted_identity_top(piece: Node3D, kind: String, material: Material,
 				_add_box(piece, Vector3(0.085, 0.13, 0.085), battlement, material)
 
 
-func _add_medieval_figure(piece: Node3D, kind: String, is_white: bool, steel: Material, trim: Material) -> void:
-	# Original low-poly medieval sculpts built from cached meshes. Unlike the
-	# previous armored Staunton skin, every rank has a complete figurative body,
-	# clothing/plate silhouette and a rank-specific weapon or structure.
-	var facing := 1.0 if is_white else -1.0
-	var base_radius := 0.27 if kind == "pawn" else 0.32
-	_add_cylinder(piece, base_radius - 0.03, base_radius, 0.12, 0.10, steel)
-	_add_torus(piece, base_radius - 0.025, 0.018, 0.17, trim)
-
-	match kind:
-		"pawn":
-			# Foot soldier: split greaves, mail skirt, breastplate, helmet and spear.
-			_add_box(piece, Vector3(0.09, 0.34, 0.11), Vector3(-0.09, 0.38, 0), steel)
-			_add_box(piece, Vector3(0.09, 0.34, 0.11), Vector3(0.09, 0.38, 0), steel)
-			_add_cylinder(piece, 0.16, 0.23, 0.38, 0.67, steel)
-			_add_box(piece, Vector3(0.34, 0.09, 0.14), Vector3(0, 0.80, 0), trim)
-			_add_sphere(piece, 0.13, 0.98, steel)
-			_add_cylinder(piece, 0.14, 0.16, 0.11, 1.08, steel)
-			_add_box(piece, Vector3(0.035, 0.22, 0.045), Vector3(0, 1.01, -0.13 * facing), trim)
-			_add_box(piece, Vector3(0.035, 0.88, 0.035), Vector3(-0.25, 0.78, 0), trim)
-			_add_box(piece, Vector3(0.10, 0.16, 0.035), Vector3(-0.25, 1.25, 0), steel, Vector3(0, 0, 45))
-		"rook":
-			# Fortified tower with an iron gate and four independent battlements.
-			_add_cylinder(piece, 0.23, 0.28, 0.58, 0.52, steel)
-			_add_box(piece, Vector3(0.13, 0.33, 0.035), Vector3(0, 0.48, -0.235 * facing), trim)
-			_add_cylinder(piece, 0.31, 0.24, 0.15, 0.86, steel)
-			for offset in [Vector3(-0.22, 1.02, -0.18), Vector3(0.22, 1.02, -0.18), Vector3(-0.22, 1.02, 0.18), Vector3(0.22, 1.02, 0.18)]:
-				_add_box(piece, Vector3(0.14, 0.22, 0.14), offset, steel)
-		"knight":
-			# Armoured warhorse: four legs, barrel, rising neck, head, ears and tack.
-			for x in [-0.16, 0.16]:
-				for z in [-0.14, 0.14]:
-					_add_box(piece, Vector3(0.075, 0.38, 0.075), Vector3(x, 0.39, z), steel)
-			_add_box(piece, Vector3(0.40, 0.30, 0.48), Vector3(0, 0.65, 0), steel)
-			_add_box(piece, Vector3(0.25, 0.48, 0.22), Vector3(0, 0.91, -0.14 * facing), steel, Vector3(-18 * facing, 0, 0))
-			_add_box(piece, Vector3(0.25, 0.22, 0.34), Vector3(0, 1.15, -0.27 * facing), steel)
-			_add_box(piece, Vector3(0.055, 0.18, 0.07), Vector3(-0.07, 1.34, -0.25 * facing), trim, Vector3(-12 * facing, 0, 0))
-			_add_box(piece, Vector3(0.055, 0.18, 0.07), Vector3(0.07, 1.34, -0.25 * facing), trim, Vector3(-12 * facing, 0, 0))
-			_add_torus(piece, 0.20, 0.018, 0.75, trim, Vector3(90, 0, 0))
-		"bishop":
-			# Robed cleric with shoulder mantle, mitre and a tall crozier.
-			_add_cylinder(piece, 0.16, 0.29, 0.68, 0.54, steel)
-			_add_box(piece, Vector3(0.46, 0.10, 0.18), Vector3(0, 0.82, 0), trim)
-			_add_sphere(piece, 0.14, 1.00, steel)
-			_add_box(piece, Vector3(0.20, 0.32, 0.12), Vector3(0, 1.20, 0), steel, Vector3(0, 0, 45))
-			_add_box(piece, Vector3(0.035, 1.00, 0.035), Vector3(0.27, 0.82, 0), trim)
-			_add_torus(piece, 0.10, 0.022, 1.30, trim, Vector3(90, 0, 0), Vector3(0.27, 0, 0))
-		"queen":
-			# Long court gown, plated bodice, arms and eight-point royal crown.
-			_add_cylinder(piece, 0.16, 0.30, 0.72, 0.55, steel)
-			_add_box(piece, Vector3(0.32, 0.36, 0.20), Vector3(0, 0.88, 0), steel)
-			_add_box(piece, Vector3(0.09, 0.48, 0.10), Vector3(-0.22, 0.78, 0), trim, Vector3(0, 0, -12))
-			_add_box(piece, Vector3(0.09, 0.48, 0.10), Vector3(0.22, 0.78, 0), trim, Vector3(0, 0, 12))
-			_add_sphere(piece, 0.14, 1.16, steel)
-			_add_cylinder(piece, 0.20, 0.15, 0.12, 1.31, trim)
-			for angle in [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0]:
-				var r := deg_to_rad(angle)
-				_add_box(piece, Vector3(0.045, 0.18, 0.045), Vector3(cos(r) * 0.16, 1.43, sin(r) * 0.16), trim, Vector3(0, -angle, 12))
-		"king":
-			# Broad plate armour, crowned helm, cape shoulders and a full sword.
-			_add_cylinder(piece, 0.19, 0.30, 0.62, 0.52, steel)
-			_add_box(piece, Vector3(0.48, 0.16, 0.22), Vector3(0, 0.82, 0), trim)
-			_add_box(piece, Vector3(0.38, 0.42, 0.22), Vector3(0, 0.92, 0), steel)
-			_add_sphere(piece, 0.15, 1.21, steel)
-			_add_cylinder(piece, 0.21, 0.15, 0.13, 1.36, trim)
-			_add_box(piece, Vector3(0.06, 0.29, 0.06), Vector3(0, 1.51, 0), trim)
-			_add_box(piece, Vector3(0.25, 0.06, 0.06), Vector3(0, 1.56, 0), trim)
-			_add_box(piece, Vector3(0.055, 0.90, 0.055), Vector3(-0.30, 0.86, 0), steel, Vector3(0, 0, -8))
-			_add_box(piece, Vector3(0.24, 0.055, 0.055), Vector3(-0.30, 0.64, 0), trim)
-
-
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
 	var mesh_instance := MeshInstance3D.new()
 	var segments := 12 if _effective_graphics_quality() == "low" else (18 if _effective_graphics_quality() == "medium" else 24)
@@ -598,6 +592,7 @@ func _create_ui() -> void:
 	sidebar.add_theme_stylebox_override("panel", sidebar_style)
 	$UI.add_child(sidebar)
 	$UI.move_child(sidebar, 0)
+	_register_left_column(sidebar)
 
 	_top_panel = HBoxContainer.new()
 	var panel := _top_panel
@@ -663,6 +658,7 @@ func _create_ui() -> void:
 	_graphics_button.size = Vector2(112, 36)
 	_graphics_button.pressed.connect(_cycle_graphics_quality)
 	$UI.add_child(_graphics_button)
+	_register_left_column(_graphics_button)
 	_update_graphics_button()
 
 	_sound_button = Button.new()
@@ -670,6 +666,7 @@ func _create_ui() -> void:
 	_sound_button.size = Vector2(112, 36)
 	_sound_button.pressed.connect(_toggle_sound)
 	$UI.add_child(_sound_button)
+	_register_left_column(_sound_button)
 	_update_sound_button()
 
 	_music_button = Button.new()
@@ -677,6 +674,7 @@ func _create_ui() -> void:
 	_music_button.size = Vector2(112, 36)
 	_music_button.pressed.connect(_toggle_music)
 	$UI.add_child(_music_button)
+	_register_left_column(_music_button)
 	_update_music_button()
 
 	for child in panel.get_children():
@@ -796,7 +794,7 @@ func _create_main_menu() -> void:
 	tools.add_child(_close_menu_button)
 
 	var version := Label.new()
-	version.text = "ANDROID • OFFLINE • BETA 0.12.0.18.1"
+	version.text = "ANDROID • OFFLINE • " + _version_label()
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version.add_theme_font_size_override("font_size", 13)
 	version.add_theme_color_override("font_color", Color(0.48, 0.52, 0.61, 1))
@@ -810,6 +808,7 @@ func _create_game_panels() -> void:
 	history_panel.position = Vector2(24, 198)
 	history_panel.size = Vector2(185, 238)
 	$UI.add_child(history_panel)
+	_register_left_column(history_panel)
 	_history_label = RichTextLabel.new()
 	_history_label.bbcode_enabled = true
 	_history_label.fit_content = false
@@ -823,6 +822,7 @@ func _create_game_panels() -> void:
 	_captured_label.size = Vector2(190, 66)
 	_captured_label.add_theme_font_size_override("font_size", 17)
 	$UI.add_child(_captured_label)
+	_register_left_column(_captured_label)
 	_update_captured_pieces()
 
 	var resign_button := Button.new()
@@ -832,6 +832,7 @@ func _create_game_panels() -> void:
 	_style_hud_button(resign_button)
 	resign_button.pressed.connect(_request_resign)
 	$UI.add_child(resign_button)
+	_register_left_column(resign_button)
 
 	_game_over_dialog = AcceptDialog.new()
 	_game_over_dialog.title = "GAME OVER"
@@ -889,6 +890,7 @@ func _create_game_panels() -> void:
 	_create_information_windows()
 	_update_accessibility_buttons()
 	_apply_language()
+	_apply_accessibility()
 
 
 func _menu_button(text: String, callback: Callable, minimum_size := Vector2(540, 58)) -> Button:
@@ -918,7 +920,8 @@ func _text(key: String) -> String:
 		"level": "سطح هوش مصنوعی: ", "easy": "آسان", "medium": "متوسط", "hard": "سخت", "professional": "حرفه‌ای",
 		"white_turn": "نوبت سفید", "black_turn": "نوبت سیاه", "check": " — کیش", "thinking": "هوش مصنوعی در حال فکر کردن...",
 		"moves": "حرکت‌ها", "white_captured": "گرفته‌های سفید: ", "black_captured": "گرفته‌های سیاه: ",
-		"language": "زبان: فارسی", "game_over": "پایان بازی", "resign_confirm": "آیا مطمئن هستید که می‌خواهید تسلیم شوید؟"
+		"language": "زبان: فارسی", "game_over": "پایان بازی", "resign_confirm": "آیا مطمئن هستید که می‌خواهید تسلیم شوید؟",
+		"saved_automatically": "\n\nبازی به‌صورت خودکار ذخیره شد."
 	}
 	var en := {
 		"continue": "CONTINUE GAME", "new_ai": "NEW GAME VS AI", "local": "LOCAL TWO PLAYERS",
@@ -926,7 +929,8 @@ func _text(key: String) -> String:
 		"level": "AI LEVEL: ", "easy": "EASY", "medium": "MEDIUM", "hard": "HARD", "professional": "PROFESSIONAL",
 		"white_turn": "White to move", "black_turn": "Black to move", "check": " — CHECK", "thinking": "Computer thinking...",
 		"moves": "MOVES", "white_captured": "White captured: ", "black_captured": "Black captured: ",
-		"language": "LANGUAGE: ENGLISH", "game_over": "GAME OVER", "resign_confirm": "Are you sure you want to resign?"
+		"language": "LANGUAGE: ENGLISH", "game_over": "GAME OVER", "resign_confirm": "Are you sure you want to resign?",
+		"saved_automatically": "\n\nThe game was saved automatically."
 	}
 	return fa.get(key, key) if language == "fa" else en.get(key, key)
 
@@ -943,6 +947,10 @@ func _cycle_piece_theme() -> void:
 	piece_theme = themes[(themes.find(piece_theme) + 1) % themes.size()]
 	var file := FileAccess.open(PIECE_THEME_PATH, FileAccess.WRITE)
 	if file: file.store_string(piece_theme)
+	# Persist the game before the scene reload, otherwise up to five seconds of
+	# moves could be lost when the fresh _ready() reads the autosave.
+	_save_autosave()
+	_cancel_move_animation()
 	get_tree().reload_current_scene()
 
 
@@ -1023,7 +1031,7 @@ func _show_game_over_if_needed() -> void:
 	if game.result == "" or not is_instance_valid(_game_over_dialog):
 		return
 	_archive_completed_game()
-	_game_over_dialog.dialog_text = _translate_result(game.result) + ("\n\nبازی به‌صورت خودکار ذخیره شد." if language == "fa" else "\n\nThe game was saved automatically.")
+	_game_over_dialog.dialog_text = _translate_result(game.result) + _text("saved_automatically")
 	_game_over_dialog.popup_centered()
 	_play_sound("game_over")
 	_haptic(80)
@@ -1031,7 +1039,7 @@ func _show_game_over_if_needed() -> void:
 
 func _create_information_windows() -> void:
 	_tutorial_window = _information_window("HOW TO PLAY", "[font_size=24][b]QUICK START[/b][/font_size]\n\n1. Tap one of your pieces. Legal destinations light up.\n\n2. Tap a highlighted square to move. Dragging also works.\n\n3. Protect your king: orange/red means check. The game detects checkmate, stalemate, repetition and draw rules automatically.\n\n4. Pinch to zoom, drag empty space to orbit, and use FLIP or RESET for the camera.\n\n5. Open MENU to choose AI strength, clocks, graphics, archive, sound and accessibility.")
-	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version 0.12.0 Beta 18.1[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
+	_about_window = _information_window("ABOUT & LICENSES", "[font_size=24][b]Chess 3D  •  Version " + _version_label() + "[/b][/font_size]\n\nAn offline-first 3D chess game made with Godot. No account, advertising, analytics or network connection is required.\n\n[b]ENGINE[/b]\nGodot Engine is available under the MIT License. Copyright © 2014-present Godot Engine contributors; copyright © 2007-2014 Juan Linietsky, Ariel Manzur.\n\n[b]GAME CONTENT[/b]\nCode, procedural models, interface and generated local audio in this repository are original project assets. Chess rules are public domain.\n\nOpen-source license text is distributed with the source repository.")
 
 
 func _information_window(title: String, content: String) -> Window:
@@ -1107,10 +1115,36 @@ func _apply_accessibility() -> void:
 		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("351827") if high_contrast_enabled else Color("542536"))
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
-	for child in $UI.get_children():
-		if child is Control:
-			child.theme = _ui_theme
+	_apply_theme_recursive($UI)
 	_draw_highlights()
+
+
+## Walks the whole UI tree so late-created controls (archive rows, the promotion
+## picker) inherit the shared theme and the large-text scale as well.
+func _apply_theme_recursive(node: Node) -> void:
+	if node is Control:
+		var control := node as Control
+		# Capture the base font size before the shared theme is attached,
+		# otherwise repeated passes would compound the scale.
+		_apply_text_scale(control)
+		control.theme = _ui_theme
+	for child in node.get_children():
+		_apply_theme_recursive(child)
+
+
+func _apply_text_scale(control: Control) -> void:
+	if not (control is Label or control is Button or control is RichTextLabel):
+		return
+	var font_key := "normal_font_size" if control is RichTextLabel else "font_size"
+	if not control.has_meta("_base_font_size"):
+		control.set_meta("_base_font_size", control.get_theme_font_size(font_key))
+	var base_size: int = control.get_meta("_base_font_size")
+	var scale := 1.3 if large_text_enabled else 1.0
+	control.add_theme_font_size_override(font_key, maxi(10, int(round(base_size * scale))))
+
+
+func _version_label() -> String:
+	return "%s Beta %s" % [_app_version, APP_BUILD]
 
 
 func _show_archive() -> void:
@@ -1151,6 +1185,7 @@ func _refresh_archive_list() -> void:
 		delete_button.pressed.connect(_delete_archived_game.bind(entry.id))
 		row.add_child(delete_button)
 		_archive_list.add_child(row)
+	_apply_accessibility()
 
 
 func _load_archived_game(entry: Dictionary) -> void:
@@ -1161,17 +1196,29 @@ func _load_archived_game(entry: Dictionary) -> void:
 	black_time = float(entry.get("black_time", 600.0))
 	play_vs_ai = entry.get("mode", "ai") == "ai"
 	ai_difficulty = entry.get("difficulty", "medium")
+	# Remember which side the player controlled, otherwise loading a game played
+	# as Black would leave the engine waiting for a move that never comes.
+	human_color = int(entry.get("human_color", ChessRules.WHITE))
 	_archived_current_game = true
 	_has_resumable_game = true
 	_archive_window.hide()
 	_menu_overlay.hide()
 	get_tree().paused = false
+	_cancel_move_animation()
+	ai_generation += 1
+	ai_thinking = false
 	_create_pieces()
 	_draw_highlights()
 	_update_status()
 	_update_move_history()
 	_update_captured_pieces()
 	_save_autosave()
+	if game.result == "" and play_vs_ai and game.turn != human_color:
+		ai_thinking = true
+		_update_status()
+		get_tree().create_timer(0.35).timeout.connect(_play_ai_move)
+	elif game.result != "":
+		_show_game_over_if_needed()
 
 
 func _copy_archived_pgn(pgn: String) -> void:
@@ -1188,7 +1235,8 @@ func _archive_completed_game() -> void:
 		return
 	archive.add_game(game.to_pgn({"White": "Player", "Black": "Offline AI"}), game.result, {
 		"white_time": white_time, "black_time": black_time,
-		"mode": "ai" if play_vs_ai else "local", "difficulty": ai_difficulty
+		"mode": "ai" if play_vs_ai else "local", "difficulty": ai_difficulty,
+		"human_color": human_color
 	})
 	_archived_current_game = true
 
@@ -1213,6 +1261,10 @@ func _continue_game() -> void:
 	_hide_secondary_windows()
 	_menu_overlay.hide()
 	get_tree().paused = false
+	# A finished game restored from the autosave or the archive would otherwise
+	# never surface its game-over dialog again.
+	if game.result != "":
+		_show_game_over_if_needed()
 
 
 func _start_ai_game() -> void:
@@ -1237,6 +1289,8 @@ func _start_local_game() -> void:
 
 
 func _select_square(square: Vector2i) -> void:
+	if is_instance_valid(_promotion_popup):
+		return
 	if ai_thinking or animating_move or game.result != "":
 		return
 	var previous_selected := selected
@@ -1274,15 +1328,15 @@ func _set_piece_selected(square: Vector2i, lifted: bool) -> void:
 			var tween := create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 			var duration := 0.01 if reduced_motion_enabled else 0.14
 			tween.tween_property(piece, "position:y", 0.30 if lifted else 0.12, duration)
-			var contact_shadow := piece.get_node_or_null("ContactShadow")
-			if is_instance_valid(contact_shadow):
-				# Keep the contact patch visually attached to the board while the
-				# selected piece rises above it.
-				contact_shadow.position.y = -0.22 if lifted else -0.04
 			return
 
 
 func _show_promotion_picker(moves: Array[Dictionary]) -> void:
+	# A previous picker must never linger: PopupPanel is modal, so a leaked popup
+	# would swallow every later board tap.
+	if is_instance_valid(_promotion_popup):
+		_promotion_popup.queue_free()
+		_promotion_popup = null
 	var popup := PopupPanel.new()
 	popup.name = "PromotionPicker"
 	var layout := VBoxContainer.new()
@@ -1304,18 +1358,30 @@ func _show_promotion_picker(moves: Array[Dictionary]) -> void:
 		row.add_child(button)
 	popup.add_child(layout)
 	$UI.add_child(popup)
+	popup.popup_hide.connect(_on_promotion_popup_hidden.bind(popup))
+	_promotion_popup = popup
 	popup.popup_centered(Vector2i(420, 260))
+	_apply_accessibility()
 
 
 func _choose_promotion(move: Dictionary, popup: PopupPanel) -> void:
-	popup.hide()
+	if _promotion_popup == popup:
+		_promotion_popup = null
 	popup.queue_free()
 	_play_move(move)
+
+
+## Fired when the player dismisses the picker by tapping outside it.
+func _on_promotion_popup_hidden(popup: PopupPanel) -> void:
+	if _promotion_popup == popup:
+		_promotion_popup = null
+	popup.queue_free()
 
 
 func _play_move(move: Dictionary) -> void:
 	if not game.play(move):
 		return
+	_needs_full_piece_rebuild = move.has("promotion")
 	last_move = move.duplicate(true)
 	_haptic(35 if move.captured != "" else 22)
 	if move.has("castle"):
@@ -1334,7 +1400,7 @@ func _play_move(move: Dictionary) -> void:
 
 func _finish_player_move() -> void:
 	animating_move = false
-	_create_pieces()
+	_refresh_pieces_after_move()
 	_draw_highlights()
 	_update_status()
 	_update_move_history()
@@ -1371,6 +1437,7 @@ func _apply_ai_choice(chosen: Dictionary, request_generation: int) -> void:
 		ai_thinking = false
 		_update_status()
 		return
+	_needs_full_piece_rebuild = chosen.has("promotion")
 	last_move = chosen.duplicate(true)
 	if chosen.has("castle"):
 		_play_sound("castle")
@@ -1386,13 +1453,21 @@ func _apply_ai_choice(chosen: Dictionary, request_generation: int) -> void:
 func _finish_ai_move() -> void:
 	animating_move = false
 	ai_thinking = false
-	_create_pieces()
+	_refresh_pieces_after_move()
 	_draw_highlights()
 	_update_status()
 	_update_move_history()
 	_update_captured_pieces()
 	_show_game_over_if_needed()
 	_save_autosave()
+
+
+func _refresh_pieces_after_move() -> void:
+	if _needs_full_piece_rebuild:
+		_needs_full_piece_rebuild = false
+		_create_pieces()
+	else:
+		_sync_pieces()
 
 
 func _animate_board_move(move: Dictionary, finished: Callable) -> void:
@@ -1409,8 +1484,14 @@ func _animate_board_move(move: Dictionary, finished: Callable) -> void:
 		elif square == captured_square:
 			captured_piece = piece
 	if not is_instance_valid(moving_piece):
+		animating_move = false
 		finished.call()
 		return
+	# The rules engine already applied the move, so re-tag the node to its new
+	# square right away. The piece sync below can then reuse this node instead of
+	# rebuilding all thirty-two pieces after every single move.
+	moving_piece.set_meta("square", move.to)
+	moving_piece.name = _piece_node_name(String(moving_piece.get_meta("kind", "pawn")), move.to.x, move.to.y)
 	var target := Vector3((move.to.x - 3.5) * SQUARE_SIZE, 0.12, (move.to.y - 3.5) * SQUARE_SIZE)
 	var midpoint := (moving_piece.position + target) * 0.5
 	midpoint.y = 0.75
@@ -1426,7 +1507,31 @@ func _animate_board_move(move: Dictionary, finished: Callable) -> void:
 		var capture_duration := 0.01 if reduced_motion_enabled else 0.2
 		capture_tween.tween_property(captured_piece, "scale", Vector3.ZERO, capture_duration)
 		capture_tween.tween_property(captured_piece, "position:y", -0.25, capture_duration)
-	tween.finished.connect(finished)
+	_move_tween = tween
+	_move_finished_callback = finished
+	tween.finished.connect(_on_move_animation_finished)
+
+
+## Single funnel for the animation callback. A tween that is killed before it
+## finishes never emits finished, so the callback is always cleared here to keep
+## animating_move from staying stuck on true.
+func _on_move_animation_finished() -> void:
+	var callback := _move_finished_callback
+	_move_tween = null
+	_move_finished_callback = Callable()
+	if callback.is_valid():
+		callback.call()
+
+
+## Abandons an in-flight move animation. Used whenever the scene is about to be
+## rebuilt or reset, where the tweened node would otherwise be destroyed and the
+## game would freeze with animating_move stuck on true.
+func _cancel_move_animation() -> void:
+	animating_move = false
+	_move_finished_callback = Callable()
+	if _move_tween != null:
+		_move_tween.kill()
+		_move_tween = null
 
 
 func _spawn_capture_effect(position: Vector3, captured_code: String) -> void:
@@ -1487,25 +1592,44 @@ func _draw_highlights() -> void:
 
 func _add_highlight(square: Vector2i, color: Color, radius: float) -> void:
 	var marker := MeshInstance3D.new()
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = radius
-	mesh.bottom_radius = radius
-	mesh.height = 0.025
-	mesh.radial_segments = 32
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mesh.material = material
-	marker.mesh = mesh
+	# The disc geometry and the material are shared between every marker, so a
+	# full highlight redraw allocates nothing but the markers themselves.
+	marker.mesh = _highlight_mesh(radius)
+	marker.material_override = _highlight_material(color)
 	marker.position = Vector3((square.x - 3.5) * SQUARE_SIZE, 0.1, (square.y - 3.5) * SQUARE_SIZE)
 	highlights_root.add_child(marker)
+
+
+func _highlight_mesh(radius: float) -> CylinderMesh:
+	var key := "highlight:%s" % radius
+	if not _mesh_cache.has(key):
+		var mesh := CylinderMesh.new()
+		mesh.top_radius = radius
+		mesh.bottom_radius = radius
+		mesh.height = 0.025
+		mesh.radial_segments = 32
+		_mesh_cache[key] = mesh
+	return _mesh_cache[key] as CylinderMesh
+
+
+func _highlight_material(color: Color) -> StandardMaterial3D:
+	var key := "highlight_material:%s" % color.to_html(true)
+	if not _mesh_cache.has(key):
+		var material := StandardMaterial3D.new()
+		material.albedo_color = color
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_mesh_cache[key] = material
+	return _mesh_cache[key] as StandardMaterial3D
 
 
 func _screen_to_square(screen_position: Vector2) -> Vector2i:
 	var origin := camera.project_ray_origin(screen_position)
 	var direction := camera.project_ray_normal(screen_position)
-	var plane := Plane(Vector3.UP, 0.1)
+	# Sample the top face of the board squares (BoxMesh is 0.14 tall and centred
+	# on y = 0), not a plane floating above them, so a tap lands on the square the
+	# player actually sees instead of one biased towards the camera.
+	var plane := Plane(Vector3.UP, 0.07)
 	var hit = plane.intersects_ray(origin, direction)
 	if hit == null:
 		return Vector2i(-1, -1)
@@ -1540,10 +1664,12 @@ func _update_status() -> void:
 func _update_clock_label() -> void:
 	if not is_instance_valid(_clock_label):
 		return
-	if not clock_enabled:
-		_clock_label.text = "Clock: OFF"
+	var text := "Clock: OFF"
+	if clock_enabled:
+		text = "W %s  •  B %s" % [_format_time(white_time), _format_time(black_time)]
+	if text == _clock_label.text:
 		return
-	_clock_label.text = "W %s  •  B %s" % [_format_time(white_time), _format_time(black_time)]
+	_clock_label.text = text
 
 
 func _format_time(seconds: float) -> String:
@@ -1561,15 +1687,36 @@ func _create_audio() -> void:
 		_sound_players[sound_name] = player
 	_music_player = AudioStreamPlayer.new()
 	_music_player.name = "AmbientMusic"
+	# Untyped on purpose: Resource.duplicate() is statically a Resource, and the
+	# loop helper narrows it to AudioStreamWAV at runtime.
 	var music_stream = AMBIENT_MUSIC.duplicate()
-	if music_stream is AudioStreamWAV:
-		music_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		music_stream.loop_begin = 0
-		music_stream.loop_end = music_stream.data.size() / 2
+	_configure_music_loop(music_stream)
 	_music_player.stream = music_stream
 	_music_player.volume_db = linear_to_db(music_volume)
 	add_child(_music_player)
 	if music_enabled: _music_player.play()
+
+
+## loop_end is measured in sample frames, so the byte size has to be divided by
+## the frame size of the actual format. The old hard-coded /2 only happened to
+## be right for this mono 16-bit file.
+func _configure_music_loop(stream: AudioStream) -> void:
+	if not (stream is AudioStreamWAV):
+		return
+	var wav := stream as AudioStreamWAV
+	var bytes_per_frame := 0
+	match wav.format:
+		AudioStreamWAV.FORMAT_8_BITS:
+			bytes_per_frame = 2 if wav.stereo else 1
+		AudioStreamWAV.FORMAT_16_BITS:
+			bytes_per_frame = 4 if wav.stereo else 2
+		_:
+			bytes_per_frame = 0
+	if bytes_per_frame <= 0 or wav.data.is_empty():
+		return
+	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	wav.loop_begin = 0
+	wav.loop_end = wav.data.size() / bytes_per_frame
 
 
 func _play_sound(sound_name: String) -> void:
@@ -1630,6 +1777,8 @@ func _monitor_performance() -> void:
 		# Apply renderer settings now. Piece LOD refreshes after the next completed
 		# move, avoiding node replacement during Android touch/tween dispatch.
 		_apply_graphics_quality()
+		_mesh_cache.clear()
+		_needs_full_piece_rebuild = true
 
 
 func _effective_graphics_quality() -> String:
@@ -1670,6 +1819,10 @@ func _cycle_graphics_quality() -> void:
 	graphics_quality = levels[(index + 1) % levels.size()]
 	_auto_quality_override = ""
 	_mesh_cache.clear()
+	# Abandon any in-flight animation first: _create_pieces() destroys the very
+	# node the tween is targeting, which would leave animating_move stuck on.
+	_cancel_move_animation()
+	_needs_full_piece_rebuild = false
 	_apply_graphics_quality()
 	_create_pieces()
 	_save_autosave()
@@ -1694,6 +1847,35 @@ func _apply_safe_area() -> void:
 	_top_panel.offset_top = top_inset
 	_top_panel.offset_right = -right_inset
 	_top_panel.offset_bottom = top_inset + 64.0
+	_apply_left_column_safe_area(safe, scale_x, scale_y, viewport_size)
+
+
+## Records a left-hand HUD control so it can be inset from display cutouts.
+func _register_left_column(control: Control) -> void:
+	if control == null or _left_column_base.has(control):
+		return
+	_left_column_base[control] = control.position
+	_left_column_nodes.append(control)
+
+
+## Keeps the whole sidebar column clear of notches and gesture bars. The entire
+## column is shifted as one block so the background panel and the controls it
+## hosts stay aligned.
+func _apply_left_column_safe_area(safe: Rect2i, scale_x: float, scale_y: float, viewport_size: Vector2) -> void:
+	if _left_column_nodes.is_empty():
+		return
+	var window_size := Vector2(DisplayServer.window_get_size())
+	var left_inset := maxf(0.0, safe.position.x * scale_x)
+	var top_inset := maxf(0.0, safe.position.y * scale_y)
+	var bottom_inset := maxf(0.0, (window_size.y - safe.end.y) * scale_y)
+	var group_bottom := 0.0
+	for node in _left_column_nodes:
+		var base: Vector2 = _left_column_base.get(node, node.position)
+		group_bottom = maxf(group_bottom, base.y + node.size.y)
+	var shift_y := minf(top_inset, maxf(0.0, viewport_size.y - bottom_inset - group_bottom))
+	for node in _left_column_nodes:
+		var base: Vector2 = _left_column_base.get(node, node.position)
+		node.position = Vector2(base.x + left_inset, base.y + shift_y)
 
 
 func _toggle_game_mode() -> void:
@@ -1806,6 +1988,10 @@ func _undo() -> void:
 	if ai_thinking or animating_move:
 		return
 	last_move.clear()
+	# Taking moves back un-finishes a game, so it becomes archivable again.
+	_archived_current_game = false
+	if is_instance_valid(_game_over_dialog) and _game_over_dialog.visible:
+		_game_over_dialog.hide()
 	if game.undo() and play_vs_ai and game.turn != human_color:
 		game.undo()
 	selected = Vector2i(-1, -1)
@@ -1819,8 +2005,12 @@ func _undo() -> void:
 
 
 func _new_game() -> void:
+	# Abandon any in-flight move animation first: _create_pieces() would destroy
+	# the tweened node and leave animating_move stuck on, freezing all input.
+	_cancel_move_animation()
 	game.reset()
 	_archived_current_game = false
+	_needs_full_piece_rebuild = false
 	last_move.clear()
 	camera_rig.rotation.y = 0.0
 	white_time = 600.0
@@ -1829,6 +2019,8 @@ func _new_game() -> void:
 	ai_thinking = false
 	selected = Vector2i(-1, -1)
 	selected_moves.clear()
+	if is_instance_valid(_game_over_dialog) and _game_over_dialog.visible:
+		_game_over_dialog.hide()
 	_draw_highlights()
 	_create_pieces()
 	_update_status()
@@ -1873,6 +2065,12 @@ func _material(color: Color, roughness: float, metallic: float) -> StandardMater
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Android delivers the hardware back button as ui_cancel (Escape) because
+	# project.godot sets application/config/quit_on_go_back=false.
+	if event.is_action_pressed("ui_cancel"):
+		_handle_back_request()
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_touches[event.index] = event.position
@@ -1949,8 +2147,6 @@ func _update_drag_marker(screen_position: Vector2) -> void:
 	for piece in pieces_root.get_children():
 		if piece.get_meta("square", Vector2i(-1, -1)) == _drag_piece_from:
 			piece.position = Vector3(local_hit.x, 0.55, local_hit.z)
-			var shadow := piece.get_node_or_null("ContactShadow")
-			if is_instance_valid(shadow): shadow.position.y = -0.475
 			return
 
 
@@ -1958,8 +2154,6 @@ func _snap_dragged_piece() -> void:
 	for piece in pieces_root.get_children():
 		if piece.get_meta("square", Vector2i(-1, -1)) == _drag_piece_from:
 			piece.position = Vector3((_drag_piece_from.x - 3.5) * SQUARE_SIZE, 0.30, (_drag_piece_from.y - 3.5) * SQUARE_SIZE)
-			var shadow := piece.get_node_or_null("ContactShadow")
-			if is_instance_valid(shadow): shadow.position.y = -0.22
 			return
 
 
@@ -2001,3 +2195,20 @@ func _reset_camera() -> void:
 func _haptic(duration_ms: int) -> void:
 	if haptics_enabled:
 		Input.vibrate_handheld(duration_ms)
+
+
+## Walks out of the topmost thing on screen: promotion picker, then secondary
+## windows, then the setup menu, and finally pauses back into the menu.
+func _handle_back_request() -> void:
+	if is_instance_valid(_promotion_popup):
+		_promotion_popup.hide()
+		return
+	for window in [_archive_window, _accessibility_window, _tutorial_window, _about_window]:
+		if is_instance_valid(window) and window.visible:
+			window.hide()
+			return
+	if is_instance_valid(_menu_overlay) and _menu_overlay.visible:
+		_continue_game()
+		return
+	if game.result == "":
+		_show_main_menu()

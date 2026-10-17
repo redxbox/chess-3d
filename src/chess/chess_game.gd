@@ -4,6 +4,7 @@ extends RefCounted
 
 const WHITE := 0
 const BLACK := 1
+const START_FEN := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 var board: Array = []
 var turn := WHITE
@@ -12,6 +13,10 @@ var en_passant := Vector2i(-1, -1)
 var halfmove_clock := 0
 var fullmove_number := 1
 var result := ""
+## FEN of the position the game actually started from. Games that begin from
+## anything other than START_FEN must export SetUp/FEN headers so that a PGN
+## replay reproduces the exact same position.
+var start_fen := START_FEN
 var history: Array[Dictionary] = []
 var move_notation: Array[String] = []
 var position_counts: Dictionary = {}
@@ -42,6 +47,7 @@ func reset() -> void:
 	position_counts.clear()
 	captured_by_white.clear()
 	captured_by_black.clear()
+	start_fen = START_FEN
 	position_counts[_position_key()] = 1
 
 
@@ -75,13 +81,41 @@ func legal_moves(from := Vector2i(-1, -1)) -> Array[Dictionary]:
 				continue
 			for move in _pseudo_moves(origin):
 				var moving_color := turn
-				var snapshot := _snapshot()
-				_apply_unchecked(move)
+				var snapshot := push_move(move)
 				var legal := not is_in_check(moving_color)
-				_restore(snapshot)
+				pop_move(snapshot)
 				if legal:
 					moves.append(move)
 	return moves
+
+
+## Applies a move without recording notation, captures or repetition history.
+## Returns an opaque snapshot that must be handed back to pop_move(). Search and
+## legality checks use this pair because it copies only the board and the state
+## the rules engine needs, never the growing move list.
+func push_move(move: Dictionary) -> Dictionary:
+	var snapshot := {
+		"board": board.duplicate(true),
+		"turn": turn,
+		"castling": castling.duplicate(),
+		"en_passant": en_passant,
+		"halfmove": halfmove_clock,
+		"fullmove": fullmove_number,
+		"result": result
+	}
+	_apply_unchecked(move)
+	return snapshot
+
+
+## Undoes a move applied by push_move().
+func pop_move(snapshot: Dictionary) -> void:
+	board = snapshot.board
+	turn = snapshot.turn
+	castling = snapshot.castling
+	en_passant = snapshot.en_passant
+	halfmove_clock = snapshot.halfmove
+	fullmove_number = snapshot.fullmove
+	result = snapshot.result
 
 
 func play(move: Dictionary) -> bool:
@@ -178,9 +212,13 @@ func _add_castling(moves: Array[Dictionary], from: Vector2i, color: int, piece: 
 		return
 	var king_key := "K" if color == WHITE else "k"
 	var queen_key := "Q" if color == WHITE else "q"
-	if castling[king_key] and board[rank][5] == "" and board[rank][6] == "" and not _is_attacked(Vector2i(5, rank), enemy) and not _is_attacked(Vector2i(6, rank), enemy):
+	var rook := "R" if color == WHITE else "r"
+	# A castling right alone is not enough: a hand-written FEN can grant the
+	# right while the rook has already left (or never stood on) its home square.
+	# Without this check the rook would silently vanish when the move is applied.
+	if castling[king_key] and board[rank][7] == rook and board[rank][5] == "" and board[rank][6] == "" and not _is_attacked(Vector2i(5, rank), enemy) and not _is_attacked(Vector2i(6, rank), enemy):
 		moves.append(_move(from, Vector2i(6, rank), piece, "", {"castle": "king"}))
-	if castling[queen_key] and board[rank][1] == "" and board[rank][2] == "" and board[rank][3] == "" and not _is_attacked(Vector2i(3, rank), enemy) and not _is_attacked(Vector2i(2, rank), enemy):
+	if castling[queen_key] and board[rank][0] == rook and board[rank][1] == "" and board[rank][2] == "" and board[rank][3] == "" and not _is_attacked(Vector2i(3, rank), enemy) and not _is_attacked(Vector2i(2, rank), enemy):
 		moves.append(_move(from, Vector2i(2, rank), piece, "", {"castle": "queen"}))
 
 
@@ -364,6 +402,7 @@ func load_fen(fen: String) -> bool:
 	move_notation.clear()
 	captured_by_white.clear()
 	captured_by_black.clear()
+	start_fen = fen.strip_edges()
 	position_counts = {_position_key(): 1}
 	return true
 
@@ -373,6 +412,11 @@ func to_pgn(headers := {}) -> String:
 	var output := ""
 	for key in ["Event", "Site", "Date", "Round", "White", "Black"]:
 		output += "[%s \"%s\"]\n" % [key, tags[key]]
+	if start_fen != START_FEN:
+		# Without SetUp/FEN a replay would restart from the standard position
+		# and silently corrupt the saved game.
+		output += "[SetUp \"1\"]\n"
+		output += "[FEN \"%s\"]\n" % start_fen
 	var result_code := "*"
 	if result.begins_with("White wins"): result_code = "1-0"
 	elif result.begins_with("Black wins"): result_code = "0-1"
@@ -401,7 +445,7 @@ func load_pgn(pgn: String) -> Dictionary:
 			move_lines.append(clean_line)
 
 	if headers.get("SetUp", "0") == "1" and headers.has("FEN"):
-		if not load_fen(headers.FEN):
+		if not load_fen(headers.FEN) or not is_valid_position():
 			return {"ok": false, "error": "Invalid FEN header", "ply": 0}
 	else:
 		reset()

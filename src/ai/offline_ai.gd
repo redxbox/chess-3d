@@ -2,6 +2,10 @@ class_name OfflineChessAI
 extends RefCounted
 ## Lightweight fully-offline chess AI using alpha-beta search.
 ## Designed as the fallback/easy-medium engine beside a future native Stockfish adapter.
+##
+## choose_move() runs on a WorkerThreadPool task, so it must never touch Godot's
+## global random helpers (randf/pick_random/shuffle are not thread-safe). Each
+## call therefore owns a private RandomNumberGenerator.
 
 const ChessGame = preload("res://src/chess/chess_game.gd")
 const INF := 1_000_000
@@ -15,11 +19,13 @@ static func choose_move(fen: String, difficulty: String) -> Dictionary:
 	var moves: Array[Dictionary] = game.legal_moves()
 	if moves.is_empty():
 		return {}
-	var book_move := _opening_book_move(game, moves)
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var book_move := _opening_book_move(game, moves, rng)
 	if not book_move.is_empty() and difficulty != "easy":
 		return book_move
 	if difficulty == "easy":
-		return _easy_move(moves)
+		return _easy_move(moves, rng)
 
 	var depth := 2
 	var time_budget_ms := 450
@@ -36,19 +42,20 @@ static func choose_move(fen: String, difficulty: String) -> Dictionary:
 	for move in _ordered_moves(moves):
 		if not best_moves.is_empty() and Time.get_ticks_msec() >= deadline:
 			break
-		var snapshot: Dictionary = game._snapshot()
-		game._apply_unchecked(move)
+		var snapshot: Dictionary = game.push_move(move)
 		var score := -_negamax(game, depth - 1, -INF, INF, 1 - ai_color, deadline)
-		game._restore(snapshot)
+		game.pop_move(snapshot)
 		if score > best_score:
 			best_score = score
 			best_moves = [move]
 		elif score == best_score:
 			best_moves.append(move)
-	return best_moves.pick_random()
+	if best_moves.is_empty():
+		return {}
+	return best_moves[rng.randi_range(0, best_moves.size() - 1)]
 
 
-static func _opening_book_move(game, moves: Array[Dictionary]) -> Dictionary:
+static func _opening_book_move(game, moves: Array[Dictionary], rng: RandomNumberGenerator) -> Dictionary:
 	if game.fullmove_number != 1 or game.halfmove_clock != 0:
 		return {}
 	var candidates: Array[Array] = []
@@ -56,7 +63,13 @@ static func _opening_book_move(game, moves: Array[Dictionary]) -> Dictionary:
 		candidates = [[Vector2i(4, 6), Vector2i(4, 4)], [Vector2i(3, 6), Vector2i(3, 4)], [Vector2i(6, 7), Vector2i(5, 5)], [Vector2i(2, 6), Vector2i(2, 4)]]
 	else:
 		candidates = [[Vector2i(4, 1), Vector2i(4, 3)], [Vector2i(2, 1), Vector2i(2, 3)], [Vector2i(6, 0), Vector2i(5, 2)]]
-	candidates.shuffle()
+	# Fisher-Yates with the private generator: Array.shuffle() would reach for
+	# Godot's global RNG, which is not safe to touch from a worker thread.
+	for index in range(candidates.size() - 1, 0, -1):
+		var swap := rng.randi_range(0, index)
+		var swapped = candidates[index]
+		candidates[index] = candidates[swap]
+		candidates[swap] = swapped
 	for candidate in candidates:
 		for move in moves:
 			if move.from == candidate[0] and move.to == candidate[1]:
@@ -64,13 +77,13 @@ static func _opening_book_move(game, moves: Array[Dictionary]) -> Dictionary:
 	return {}
 
 
-static func _easy_move(moves: Array[Dictionary]) -> Dictionary:
+static func _easy_move(moves: Array[Dictionary], rng: RandomNumberGenerator) -> Dictionary:
 	var weighted: Array[Dictionary] = []
 	for move in moves:
 		weighted.append(move)
-		if move.captured != "" and randf() < 0.45:
+		if move.captured != "" and rng.randf() < 0.45:
 			weighted.append(move)
-	return weighted.pick_random()
+	return weighted[rng.randi_range(0, weighted.size() - 1)]
 
 
 static func _negamax(game, depth: int, alpha: int, beta: int, perspective: int, deadline: int) -> int:
@@ -84,10 +97,9 @@ static func _negamax(game, depth: int, alpha: int, beta: int, perspective: int, 
 	var best := -INF
 	var local_alpha := alpha
 	for move in _ordered_moves(moves):
-		var snapshot: Dictionary = game._snapshot()
-		game._apply_unchecked(move)
+		var snapshot: Dictionary = game.push_move(move)
 		var score := -_negamax(game, depth - 1, -beta, -local_alpha, 1 - perspective, deadline)
-		game._restore(snapshot)
+		game.pop_move(snapshot)
 		best = maxi(best, score)
 		local_alpha = maxi(local_alpha, score)
 		if local_alpha >= beta:

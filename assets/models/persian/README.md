@@ -4,15 +4,6 @@ The six source GLB files were supplied by the project owner on 2026-09-29 and ge
 
 ## Runtime assets
 
-`optimized/` contains mobile runtime derivatives produced from the supplied source meshes. All meshes were normalized by their source generator to approximately one unit in height, simplified with quadric-error decimation, stripped of source-only data, assigned regenerated vertex normals, baked a curvature/relief mask into vertex colour, and exported as GLB.
+`optimized/` originally held mobile runtime derivatives of that first supplied set. Those files were **removed from the active project** on 2026-10-17 because nothing in `src/`, `tests/` or `tools/` referenced them: the shipping runtime builds its pieces from `assets/models/staunton/*.obj` plus cached procedural geometry, so the unused set only inflated the APK. They remain recoverable from Git history.
 
-| Role | Source triangles | Runtime triangle budget |
-|---|---:|---:|
-| Pawn | 390,930 | 6,000 |
-| Rook | 315,616 | 12,000 |
-| Bishop | 315,108 | 16,000 |
-| Knight | 342,122 | 18,000 |
-| Queen | 340,408 | 24,000 |
-| King | 367,786 | 12,000 |
-
-The source files contain geometry only: no embedded materials, textures, UV coordinates, or vertex colors. Runtime metal materials are therefore supplied by Godot and shared across all instances.
+The retained pipeline lives in [`candidate2/`](candidate2/README.md) — the second supplied set, which `tests/material_preview.gd` and `tools/bake_reference_material_masks.py` still exercise.

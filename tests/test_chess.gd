@@ -13,6 +13,8 @@ func _init() -> void:
 	_test_captured_piece_tracking()
 	_test_illegal_move_and_check()
 	_test_castling()
+	_test_castling_requires_rook()
+	_test_push_and_pop_move()
 	_test_en_passant()
 	_test_promotion()
 	_test_insufficient_material()
@@ -21,6 +23,7 @@ func _init() -> void:
 	_test_fen()
 	_test_pgn()
 	_test_pgn_import()
+	_test_pgn_round_trip_from_custom_position()
 	_test_threefold_repetition()
 	_test_offline_ai()
 	_test_game_archive()
@@ -105,6 +108,54 @@ func _test_castling() -> void:
 	_expect(not castle.is_empty(), "king-side castling is generated")
 	game.play(castle)
 	_expect(game.board[7][6] == "K" and game.board[7][5] == "R", "castling moves king and rook")
+
+
+func _test_castling_requires_rook() -> void:
+	var game = ChessGame.new()
+	_empty_board(game)
+	game.board[7][4] = "K"
+	game.board[0][4] = "k"
+	game.castling.K = true
+	game.castling.Q = true
+	game.turn = ChessGame.WHITE
+	_expect(_find_move(game, Vector2i(4, 7), Vector2i(6, 7)).is_empty(), "a castling right without the rook on h1 generates no move")
+	_expect(_find_move(game, Vector2i(4, 7), Vector2i(2, 7)).is_empty(), "a castling right without the rook on a1 generates no move")
+	game.board[7][7] = "R"
+	game.board[7][0] = "R"
+	_expect(not _find_move(game, Vector2i(4, 7), Vector2i(6, 7)).is_empty(), "castling is generated once the rook is on h1")
+	_expect(not _find_move(game, Vector2i(4, 7), Vector2i(2, 7)).is_empty(), "castling is generated once the rook is on a1")
+	# The generated move must actually place the rook, never delete it.
+	game.play(_find_move(game, Vector2i(4, 7), Vector2i(6, 7)))
+	_expect(game.board[7][6] == "K" and game.board[7][5] == "R", "king-side castling moves king and rook together")
+
+
+func _test_push_and_pop_move() -> void:
+	var game = ChessGame.new()
+	var move = _find_move(game, Vector2i(4, 6), Vector2i(4, 4))
+	var snapshot := game.push_move(move)
+	_expect(game.board[4][4] == "P" and game.turn == ChessGame.BLACK, "push_move applies a move")
+	game.pop_move(snapshot)
+	_expect(game.board[6][4] == "P" and game.turn == ChessGame.WHITE, "pop_move restores the position")
+	_expect(game.move_notation.is_empty(), "push/pop leaves the notation history untouched")
+	_expect(game.captured_by_white.is_empty() and game.captured_by_black.is_empty(), "push/pop leaves the capture history untouched")
+	_expect(game.legal_moves().size() == 20, "push/pop restores the full legal move list")
+	# Legality checking itself runs on the same pair, so pins must survive it.
+	_empty_board(game)
+	game.board[7][4] = "K"
+	game.board[6][4] = "P"
+	game.board[5][3] = "p"
+	game.board[3][3] = "n"
+	game.board[0][4] = "r"
+	game.board[0][0] = "k"
+	game.turn = ChessGame.WHITE
+	_expect(not game.is_in_check(ChessGame.WHITE), "the pawn still shields the king from the rook")
+	var pawn_moves := game.legal_moves(Vector2i(4, 6))
+	_expect(pawn_moves.size() == 2, "a pawn pinned on a file may still advance along it")
+	var captures_off_file := false
+	for move in pawn_moves:
+		if move.to.x != 4:
+			captures_off_file = true
+	_expect(not captures_off_file, "a pawn pinned on a file may not capture off it")
 
 
 func _test_en_passant() -> void:
@@ -218,6 +269,24 @@ func _test_pgn_import() -> void:
 	_expect(not invalid_game.load_pgn("1. e5 *").ok, "PGN parser reports illegal moves")
 
 
+func _test_pgn_round_trip_from_custom_position() -> void:
+	var custom := "r3k2r/ppp2ppp/2n1bn2/3qp3/8/2N1PN2/PPPP1PPP/R2QKB1R b KQkq - 4 9"
+	var source = ChessGame.new()
+	_expect(source.load_fen(custom), "custom FEN loads")
+	var exported := source.to_pgn()
+	_expect(exported.contains("[SetUp \"1\"]"), "non-standard start positions export a SetUp header")
+	_expect(exported.contains("[FEN \"" + custom + "\"]"), "non-standard start positions export a FEN header")
+	var imported = ChessGame.new()
+	_expect(imported.load_pgn(exported).ok, "a PGN with a FEN header imports")
+	_expect(imported.to_fen() == source.to_fen(), "a PGN replay restores the custom starting position")
+	# The standard start must stay header-clean so ordinary PGNs remain portable.
+	var plain = ChessGame.new()
+	_expect(not plain.to_pgn().contains("[SetUp"), "standard start positions export no SetUp header")
+	# A corrupt FEN header must be rejected instead of silently resetting.
+	var broken = ChessGame.new()
+	_expect(not broken.load_pgn("[SetUp \"1\"]\n[FEN \"not a fen\"]\n\n1. e4 *").ok, "an invalid FEN header is rejected")
+
+
 func _test_threefold_repetition() -> void:
 	var game = ChessGame.new()
 	for cycle in 2:
@@ -230,10 +299,12 @@ func _test_threefold_repetition() -> void:
 
 func _test_offline_ai() -> void:
 	var game = ChessGame.new()
-	var easy_move := OfflineAI.choose_move(game.to_fen(), "easy")
-	_expect(not easy_move.is_empty() and not _find_move(game, easy_move.from, easy_move.to).is_empty(), "easy offline AI returns a legal move")
-	var medium_move := OfflineAI.choose_move(game.to_fen(), "medium")
-	_expect(not medium_move.is_empty() and not _find_move(game, medium_move.from, medium_move.to).is_empty(), "alpha-beta offline AI returns a legal move")
+	for difficulty in ["easy", "medium", "hard", "professional"]:
+		var chosen := OfflineAI.choose_move(game.to_fen(), difficulty)
+		_expect(not chosen.is_empty() and not _find_move(game, chosen.from, chosen.to).is_empty(),
+			"offline AI returns a legal move on " + difficulty)
+	_expect(OfflineAI.choose_move("", "medium").is_empty(), "offline AI rejects an invalid FEN")
+	_expect(OfflineAI.choose_move(game.to_fen(), "unknown").is_empty() == false, "offline AI falls back to a search depth for an unknown difficulty")
 
 
 func _test_game_archive() -> void:
@@ -245,4 +316,11 @@ func _test_game_archive() -> void:
 	var reloaded = GameArchive.new(test_path)
 	_expect(reloaded.games.size() == 1 and reloaded.games[0].pgn.contains("e4"), "game archive persists to disk")
 	_expect(reloaded.remove_game(id) and reloaded.games.is_empty(), "archived game can be deleted")
+	# Which side the player controlled must survive a reload, otherwise a game
+	# played as Black would never get another move from the engine.
+	var side_store = GameArchive.new(test_path)
+	var side_id := side_store.add_game("[Result \"*\"]\n\n1. e4", "In progress", {"mode": "ai", "human_color": ChessGame.BLACK})
+	var side_reloaded = GameArchive.new(test_path)
+	_expect(int(side_reloaded.games[0].get("human_color", ChessGame.WHITE)) == ChessGame.BLACK, "archive entries remember which side the player controlled")
+	side_store.remove_game(side_id)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(test_path))

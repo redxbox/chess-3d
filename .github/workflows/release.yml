@@ -3,7 +3,7 @@ name: Android Beta Release
 on:
   workflow_dispatch:
   push:
-    branches: [arena/01a0dc2e-chess-3d]
+    branches: ['arena/*']
     paths: [.github/workflows/release.yml]
 
 permissions:

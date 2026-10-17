@@ -7,6 +7,8 @@ config/name="Chess 3D"
 config/icon="res://assets/icon.svg"
 run/main_scene="res://src/main/main.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
+config/version="0.12.0"
+config/quit_on_go_back=false
 boot_splash/bg_color=Color(0.035, 0.045, 0.06, 1)
 
 [display/window]
@@ -15,7 +17,11 @@ size/viewport_height=1080
 size/window_width_override=1280
 size/window_height_override=720
 stretch/mode="canvas_items"
+stretch/aspect="expand"
 handheld/orientation=0
+
+[input_devices]
+pointing/emulate_mouse_from_touch=false
 
 [rendering]
 textures/vram_compression/import_etc2_astc=true
