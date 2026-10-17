@@ -256,10 +256,10 @@ func _setup_environment() -> void:
 	environment.ssao_power = 1.6
 	environment.ssr_enabled = true
 	environment.ssr_max_steps = 24
-	environment.depth_of_field_far_enabled = true
-	environment.depth_of_field_far_distance = 13.0
-	environment.depth_of_field_far_transition = 5.0
-	environment.depth_of_field_blur_amount = 0.10
+	environment.dof_blur_far_enabled = true
+	environment.dof_blur_far_distance = 13.0
+	environment.dof_blur_far_transition = 5.0
+	environment.dof_blur_amount = 0.10
 	environment.adjustment_enabled = true
 	environment.adjustment_contrast = 1.06
 	environment.adjustment_saturation = 1.08
