@@ -316,8 +316,11 @@ func _surface_map(kind: String) -> Texture2D:
 	var texture: Texture2D = null
 	match kind:
 		"marble": texture = _marble_map()
+		"marble_normal": texture = _normal_map(_marble_height())
 		"walnut": texture = _walnut_map()
+		"walnut_normal": texture = _normal_map(_walnut_height())
 		"rosewood": texture = _rosewood_map()
+		"rosewood_normal": texture = _normal_map(_rosewood_height())
 	_surface_maps[kind] = texture
 	return texture
 
@@ -438,6 +441,68 @@ func _rosewood_map() -> ImageTexture:
 	# chain uploads as black - so the far ranks, which are the squares that
 	# sample the higher levels, came back banded. Generating them here is what
 	# makes the linear-with-mipmaps filter the materials ask for actually work.
+	image.generate_mipmaps()
+	return ImageTexture.create_from_image(image)
+
+
+func _marble_height() -> PackedFloat32Array:
+	var size := _map_size()
+	var fields := _surface_fields(8123, 4409)
+	var heights := PackedFloat32Array()
+	heights.resize(size * size)
+	for y in size:
+		for x in size:
+			heights[y * size + x] = _surface_field(fields,
+				float(x) / float(size), float(y) / float(size)) * 0.35
+	return heights
+
+
+func _walnut_height() -> PackedFloat32Array:
+	var size := _map_size()
+	var fields := _surface_fields(4471, 2107)
+	var heights := PackedFloat32Array()
+	heights.resize(size * size)
+	for y in size:
+		for x in size:
+			heights[y * size + x] = _surface_field(fields,
+				float(x) / float(size), float(y) / float(size)) * 0.35
+	return heights
+
+
+func _rosewood_height() -> PackedFloat32Array:
+	var size := _map_size()
+	var fields := _surface_fields(9902, 5511)
+	var heights := PackedFloat32Array()
+	heights.resize(size * size)
+	for y in size:
+		for x in size:
+			heights[y * size + x] = _surface_field(fields,
+				float(x) / float(size), float(y) / float(size)) * 0.35
+	return heights
+
+
+## The bump map for one surface, built from the same field as its albedo so the
+## veining and the relief it produces always agree.
+##
+## The strength is a z divisor, so a larger number is a stronger bump. It is 2.6,
+## which is where the accepted renders were measured: the field is calm, so the
+## slope is small and the normal stays within a few degrees of straight up. The
+## point of the map at this amplitude is not relief, it is the last three percent
+## of shading that keeps a broad flat square from reading as a painted decal -
+## taking it off entirely pushed the pale squares the rest of the way into the
+## clip.
+func _normal_map(heights: PackedFloat32Array) -> ImageTexture:
+	var size := _map_size()
+	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
+	var strength := 2.6
+	for y in size:
+		for x in size:
+			var left: float = heights[y * size + ((x - 1 + size) % size)]
+			var right: float = heights[y * size + ((x + 1) % size)]
+			var up: float = heights[((y - 1 + size) % size) * size + x]
+			var down: float = heights[((y + 1) % size) * size + x]
+			var normal := Vector3(left - right, up - down, 1.0 / strength).normalized()
+			image.set_pixel(x, y, Color(normal.x * 0.5 + 0.5, normal.y * 0.5 + 0.5, normal.z * 0.5 + 0.5, 1.0))
 	image.generate_mipmaps()
 	return ImageTexture.create_from_image(image)
 
@@ -687,21 +752,15 @@ func _create_board() -> void:
 	# metallic_specular is pinned low on the squares: at Godot's 0.5 default a
 	# broad flat face reflects the whole sky on top of its diffuse term and
 	# clips to white under ACES.
-	# No bump map on any board surface. The squares are flat by definition and the
-	# brief asks for smooth polished stone, so the figure belongs entirely in the
-	# albedo. A bump map on a face this flat tilts the surface normal away from
-	# the light wherever the field has any slope, and a square seen well off its
-	# own normal keeps almost none of its diffuse term - which is how the pale
-	# squares ended up darker than the dark ones. The pieces keep their carve map,
-	# because there the surface is curved and the carving is the point.
 	_board_light_material = _material(light_square, square_roughness, 0.0, false, 0.05,
-		_surface_map(light_map))
+		_surface_map(light_map), _surface_map(light_map + "_normal"))
 	_board_dark_material = _material(dark_square, square_roughness, 0.0, false, 0.05,
-		_surface_map(dark_map))
+		_surface_map(dark_map), _surface_map(dark_map + "_normal"))
 	var apron_material := _material(apron, apron_roughness, apron_metallic, false, 0.06,
-		_surface_map(apron_map))
+		_surface_map(apron_map), _surface_map(apron_map + "_normal"))
 	var trim_material := _material(trim, trim_roughness, 0.90, false, 0.10)
-	var table_material := _matte_material(table, 0.55, _surface_map(apron_map), null, 0.06)
+	var table_material := _matte_material(table, 0.55,
+		_surface_map(apron_map), _surface_map(apron_map + "_normal"), 0.06)
 
 	# The grid is static, so the 32 light squares share one surface and the 32
 	# dark squares share another: two draw calls instead of 64, and two mesh
