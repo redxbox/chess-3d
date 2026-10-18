@@ -260,7 +260,7 @@ func _setup_environment() -> void:
 	$KeyLight.shadow_blur = 1.2
 	# Fill: soft, front-right and low, no shadow. This is what actually lights
 	# the side of a piece the camera can see.
-	$FillLight.light_energy = 0.26
+	$FillLight.light_energy = 0.28
 	$FillLight.light_color = Color(0.88, 0.91, 0.98)
 	$FillLight.rotation_degrees = Vector3(-60, 45, 0)
 	$FillLight.shadow_enabled = false
