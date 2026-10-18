@@ -206,19 +206,21 @@ func _setup_environment() -> void:
 	# and screen-space AA, never the exposure or the tonemapper.
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("2a1f2e")
+	environment.background_color = Color("3b2e42")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	# Exposure 0.80 is what keeps the ivory readable. Under a directional light a
-	# pale albedo climbs to 1.0 fast, and once it clips the piece is a flat white
-	# silhouette with no shading and no shadow gradient left anywhere on it.
-	environment.tonemap_exposure = 0.80
+	# Exposure is the master fader for the whole frame, and it is set against the
+	# light rig below rather than in isolation. The brief's light energies plus
+	# the pale Carrara and alabaster albedoes at exposure 0.80 pushed 85% of the
+	# classic light squares past 1.0, and a clipped square is a flat white slab
+	# with no veining and no shading left anywhere on it.
+	environment.tonemap_exposure = 0.66
 	var sky_material := ProceduralSkyMaterial.new()
 	# A dark studio with a warm horizon. The horizon band is what the brass and
 	# gold inlays reflect; with the old near-black sky every gold collar read as mud.
-	sky_material.sky_top_color = Color("3d4550")
-	sky_material.sky_horizon_color = Color("a0958a")
-	sky_material.ground_bottom_color = Color("14100f")
-	sky_material.ground_horizon_color = Color("4d4239")
+	sky_material.sky_top_color = Color("333a44")
+	sky_material.sky_horizon_color = Color("8a8074")
+	sky_material.ground_bottom_color = Color("100d0c")
+	sky_material.ground_horizon_color = Color("3a332c")
 	var studio_sky := Sky.new()
 	studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
 	studio_sky.sky_material = sky_material
@@ -242,7 +244,7 @@ func _setup_environment() -> void:
 	# silhouettes while the white set went chalky.
 	#
 	# Key: front-left and above, warm, and the only light that casts.
-	$KeyLight.light_energy = 0.85
+	$KeyLight.light_energy = 0.78
 	$KeyLight.light_color = Color(1.0, 0.96, 0.90)
 	$KeyLight.rotation_degrees = Vector3(-48, -32, 0)
 	# Contact-tight shadows. The normal bias is deliberately small: a large one
@@ -255,7 +257,7 @@ func _setup_environment() -> void:
 	$KeyLight.shadow_blur = 1.2
 	# Fill: soft, front-right and low, no shadow. This is what actually lights
 	# the side of a piece the camera can see.
-	$FillLight.light_energy = 0.30
+	$FillLight.light_energy = 0.26
 	$FillLight.light_color = Color(0.88, 0.91, 0.98)
 	$FillLight.rotation_degrees = Vector3(-60, 45, 0)
 	$FillLight.shadow_enabled = false
@@ -265,7 +267,7 @@ func _setup_environment() -> void:
 	# in the picture.
 	$RimLight.rotation_degrees = Vector3(-35, 160, 0)
 	$RimLight.light_color = Color(0.90, 0.93, 1.0)
-	$RimLight.light_energy = 0.55
+	$RimLight.light_energy = 0.50
 	$RimLight.shadow_enabled = false
 	# Bloom is off. With it on, the Compatibility renderer lifted the whole
 	# frame: the background went from the intended #2a1f2e to a flat #be82c6 and
@@ -466,7 +468,7 @@ func _setup_piece_materials() -> void:
 	# champagne-silver collars. THEME royal_wood - boxwood cream against
 	# espresso rosewood, with antique-gold trim.
 	var warm := piece_theme == "royal_wood"
-	var body_light := Color(0.84, 0.79, 0.70) if not warm else Color(0.86, 0.76, 0.60)
+	var body_light := Color(0.79, 0.75, 0.67) if not warm else Color(0.86, 0.76, 0.60)
 	var body_dark := Color(0.20, 0.21, 0.24) if not warm else Color(0.28, 0.17, 0.11)
 	var accent := Color(0.82, 0.80, 0.75) if not warm else Color(0.83, 0.65, 0.24)
 	var carve := _piece_carve_map()
@@ -628,9 +630,9 @@ func _create_board() -> void:
 	# apron and a champagne-silver trim; THEME royal_wood is honey maple over dark
 	# mahogany with a rosewood apron and an antique-gold trim.
 	var warm := piece_theme == "royal_wood"
-	var light_square := Color(0.86, 0.84, 0.80) if not warm else Color(0.82, 0.68, 0.48)
+	var light_square := Color(0.80, 0.78, 0.74) if not warm else Color(0.82, 0.68, 0.48)
 	var dark_square := Color(0.22, 0.25, 0.30) if not warm else Color(0.34, 0.16, 0.09)
-	var square_roughness := 0.18 if not warm else 0.28
+	var square_roughness := 0.26 if not warm else 0.30
 	var apron := Color(0.14, 0.14, 0.16) if not warm else Color(0.26, 0.11, 0.06)
 	var trim := Color(0.82, 0.80, 0.75) if not warm else Color(0.83, 0.65, 0.24)
 	var trim_roughness := 0.20 if not warm else 0.22
