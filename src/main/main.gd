@@ -966,9 +966,6 @@ func _flush_band(radius: float) -> Array:
 	]
 
 
-const ORNAMENT_FLUTE_SEGMENTS := 48
-
-
 ## A lathe-revolved cylinder whose radius is modulated around its circumference,
 ## which is what turns a smooth stem into real carved fluting. 48 radial segments
 ## keeps 16 grooves crisp without ballooning the triangle count.
