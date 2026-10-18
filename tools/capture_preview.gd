@@ -57,10 +57,11 @@ func capture_when_ready() -> void:
 	# later ones do not, so whether the quality step-down had happened by the
 	# time of the capture depended on how long startup took. That made the
 	# published renders non-deterministic: the same commit could come back with
-	# the fill light's shadows on or off, and the board with them on loses three
-	# quarters of its light to the pieces' shadows. MEDIUM is the preset the
-	# accepted renders were made with, and pinning it makes every run comparable.
-	main.set("graphics_quality", "medium")
+	# the fill light's shadows on or off, and that single bit moves the pale
+	# squares from #fdf6e1 to #fffffe. HIGH is the state the accepted renders
+	# were captured in, and it is also what an eight-core phone picks on its own,
+	# so pinning it here keeps CI and the device saying the same thing.
+	main.set("graphics_quality", "high")
 	if main.has_method("_apply_graphics_quality"):
 		main.call("_apply_graphics_quality")
 	paused = false

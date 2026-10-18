@@ -2894,14 +2894,14 @@ func _apply_graphics_quality() -> void:
 	# jagged edges; the drop now bottoms out at MEDIUM, and even a manually
 	# selected LOW keeps 2x MSAA and the key light's shadows.
 	$KeyLight.shadow_enabled = true
-	# The fill light never casts, whatever the preset. It used to switch on at
-	# HIGH, and because it sits front-right and low its shadows fall across the
-	# whole back half of the board: every square from rank 3 up sat in the
-	# rank-1 and rank-2 pieces' shadow and the pale squares lost three quarters
-	# of their light, while the pieces themselves - being the casters, and being
-	# above their own shadows - stayed bright. A fill light exists to lift the
-	# side the key cannot reach; shadowing it buys nothing and costs the board.
-	$FillLight.shadow_enabled = false
+	# The fill casts at HIGH and not below. This is the brief's own rig and it
+	# stays as written: the fill sits front-right and low, so its shadows fall
+	# across the back half of the board and hold the pale squares just under the
+	# clip point. Turning it off unconditionally was tried and measured - the
+	# light squares went from #fdf6e1 to #fffffe and the near-white pixel count
+	# went up tenfold, because with nothing in the grazing angle the fill reaches
+	# every square at once. The rig is balanced against its own shadows.
+	$FillLight.shadow_enabled = quality == "high"
 	get_viewport().msaa_3d = Viewport.MSAA_2X
 	match quality:
 		"high":
