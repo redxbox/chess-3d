@@ -33,12 +33,24 @@ func _initialize() -> void:
 func capture_when_ready() -> void:
 	# Main intentionally opens its setup menu at startup. Hide it only in this
 	# capture harness so the automated image shows the board and materials.
-	for frame in 2:
+	#
+	# Fifteen frames rather than two before the menu comes down: the theme is
+	# read from disk and the procedural maps, meshes and materials are all built
+	# on the first frames after that, and two frames was not enough for any of
+	# it to have happened.
+	for frame in 15:
 		await process_frame
 	var main := root.get_child(0)
 	var menu_overlay := main.get("_menu_overlay") as ColorRect
 	if is_instance_valid(menu_overlay):
 		menu_overlay.hide()
+	# The FPS readout is hidden too. The CI runner has no GPU, so its first
+	# frames land roughly a second apart and the counter settles on "1 FPS",
+	# which then became the number visible in every published preview. On a real
+	# device the label still works exactly as before.
+	var fps_label := main.get_node_or_null("UI/PerformanceReadout") as Label
+	if is_instance_valid(fps_label):
+		fps_label.hide()
 	paused = false
 
 	# Allow procedural sky radiance, shaders, and UI layout to settle.
