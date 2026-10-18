@@ -14,10 +14,10 @@ rotation_degrees = Vector3(-47, 43, 0)
 light_color = Color(1, 0.94, 0.85, 1)
 light_energy = 0.85
 shadow_enabled = true
-shadow_bias = 0.01
-shadow_normal_bias = 0.8
+shadow_bias = 0.02
+shadow_normal_bias = 1.0
 shadow_opacity = 0.62
-shadow_blur = 1.5
+shadow_blur = 1.2
 directional_shadow_max_distance = 18.0
 
 [node name="FillLight" type="DirectionalLight3D" parent="."]

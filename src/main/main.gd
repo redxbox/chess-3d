@@ -28,7 +28,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.12.0"
-const APP_BUILD := "22.48"
+const APP_BUILD := "22.49"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
@@ -223,20 +223,29 @@ func _setup_environment() -> void:
 	studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
 	studio_sky.sky_material = sky_material
 	environment.sky = studio_sky
+	# Both the ambient term and the specular term come from the sky rather than
+	# from a flat colour. A colour-driven ambient is what made the gold and the
+	# polished wood read as dull plastic: there was nothing for them to reflect,
+	# so the only highlights on a metallic surface were the three directional
+	# lights. The sky gives every metal edge a real environment to mirror.
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	# A neutral ambient keeps the ivory shading readable. A warm tint was tried
-	# and moved the whole board off the calibrated values for no visible gain.
-	environment.ambient_light_color = Color.WHITE
-	# Directional lights are additive, so the sum of key + fill + rim is what
-	# decides whether a pale surface survives. 0.85 + 0.25 + 0.30 is deliberately
-	# well under the 1.85 the board carried when the ivory still clipped.
-	environment.ambient_light_energy = 0.25
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	environment.ambient_light_sky_contribution = 1.0
+	# Scales the sky-driven ambient. Directional lights are additive on top of
+	# it, so the sum of key + fill + rim is what decides whether a pale surface
+	# survives; 0.85 + 0.25 + 0.30 is deliberately well under the 1.85 the board
+	# carried when the ivory still clipped.
+	environment.ambient_light_energy = 0.35
 	$KeyLight.light_energy = 0.85
 	$KeyLight.light_color = Color(1.0, 0.94, 0.85)
 	$KeyLight.rotation_degrees = Vector3(-47, 43, 0)
+	# Contact-tight shadows: a slightly positive bias plus a full normal bias
+	# pulls the shadow right up against the base of every piece instead of
+	# leaving it floating, and a narrow blur keeps the edge readable.
 	$KeyLight.shadow_enabled = true
-	$KeyLight.shadow_blur = 1.5
+	$KeyLight.shadow_bias = 0.02
+	$KeyLight.shadow_normal_bias = 1.0
+	$KeyLight.shadow_blur = 1.2
 	$FillLight.light_energy = 0.25
 	$FillLight.light_color = Color("c8d6ea")
 	$FillLight.shadow_enabled = false
@@ -563,52 +572,68 @@ func _create_board() -> void:
 		Color(0.72, 0.66, 0.56), 0.30, 0.0, false, 0.06, _surface_map("marble"), _surface_map("marble_normal"))
 	_board_dark_material = _material(
 		Color(0.32, 0.14, 0.10), 0.26, 0.0, false, 0.06, _surface_map("walnut"), _surface_map("walnut_normal"))
-	var light_material := _board_light_material
-	var dark_material := _board_dark_material
 
+	# The grid is static, so the 32 light squares share one surface and the 32
+	# dark squares share another: two draw calls instead of 64, and two mesh
+	# resources instead of 64 unique BoxMeshes. Each square is still centred at
+	# (file - 3.5) * tile_size and (rank - 3.5) * tile_size, so the grid spans
+	# exactly -4.0 * tile_size to +4.0 * tile_size around the origin.
+	var square_mesh := _shared_square_mesh()
+	var light_tool := SurfaceTool.new()
+	light_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var dark_tool := SurfaceTool.new()
+	dark_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for rank in BOARD_SIZE:
 		for file in BOARD_SIZE:
-			var square := MeshInstance3D.new()
-			var mesh := BoxMesh.new()
-			mesh.size = Vector3(SQUARE_SIZE, 0.14, SQUARE_SIZE)
-			mesh.material = light_material if (file + rank) % 2 == 0 else dark_material
-			square.mesh = mesh
-			square.position = Vector3(
-				(file - 3.5) * SQUARE_SIZE,
-				0.0,
-				(rank - 3.5) * SQUARE_SIZE
-			)
-			board.add_child(square)
+			var square_tool := light_tool if (file + rank) % 2 == 0 else dark_tool
+			square_tool.append_from(square_mesh, 0, Transform3D(Basis.IDENTITY,
+				Vector3((file - 3.5) * SQUARE_SIZE, 0.0, (rank - 3.5) * SQUARE_SIZE)))
+	for merged in [light_tool, dark_tool]:
+		var squares := MeshInstance3D.new()
+		squares.mesh = merged.commit()
+		squares.material_override = _board_light_material if merged == light_tool else _board_dark_material
+		board.add_child(squares)
 
 	# Brass inlay and rosewood moulding, both built by _add_frame_rails(): the two
 	# long rails run the full outer width and the two short rails fill exactly the
-	# gap between them, so there is no overlapping corner plank and no seam along
-	# the run. The old version had both.
+	# clear span between them, so there is no overlapping corner plank and no seam
+	# along the run. The first tier's inner face sits at exactly +/-4.0, so it
+	# meets the tiles for the full tile height and no slot opens underneath the
+	# brass trim for the backdrop to show through.
 	var brass := _material(Color(0.75, 0.58, 0.22), 0.25, 0.85, false, 0.50)
 	var frame_wood := _matte_material(Color("7a4e3a"), 0.48, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.12)
 
-	# Thin metallic inner trim, recessed a hair below the square tops so it reads
-	# as an inset metal line rather than a painted strip.
-	_add_frame_rails(4.06, 0.06, 0.05, 0.04, brass)
+	# Thin metallic inner trim, hugging the grid edge.
+	_add_frame_rails(4.04, 0.04, 0.05, 0.04, brass)
 	# Outer moulding: three stacked tiers with shrinking footprints, which fakes a
 	# bevelled edge where a single box would show a hard 90 degrees.
-	_add_frame_rails(4.50, 0.44, 0.00, 0.14, frame_wood)
+	_add_frame_rails(4.50, 0.50, 0.00, 0.14, frame_wood)
 	_add_frame_rails(4.44, 0.38, 0.09, 0.04, brass)
 	_add_frame_rails(4.38, 0.32, 0.135, 0.05, frame_wood)
 
-	# The slab under the tiles. Every box is a single centred box, so its top face
-	# meets the tile bottoms exactly and nothing overlaps or leaves a gap.
+	# The slab under the tiles. Every box is a single centred box whose top face
+	# lands exactly on the one above it, so the stack runs continuously from the
+	# tile bottoms down to the table with no gap and no overhang on any side: the
+	# first slab is exactly as wide as the outer frame.
 	var table_material := _matte_material(Color("3a2620"), 0.72, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.06)
 	var table_edge_material := _matte_material(Color("4a322a"), 0.62, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.08)
-	# Each slab's top face lands exactly on the one above it, so the stack is
-	# continuous from the tile bottoms down to the table with no gap and no
-	# overlapping seam on any side.
 	_add_board_box(Vector3.ZERO, Vector3(9.00, 0.10, 9.00), table_edge_material)
 	_add_board_box(Vector3(0, -0.28, 0), Vector3(9.60, 0.22, 9.60), table_material)
 	_add_board_box(Vector3(0, -0.47, 0), Vector3(10.90, 0.16, 10.90), table_edge_material)
 	_add_board_box(Vector3(0, -0.72, 0), Vector3(11.80, 0.34, 11.80), table_material)
 
 	_add_board_coordinates()
+
+
+## One shared box for every square on the board. Building it once instead of
+## once per square is what lets all 64 of them collapse into two surfaces.
+func _shared_square_mesh() -> BoxMesh:
+	if _mesh_cache.has("board_square"):
+		return _mesh_cache["board_square"]
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(SQUARE_SIZE, 0.14, SQUARE_SIZE)
+	_mesh_cache["board_square"] = mesh
+	return mesh
 
 
 ## Four rails forming a rectangular frame. The two long rails run the full outer
@@ -779,8 +804,6 @@ func _add_royal_wood_piece(piece: Node3D, kind: String, is_white: bool, wood: Ma
 
 const ORNAMENT_BODY := 0
 const ORNAMENT_ACCENT := 1
-## Beads in the ring around every piece's lower collar.
-const ORNAMENT_BEADS := 12
 
 
 func _radial_segments() -> int:
@@ -832,6 +855,115 @@ func _ornament_add(parts: Array, shape: String, a: float, b: float, c: float, po
 	if rotation != Vector3.ZERO:
 		basis = Basis.from_euler(Vector3(deg_to_rad(rotation.x), deg_to_rad(rotation.y), deg_to_rad(rotation.z)))
 	parts.append([primitive, Transform3D(basis, position), material_index])
+
+
+const ORNAMENT_FLUTE_SEGMENTS := 48
+## Fluting on the stem is deliberately shallow: 12 grooves, 0.008 of amplitude,
+## and only on the narrow mid-stem shaft. The base and the head stay smooth.
+const ORNAMENT_FLUTE_COUNT := 12
+const ORNAMENT_FLUTE_DEPTH := 0.008
+## A flush inlay is 0.015 tall and stands only 0.004 proud of the body profile.
+const ORNAMENT_BAND_HEIGHT := 0.015
+const ORNAMENT_BAND_PROUD := 0.004
+
+
+## Revolves a 2D profile around the Y axis into two meshes, one per material
+## slot. Each ring is [radius, y, hard, gold]: `hard` duplicates the ring so its
+## normal splits there, which is what gives a razor-sharp machined crease at a
+## base step or a collar disc while the curves between rings stay silky smooth.
+## `gold` routes the ring to the second slot, so the trim is a separate material
+## on the same mesh rather than a second draw call.
+func _lathe_surfaces(profile: Array, segments: int) -> Array:
+	var body_v := PackedVector3Array()
+	var body_n := PackedVector3Array()
+	var body_uv := PackedVector2Array()
+	var body_i := PackedInt32Array()
+	var gold_v := PackedVector3Array()
+	var gold_n := PackedVector3Array()
+	var gold_uv := PackedVector2Array()
+	var gold_i := PackedInt32Array()
+	var ring_count := profile.size()
+	var tangents := PackedVector2Array()
+	tangents.resize(ring_count)
+	for i in ring_count:
+		var before := maxi(0, i - 1)
+		var after := mini(ring_count - 1, i + 1)
+		var delta := Vector2(
+			float(profile[after][0]) - float(profile[before][0]),
+			float(profile[after][1]) - float(profile[before][1]))
+		tangents[i] = delta.normalized() if delta.length() > 0.0001 else Vector2(0.0, 1.0)
+	for i in ring_count - 1:
+		var a: Array = profile[i]
+		var b: Array = profile[i + 1]
+		var edge := Vector2(float(b[0]) - float(a[0]), float(b[1]) - float(a[1]))
+		edge = edge.normalized() if edge.length() > 0.0001 else Vector2(0.0, 1.0)
+		var tangent_a: Vector2 = edge if int(a[2]) == 1 else tangents[i]
+		var tangent_b: Vector2 = edge if int(b[2]) == 1 else tangents[i + 1]
+		var use_gold := int(a[3]) == 1 or int(b[3]) == 1
+		var first: int
+		var second: int
+		if use_gold:
+			first = _lathe_ring_into(gold_v, gold_n, gold_uv, float(a[0]), float(a[1]), tangent_a, segments)
+			second = _lathe_ring_into(gold_v, gold_n, gold_uv, float(b[0]), float(b[1]), tangent_b, segments)
+		else:
+			first = _lathe_ring_into(body_v, body_n, body_uv, float(a[0]), float(a[1]), tangent_a, segments)
+			second = _lathe_ring_into(body_v, body_n, body_uv, float(b[0]), float(b[1]), tangent_b, segments)
+		var indices: PackedInt32Array = gold_i if use_gold else body_i
+		for j in segments:
+			var next_j := (j + 1) % segments
+			indices.append(first + j)
+			indices.append(second + j)
+			indices.append(first + next_j)
+			indices.append(first + next_j)
+			indices.append(second + j)
+			indices.append(second + next_j)
+	return [
+		_lathe_mesh(body_v, body_n, body_uv, body_i),
+		_lathe_mesh(gold_v, gold_n, gold_uv, gold_i)
+	]
+
+
+## Appends one revolved ring and returns the index of its first vertex. Packed
+## arrays are passed by reference, so the caller's buffers grow in place.
+func _lathe_ring_into(vertices: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, radius: float, height: float, tangent: Vector2, segments: int) -> int:
+	var start: int = vertices.size()
+	for j in segments:
+		var angle := TAU * float(j) / float(segments)
+		# The normal is the profile tangent turned into this ring's radial plane,
+		# so it stays perpendicular to the surface however the profile leans.
+		var normal := Vector3(tangent.y * cos(angle), -tangent.x, tangent.y * sin(angle))
+		vertices.append(Vector3(cos(angle) * radius, height, sin(angle) * radius))
+		normals.append(normal.normalized())
+		uvs.append(Vector2(float(j) / float(segments), height))
+	return start
+
+
+func _lathe_mesh(vertices: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, indices: PackedInt32Array) -> Mesh:
+	if vertices.is_empty():
+		return null
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+## An ultra-thin flush inlay: 0.015 tall, standing only 0.004 proud of the body
+## profile, revolved as a flat annulus so it reads as machined metal let into
+## the wood rather than as a donut ring sitting on top of it.
+func _flush_band(radius: float) -> Array:
+	var half := ORNAMENT_BAND_HEIGHT * 0.5
+	var outer := radius + ORNAMENT_BAND_PROUD
+	return [
+		[radius, -half, 1, 1],
+		[outer, -half, 1, 1],
+		[outer, half, 1, 1],
+		[radius, half, 1, 1]
+	]
 
 
 const ORNAMENT_FLUTE_SEGMENTS := 48
@@ -982,43 +1114,45 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	var neck_y: float = profile.neck_y
 	var flutes: int = profile.flutes
 	var metal_foot := variant == "royal_wood"
-	# The carved set is finished differently from the classic one: a taller,
-	# wider turned foot and chunkier studs, so it reads as a different object
-	# rather than a recolour of the same one.
-	var bead_radius := 0.020 if metal_foot else 0.015
+	# The carved set is finished differently from the classic one: a taller, wider
+	# turned foot, so it reads as a different object rather than a recolour.
 	if metal_foot:
 		foot *= 1.14
-	# Tiered foot: two stepped discs with a micro-bevel ring between them, so the
-	# base reads as turned wood clad in metal rather than a flat cylinder. The
-	# lower collar is a fluted lathe, not a smooth cylinder.
+	# Tiered foot. The lower collar is a fluted lathe rather than a smooth
+	# cylinder, and the fluting is shallow: 0.008 of amplitude over 16 grooves.
 	_ornament_add(parts, "cylinder", foot * 0.88, foot, 0.05, Vector3(0, 0.025, 0), ORNAMENT_ACCENT if metal_foot else ORNAMENT_BODY)
-	# Gold ring one of three: at the bottom base step.
-	_ornament_add(parts, "torus", foot * 0.93, 0.010, 0.0, Vector3(0, 0.05, 0), ORNAMENT_ACCENT)
-	_fluted_add(parts, foot * 0.60, foot * 0.88, 0.055, Vector3(0, 0.082, 0), ORNAMENT_BODY, 16, 0.025)
-	# Gold ring two of three: the patterned ring above the base bulge.
-	_ornament_add(parts, "torus", foot * 0.64, 0.009, 0.0, Vector3(0, 0.108, 0), ORNAMENT_ACCENT)
-	# Beading: twelve tiny gold spheres evenly spaced around the lower collar.
-	for i in ORNAMENT_BEADS:
-		var bead_angle := PI * 2.0 * float(i) / float(ORNAMENT_BEADS)
-		_ornament_add(parts, "sphere", bead_radius, 0.0, 0.0,
-			Vector3(cos(bead_angle) * foot * 0.72, 0.108, sin(bead_angle) * foot * 0.72), ORNAMENT_ACCENT)
+	_fluted_add(parts, foot * 0.60, foot * 0.88, 0.055, Vector3(0, 0.082, 0), ORNAMENT_BODY, 16, 0.012)
+	# Flush inlay one of two, let into the base step. A flat revolved annulus
+	# 0.015 tall standing 0.004 proud, not a donut ring sitting on the surface:
+	# the twelve gold spheres that used to ring the base read as a cogwheel.
+	_flush_band_add(parts, foot * 0.64, Vector3(0, 0.108, 0))
 	# A second collar at the top of the foot, only on the carved set.
 	if metal_foot:
 		_ornament_add(parts, "torus", foot * 0.98, 0.016, 0.0, Vector3(0, 0.135, 0), ORNAMENT_ACCENT)
-	# Vertical fluting up the stem: a lathe sleeve whose radius is modulated
-	# around its circumference, so the grooves are real geometry that catches
-	# shadow rather than a texture trick.
+	# Shallow fluting, and only on the narrow mid-stem shaft: the base below and
+	# the head above stay smooth and polished.
 	if flutes > 0:
 		var flute_bottom := 0.125
 		var flute_height: float = stem_top - flute_bottom
-		_fluted_add(parts, stem + 0.014, stem + 0.014, flute_height,
-			Vector3(0, flute_bottom + flute_height * 0.5, 0), ORNAMENT_BODY, 16, 0.025)
+		_fluted_add(parts, stem + 0.004, stem + 0.004, flute_height,
+			Vector3(0, flute_bottom + flute_height * 0.5, 0), ORNAMENT_BODY,
+			ORNAMENT_FLUTE_COUNT, ORNAMENT_FLUTE_DEPTH)
 	# Mid-stem brass band.
-	_ornament_add(parts, "torus", stem + 0.016, 0.009, 0.0, Vector3(0, stem_top * 0.5, 0), ORNAMENT_ACCENT)
-	# Turned neck collar with a brass inlay.
+	_ornament_add(parts, "torus", stem + 0.012, 0.007, 0.0, Vector3(0, stem_top * 0.5, 0), ORNAMENT_ACCENT)
+	# Turned neck collar, with the second flush inlay let into it.
 	_ornament_add(parts, "cylinder", neck * 0.88, neck, 0.07, Vector3(0, neck_y - 0.045, 0), ORNAMENT_BODY)
-	_ornament_add(parts, "torus", neck + 0.013, 0.011, 0.0, Vector3(0, neck_y + 0.015, 0), ORNAMENT_ACCENT)
+	_flush_band_add(parts, neck, Vector3(0, neck_y + 0.015, 0))
 	return parts
+
+
+## Appends one flush inlay band to a part list, taking only the gold surface out
+## of the lathe so it lands in the trim mesh's gold slot.
+func _flush_band_add(parts: Array, radius: float, position: Vector3) -> void:
+	var key := "band:%s:%d" % [radius, ORNAMENT_FLUTE_SEGMENTS]
+	if not _mesh_cache.has(key):
+		var surfaces := _lathe_surfaces(_flush_band(radius), ORNAMENT_FLUTE_SEGMENTS)
+		_mesh_cache[key] = surfaces[1]
+	parts.append([_mesh_cache[key], Transform3D(Basis.IDENTITY, position), ORNAMENT_ACCENT])
 
 
 ## Piece-specific crowns and caps, replacing the old single-ring accents.
@@ -2376,7 +2510,10 @@ func _monitor_performance() -> void:
 		if animating_move or ai_thinking:
 			return
 		var current := _effective_graphics_quality()
-		_auto_quality_override = "medium" if current == "high" else "low"
+		# One step only, and it stops at MEDIUM. Falling to LOW turned off the
+		# shadows and the anti-aliasing, which read as a broken board rather than
+		# as a slower one.
+		_auto_quality_override = "medium" if current == "high" else "medium"
 		_low_fps_seconds = 0
 		# Apply renderer settings now. Piece LOD refreshes after the next completed
 		# move, avoiding node replacement during Android touch/tween dispatch.
@@ -2391,9 +2528,9 @@ func _effective_graphics_quality() -> String:
 	if _auto_quality_override != "":
 		return _auto_quality_override
 	var cores := OS.get_processor_count()
-	if cores <= 4:
-		return "low"
-	elif cores <= 6:
+	# The floor for AUTO is MEDIUM, never LOW: LOW disables the shadows that make
+	# the pieces sit on the board.
+	if cores <= 6:
 		return "medium"
 	return "high"
 
@@ -2402,17 +2539,19 @@ func _apply_graphics_quality() -> void:
 	var quality := _effective_graphics_quality()
 	capture_effects_enabled = quality != "low"
 	decor_root.visible = quality != "low"
-	$KeyLight.shadow_enabled = quality != "low"
+	# Shadows and MSAA are never traded away. AUTO used to fall all the way to
+	# LOW, which switched both off and left the pieces floating on the board with
+	# jagged edges; the drop now bottoms out at MEDIUM, and even a manually
+	# selected LOW keeps 2x MSAA and the key light's shadows.
+	$KeyLight.shadow_enabled = true
 	$FillLight.shadow_enabled = quality == "high"
+	get_viewport().msaa_3d = Viewport.MSAA_2X
 	match quality:
 		"high":
-			get_viewport().msaa_3d = Viewport.MSAA_2X
 			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
 		"medium":
-			get_viewport().msaa_3d = Viewport.MSAA_DISABLED
 			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
 		_:
-			get_viewport().msaa_3d = Viewport.MSAA_DISABLED
 			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 	_update_graphics_button()
 
