@@ -217,10 +217,10 @@ func _setup_environment() -> void:
 	var sky_material := ProceduralSkyMaterial.new()
 	# A dark studio with a warm horizon. The horizon band is what the brass and
 	# gold inlays reflect; with the old near-black sky every gold collar read as mud.
-	sky_material.sky_top_color = Color("333a44")
-	sky_material.sky_horizon_color = Color("8a8074")
-	sky_material.ground_bottom_color = Color("100d0c")
-	sky_material.ground_horizon_color = Color("3a332c")
+	sky_material.sky_top_color = Color("3d4550")
+	sky_material.sky_horizon_color = Color("a0958a")
+	sky_material.ground_bottom_color = Color("14100f")
+	sky_material.ground_horizon_color = Color("4d4239")
 	var studio_sky := Sky.new()
 	studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
 	studio_sky.sky_material = sky_material
@@ -235,9 +235,12 @@ func _setup_environment() -> void:
 	environment.ambient_light_sky_contribution = 1.0
 	# Scales the sky-driven ambient. Directional lights are additive on top of
 	# it, so the sum of key + fill + rim is what decides whether a pale surface
-	# survives; 0.85 + 0.25 + 0.30 is deliberately well under the 1.85 the board
-	# carried when the ivory still clipped.
-	environment.ambient_light_energy = 0.35
+	# survives. The ambient is raised rather than cut whenever the frame is
+	# brought down, because it is the only term that reaches the surfaces the
+	# key light cannot see: at 0.35 every table step sitting in the board's own
+	# shadow collapsed to pure black, which is exactly the void the brief wants
+	# gone.
+	environment.ambient_light_energy = 0.45
 	# A three-point studio rig, so both sets read as solid volume at once. The
 	# old single key light left the camera-facing side of every dark piece in
 	# its own shadow, which is why the black set used to collapse into
@@ -468,7 +471,7 @@ func _setup_piece_materials() -> void:
 	# champagne-silver collars. THEME royal_wood - boxwood cream against
 	# espresso rosewood, with antique-gold trim.
 	var warm := piece_theme == "royal_wood"
-	var body_light := Color(0.79, 0.75, 0.67) if not warm else Color(0.86, 0.76, 0.60)
+	var body_light := Color(0.82, 0.78, 0.70) if not warm else Color(0.86, 0.76, 0.60)
 	var body_dark := Color(0.20, 0.21, 0.24) if not warm else Color(0.28, 0.17, 0.11)
 	var accent := Color(0.82, 0.80, 0.75) if not warm else Color(0.83, 0.65, 0.24)
 	var carve := _piece_carve_map()
@@ -636,7 +639,7 @@ func _create_board() -> void:
 	var apron := Color(0.14, 0.14, 0.16) if not warm else Color(0.26, 0.11, 0.06)
 	var trim := Color(0.82, 0.80, 0.75) if not warm else Color(0.83, 0.65, 0.24)
 	var trim_roughness := 0.20 if not warm else 0.22
-	var table := Color(0.11, 0.11, 0.14) if not warm else Color(0.20, 0.09, 0.06)
+	var table := Color(0.27, 0.23, 0.31) if not warm else Color(0.24, 0.13, 0.08)
 	var light_map := "marble" if not warm else "walnut"
 	var dark_map := "walnut" if not warm else "rosewood"
 	var apron_map := "marble" if not warm else "rosewood"
