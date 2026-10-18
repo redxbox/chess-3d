@@ -316,11 +316,8 @@ func _surface_map(kind: String) -> Texture2D:
 	var texture: Texture2D = null
 	match kind:
 		"marble": texture = _marble_map()
-		"marble_normal": texture = _normal_map(_marble_height())
 		"walnut": texture = _walnut_map()
-		"walnut_normal": texture = _normal_map(_walnut_height())
 		"rosewood": texture = _rosewood_map()
-		"rosewood_normal": texture = _normal_map(_rosewood_height())
 	_surface_maps[kind] = texture
 	return texture
 
@@ -355,13 +352,15 @@ func _surface_noise(seed_value: int, frequency: float, octaves: int = 2) -> Fast
 ## The frequencies are in "features across the texture", because the maps are
 ## sampled on a 0..1 grid and FastNoiseLite's own frequency multiplies that grid.
 ## Four octaves were tried first and rejected: each octave doubles the frequency,
-## so the top one landed under four pixels and every square on the far side of
-## the board sampled it one texel to one pixel, which is exactly the banding the
-## brief is asking to have gone. Two octaves keeps the finest detail near twelve
-## pixels, which is where a 1536-pixel-wide render still has a mip level to fall
-## back on.
+## so the top one landed under four texels and every square on the far side of
+## the board - which is where a tile is only nine pixels wide on screen - sampled
+## it one texel to one pixel. That is exactly the banding the brief asks to have
+## gone. Two octaves keeps the finest detail near thirty texels, where the
+## mip chain the materials filter with has something to fall back on, and the
+## shade band is held to four percent so the squares stay smooth and polished
+## with a hint of figure rather than a pattern.
 func _surface_fields(seed_value: int, fine_seed: int) -> Array:
-	return [_surface_noise(seed_value, 1.0), _surface_noise(fine_seed, 3.0)]
+	return [_surface_noise(seed_value, 0.8), _surface_noise(fine_seed, 2.0)]
 
 
 ## The shared softness field for one surface, sampled on a unit grid.
@@ -379,7 +378,7 @@ func _marble_map() -> ImageTexture:
 		for x in size:
 			var u := float(x) / float(size)
 			var v := float(y) / float(size)
-			var shade := clampf(0.97 + 0.03 * _surface_field(fields, u, v), 0.94, 1.0)
+			var shade := clampf(0.975 + 0.025 * _surface_field(fields, u, v), 0.955, 0.995)
 			image.set_pixel(x, y, Color(shade, shade * 0.99, shade * 0.965, 1.0))
 	# Image.create reserves the mip chain but does not fill it, and an unfilled
 	# chain uploads as black - so the far ranks, which are the squares that
@@ -387,18 +386,6 @@ func _marble_map() -> ImageTexture:
 	# makes the linear-with-mipmaps filter the materials ask for actually work.
 	image.generate_mipmaps()
 	return ImageTexture.create_from_image(image)
-
-
-func _marble_height() -> PackedFloat32Array:
-	var size := _map_size()
-	var fields := _surface_fields(8123, 4409)
-	var heights := PackedFloat32Array()
-	heights.resize(size * size)
-	for y in size:
-		for x in size:
-			heights[y * size + x] = _surface_field(fields,
-				float(x) / float(size), float(y) / float(size))
-	return heights
 
 
 func _walnut_map() -> ImageTexture:
@@ -409,7 +396,7 @@ func _walnut_map() -> ImageTexture:
 		for x in size:
 			var u := float(x) / float(size)
 			var v := float(y) / float(size)
-			var shade := clampf(0.97 + 0.03 * _surface_field(fields, u, v), 0.94, 1.0)
+			var shade := clampf(0.975 + 0.025 * _surface_field(fields, u, v), 0.955, 0.995)
 			image.set_pixel(x, y, Color(shade, shade, shade, 1.0))
 	# Image.create reserves the mip chain but does not fill it, and an unfilled
 	# chain uploads as black - so the far ranks, which are the squares that
@@ -417,18 +404,6 @@ func _walnut_map() -> ImageTexture:
 	# makes the linear-with-mipmaps filter the materials ask for actually work.
 	image.generate_mipmaps()
 	return ImageTexture.create_from_image(image)
-
-
-func _walnut_height() -> PackedFloat32Array:
-	var size := _map_size()
-	var fields := _surface_fields(4471, 2107)
-	var heights := PackedFloat32Array()
-	heights.resize(size * size)
-	for y in size:
-		for x in size:
-			heights[y * size + x] = _surface_field(fields,
-				float(x) / float(size), float(y) / float(size))
-	return heights
 
 
 func _rosewood_map() -> ImageTexture:
@@ -439,47 +414,12 @@ func _rosewood_map() -> ImageTexture:
 		for x in size:
 			var u := float(x) / float(size)
 			var v := float(y) / float(size)
-			var shade := clampf(0.97 + 0.03 * _surface_field(fields, u, v), 0.94, 1.0)
+			var shade := clampf(0.975 + 0.025 * _surface_field(fields, u, v), 0.955, 0.995)
 			image.set_pixel(x, y, Color(shade, shade, shade, 1.0))
 	# Image.create reserves the mip chain but does not fill it, and an unfilled
 	# chain uploads as black - so the far ranks, which are the squares that
 	# sample the higher levels, came back banded. Generating them here is what
 	# makes the linear-with-mipmaps filter the materials ask for actually work.
-	image.generate_mipmaps()
-	return ImageTexture.create_from_image(image)
-
-
-func _rosewood_height() -> PackedFloat32Array:
-	var size := _map_size()
-	var fields := _surface_fields(9902, 5511)
-	var heights := PackedFloat32Array()
-	heights.resize(size * size)
-	for y in size:
-		for x in size:
-			heights[y * size + x] = _surface_field(fields,
-				float(x) / float(size), float(y) / float(size))
-	return heights
-
-
-func _normal_map(heights: PackedFloat32Array) -> ImageTexture:
-	var size := _map_size()
-	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
-	# This is the z divisor, so a LARGER number is a STRONGER bump, not a weaker
-	# one. It was raised to 5.0 and immediately turned every flat square dark:
-	# a divisor of 5 puts the surface normal at a sixty-degree tilt wherever the
-	# field has any slope, and a square seen at sixty degrees off its own normal
-	# loses most of its diffuse term. The divisor is now well under 1, which
-	# keeps the whole board within about four degrees of flat - the brief asks
-	# for smooth polished stone, and the figure belongs in the albedo.
-	var strength := 0.45
-	for y in size:
-		for x in size:
-			var left: float = heights[y * size + ((x - 1 + size) % size)]
-			var right: float = heights[y * size + ((x + 1) % size)]
-			var up: float = heights[((y - 1 + size) % size) * size + x]
-			var down: float = heights[((y + 1) % size) * size + x]
-			var normal := Vector3(left - right, up - down, 1.0 / strength).normalized()
-			image.set_pixel(x, y, Color(normal.x * 0.5 + 0.5, normal.y * 0.5 + 0.5, normal.z * 0.5 + 0.5, 1.0))
 	image.generate_mipmaps()
 	return ImageTexture.create_from_image(image)
 
@@ -729,15 +669,21 @@ func _create_board() -> void:
 	# metallic_specular is pinned low on the squares: at Godot's 0.5 default a
 	# broad flat face reflects the whole sky on top of its diffuse term and
 	# clips to white under ACES.
+	# No bump map on any board surface. The squares are flat by definition and the
+	# brief asks for smooth polished stone, so the figure belongs entirely in the
+	# albedo. A bump map on a face this flat tilts the surface normal away from
+	# the light wherever the field has any slope, and a square seen well off its
+	# own normal keeps almost none of its diffuse term - which is how the pale
+	# squares ended up darker than the dark ones. The pieces keep their carve map,
+	# because there the surface is curved and the carving is the point.
 	_board_light_material = _material(light_square, square_roughness, 0.0, false, 0.05,
-		_surface_map(light_map), _surface_map(light_map + "_normal"))
+		_surface_map(light_map))
 	_board_dark_material = _material(dark_square, square_roughness, 0.0, false, 0.05,
-		_surface_map(dark_map), _surface_map(dark_map + "_normal"))
+		_surface_map(dark_map))
 	var apron_material := _material(apron, apron_roughness, apron_metallic, false, 0.06,
-		_surface_map(apron_map), _surface_map(apron_map + "_normal"))
+		_surface_map(apron_map))
 	var trim_material := _material(trim, trim_roughness, 0.90, false, 0.10)
-	var table_material := _matte_material(table, 0.55,
-		_surface_map(apron_map), _surface_map(apron_map + "_normal"), 0.06)
+	var table_material := _matte_material(table, 0.55, _surface_map(apron_map), null, 0.06)
 
 	# The grid is static, so the 32 light squares share one surface and the 32
 	# dark squares share another: two draw calls instead of 64, and two mesh
