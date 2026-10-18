@@ -361,7 +361,7 @@ func _surface_noise(seed_value: int, frequency: float, octaves: int = 2) -> Fast
 ## pixels, which is where a 1536-pixel-wide render still has a mip level to fall
 ## back on.
 func _surface_fields(seed_value: int, fine_seed: int) -> Array:
-	return [_surface_noise(seed_value, 1.0), _surface_noise(fine_seed, 5.0)]
+	return [_surface_noise(seed_value, 1.0), _surface_noise(fine_seed, 3.0)]
 
 
 ## The shared softness field for one surface, sampled on a unit grid.
@@ -381,6 +381,11 @@ func _marble_map() -> ImageTexture:
 			var v := float(y) / float(size)
 			var shade := clampf(0.97 + 0.03 * _surface_field(fields, u, v), 0.94, 1.0)
 			image.set_pixel(x, y, Color(shade, shade * 0.99, shade * 0.965, 1.0))
+	# Image.create reserves the mip chain but does not fill it, and an unfilled
+	# chain uploads as black - so the far ranks, which are the squares that
+	# sample the higher levels, came back banded. Generating them here is what
+	# makes the linear-with-mipmaps filter the materials ask for actually work.
+	image.generate_mipmaps()
 	return ImageTexture.create_from_image(image)
 
 
@@ -406,6 +411,11 @@ func _walnut_map() -> ImageTexture:
 			var v := float(y) / float(size)
 			var shade := clampf(0.97 + 0.03 * _surface_field(fields, u, v), 0.94, 1.0)
 			image.set_pixel(x, y, Color(shade, shade, shade, 1.0))
+	# Image.create reserves the mip chain but does not fill it, and an unfilled
+	# chain uploads as black - so the far ranks, which are the squares that
+	# sample the higher levels, came back banded. Generating them here is what
+	# makes the linear-with-mipmaps filter the materials ask for actually work.
+	image.generate_mipmaps()
 	return ImageTexture.create_from_image(image)
 
 
@@ -431,6 +441,11 @@ func _rosewood_map() -> ImageTexture:
 			var v := float(y) / float(size)
 			var shade := clampf(0.97 + 0.03 * _surface_field(fields, u, v), 0.94, 1.0)
 			image.set_pixel(x, y, Color(shade, shade, shade, 1.0))
+	# Image.create reserves the mip chain but does not fill it, and an unfilled
+	# chain uploads as black - so the far ranks, which are the squares that
+	# sample the higher levels, came back banded. Generating them here is what
+	# makes the linear-with-mipmaps filter the materials ask for actually work.
+	image.generate_mipmaps()
 	return ImageTexture.create_from_image(image)
 
 
@@ -465,6 +480,7 @@ func _normal_map(heights: PackedFloat32Array) -> ImageTexture:
 			var down: float = heights[((y + 1) % size) * size + x]
 			var normal := Vector3(left - right, up - down, 1.0 / strength).normalized()
 			image.set_pixel(x, y, Color(normal.x * 0.5 + 0.5, normal.y * 0.5 + 0.5, normal.z * 0.5 + 0.5, 1.0))
+	image.generate_mipmaps()
 	return ImageTexture.create_from_image(image)
 
 
@@ -528,6 +544,7 @@ func _piece_carve_map() -> Texture2D:
 			var down: float = heights[((y + 1) % size) * size + x]
 			var normal := Vector3(left - right, up - down, 1.0 / strength).normalized()
 			image.set_pixel(x, y, Color(normal.x * 0.5 + 0.5, normal.y * 0.5 + 0.5, normal.z * 0.5 + 0.5, 1.0))
+	image.generate_mipmaps()
 	var texture := ImageTexture.create_from_image(image)
 	_mesh_cache["carve_normal"] = texture
 	return texture
@@ -2923,7 +2940,14 @@ func _apply_graphics_quality() -> void:
 	# jagged edges; the drop now bottoms out at MEDIUM, and even a manually
 	# selected LOW keeps 2x MSAA and the key light's shadows.
 	$KeyLight.shadow_enabled = true
-	$FillLight.shadow_enabled = quality == "high"
+	# The fill light never casts, whatever the preset. It used to switch on at
+	# HIGH, and because it sits front-right and low its shadows fall across the
+	# whole back half of the board: every square from rank 3 up sat in the
+	# rank-1 and rank-2 pieces' shadow and the pale squares lost three quarters
+	# of their light, while the pieces themselves - being the casters, and being
+	# above their own shadows - stayed bright. A fill light exists to lift the
+	# side the key cannot reach; shadowing it buys nothing and costs the board.
+	$FillLight.shadow_enabled = false
 	get_viewport().msaa_3d = Viewport.MSAA_2X
 	match quality:
 		"high":

@@ -51,6 +51,18 @@ func capture_when_ready() -> void:
 	var fps_label := main.get_node_or_null("UI/PerformanceReadout") as Label
 	if is_instance_valid(fps_label):
 		fps_label.hide()
+	# Pin the graphics preset rather than leaving it on AUTO. AUTO decides from
+	# the processor count and then re-decides from the measured frame rate, and
+	# on a software renderer the first frames land about a second apart while the
+	# later ones do not, so whether the quality step-down had happened by the
+	# time of the capture depended on how long startup took. That made the
+	# published renders non-deterministic: the same commit could come back with
+	# the fill light's shadows on or off, and the board with them on loses three
+	# quarters of its light to the pieces' shadows. MEDIUM is the preset the
+	# accepted renders were made with, and pinning it makes every run comparable.
+	main.set("graphics_quality", "medium")
+	if main.has_method("_apply_graphics_quality"):
+		main.call("_apply_graphics_quality")
 	paused = false
 
 	# Allow procedural sky radiance, shaders, and UI layout to settle.
