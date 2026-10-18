@@ -338,12 +338,12 @@ func _map_size() -> int:
 ## the squares stay smooth and polished with a hint of figure rather than a
 ## pattern. The albedo map and the height map are built from the same seeded
 ## field, so the veining and the bump it produces always agree.
-func _surface_noise(seed_value: int, frequency: float) -> FastNoiseLite:
+func _surface_noise(seed_value: int, frequency: float, octaves: int = 2) -> FastNoiseLite:
 	var noise := FastNoiseLite.new()
 	noise.seed = seed_value
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
-	noise.fractal_octaves = 4
+	noise.fractal_octaves = octaves
 	noise.frequency = frequency
 	return noise
 
@@ -351,15 +351,24 @@ func _surface_noise(seed_value: int, frequency: float) -> FastNoiseLite:
 ## The two decorrelated fields for one surface: a broad one and a fine one. They
 ## are built once per map rather than once per pixel, because a FastNoiseLite is
 ## not free to allocate and these maps are 128x128.
+##
+## The frequencies are in "features across the texture", because the maps are
+## sampled on a 0..1 grid and FastNoiseLite's own frequency multiplies that grid.
+## Four octaves were tried first and rejected: each octave doubles the frequency,
+## so the top one landed under four pixels and every square on the far side of
+## the board sampled it one texel to one pixel, which is exactly the banding the
+## brief is asking to have gone. Two octaves keeps the finest detail near twelve
+## pixels, which is where a 1536-pixel-wide render still has a mip level to fall
+## back on.
 func _surface_fields(seed_value: int, fine_seed: int) -> Array:
-	return [_surface_noise(seed_value, 0.035), _surface_noise(fine_seed, 0.11)]
+	return [_surface_noise(seed_value, 1.0), _surface_noise(fine_seed, 5.0)]
 
 
 ## The shared softness field for one surface, sampled on a unit grid.
 func _surface_field(fields: Array, u: float, v: float) -> float:
 	var broad: FastNoiseLite = fields[0]
 	var fine: FastNoiseLite = fields[1]
-	return broad.get_noise_2d(u * 5.0, v * 5.0) * 0.7 + fine.get_noise_2d(u * 9.0, v * 9.0) * 0.3
+	return broad.get_noise_2d(u, v) * 0.7 + fine.get_noise_2d(u, v) * 0.3
 
 
 func _marble_map() -> ImageTexture:
@@ -383,7 +392,7 @@ func _marble_height() -> PackedFloat32Array:
 	for y in size:
 		for x in size:
 			heights[y * size + x] = _surface_field(fields,
-				float(x) / float(size), float(y) / float(size)) * 0.5
+				float(x) / float(size), float(y) / float(size))
 	return heights
 
 
@@ -408,7 +417,7 @@ func _walnut_height() -> PackedFloat32Array:
 	for y in size:
 		for x in size:
 			heights[y * size + x] = _surface_field(fields,
-				float(x) / float(size), float(y) / float(size)) * 0.5
+				float(x) / float(size), float(y) / float(size))
 	return heights
 
 
@@ -433,14 +442,21 @@ func _rosewood_height() -> PackedFloat32Array:
 	for y in size:
 		for x in size:
 			heights[y * size + x] = _surface_field(fields,
-				float(x) / float(size), float(y) / float(size)) * 0.5
+				float(x) / float(size), float(y) / float(size))
 	return heights
 
 
 func _normal_map(heights: PackedFloat32Array) -> ImageTexture:
 	var size := _map_size()
 	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
-	var strength := 5.0
+	# This is the z divisor, so a LARGER number is a STRONGER bump, not a weaker
+	# one. It was raised to 5.0 and immediately turned every flat square dark:
+	# a divisor of 5 puts the surface normal at a sixty-degree tilt wherever the
+	# field has any slope, and a square seen at sixty degrees off its own normal
+	# loses most of its diffuse term. The divisor is now well under 1, which
+	# keeps the whole board within about four degrees of flat - the brief asks
+	# for smooth polished stone, and the figure belongs in the albedo.
+	var strength := 0.45
 	for y in size:
 		for x in size:
 			var left: float = heights[y * size + ((x - 1 + size) % size)]
