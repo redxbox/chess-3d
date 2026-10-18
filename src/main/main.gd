@@ -737,10 +737,10 @@ func _create_board() -> void:
 	# square is indistinguishable from the alabaster pieces, and even at 0.80 the
 	# square saturated: with the relief and the fill's grazing shadows both doing
 	# less work than the geometry they replaced, it rendered as flat #ffffff with
-	# no veining and no shadow gradient left on it. 0.77 keeps it a warm polished
-	# stone that still reads lighter than the pieces, and it is the only albedo in
-	# the scene sitting this close to the top of the ACES curve.
-	var light_square := Color(0.77, 0.75, 0.71) if not warm else Color(0.82, 0.68, 0.48)
+	# no veining and no shadow gradient left on it. 0.745 keeps it a warm polished
+	# stone with its figure intact, and it is the only albedo in the scene sitting
+	# this close to the top of the ACES curve.
+	var light_square := Color(0.745, 0.725, 0.685) if not warm else Color(0.82, 0.68, 0.48)
 	var dark_square := Color(0.22, 0.25, 0.30) if not warm else Color(0.34, 0.16, 0.09)
 	var square_roughness := 0.26 if not warm else 0.30
 	# The outer frame was a near-black albedo (0.14), which renders as an unlit
