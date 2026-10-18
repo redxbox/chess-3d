@@ -247,7 +247,13 @@ func _setup_environment() -> void:
 	# silhouettes while the white set went chalky.
 	#
 	# Key: front-left and above, warm, and the only light that casts.
-	$KeyLight.light_energy = 0.78
+	#
+	# 0.78 was calibrated against the old piece silhouettes. The turned stems, the
+	# sculpted knight head and the slimmer pawn all cast less shadow than what
+	# they replaced, and with the fill's grazing shadows doing less work the pale
+	# squares sat the rest of the way into the clip and came back as flat #ffffff
+	# with no shading left on them. 0.73 puts them back just under.
+	$KeyLight.light_energy = 0.73
 	$KeyLight.light_color = Color(1.0, 0.96, 0.90)
 	$KeyLight.rotation_degrees = Vector3(-48, -32, 0)
 	# Contact-tight shadows. The normal bias is deliberately small: a large one
