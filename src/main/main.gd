@@ -28,7 +28,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.12.0"
-const APP_BUILD := "22.49"
+const APP_BUILD := "22.50"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
@@ -236,24 +236,36 @@ func _setup_environment() -> void:
 	# survives; 0.85 + 0.25 + 0.30 is deliberately well under the 1.85 the board
 	# carried when the ivory still clipped.
 	environment.ambient_light_energy = 0.35
+	# A three-point studio rig, so both sets read as solid volume at once. The
+	# old single key light left the camera-facing side of every dark piece in
+	# its own shadow, which is why the black set used to collapse into
+	# silhouettes while the white set went chalky.
+	#
+	# Key: front-left and above, warm, and the only light that casts.
 	$KeyLight.light_energy = 0.85
-	$KeyLight.light_color = Color(1.0, 0.94, 0.85)
-	$KeyLight.rotation_degrees = Vector3(-47, 43, 0)
-	# Contact-tight shadows: a slightly positive bias plus a full normal bias
-	# pulls the shadow right up against the base of every piece instead of
-	# leaving it floating, and a narrow blur keeps the edge readable.
+	$KeyLight.light_color = Color(1.0, 0.96, 0.90)
+	$KeyLight.rotation_degrees = Vector3(-48, -32, 0)
+	# Contact-tight shadows. The normal bias is deliberately small: a large one
+	# displaces the shadow lookup a long way along the surface normal, and a
+	# flat face can end up sampling the wrong part of the shadow map and drop
+	# into shadow for no visible reason.
 	$KeyLight.shadow_enabled = true
-	$KeyLight.shadow_bias = 0.02
-	$KeyLight.shadow_normal_bias = 1.0
+	$KeyLight.shadow_bias = 0.01
+	$KeyLight.shadow_normal_bias = 0.25
 	$KeyLight.shadow_blur = 1.2
-	$FillLight.light_energy = 0.25
-	$FillLight.light_color = Color("c8d6ea")
+	# Fill: soft, front-right and low, no shadow. This is what actually lights
+	# the side of a piece the camera can see.
+	$FillLight.light_energy = 0.30
+	$FillLight.light_color = Color(0.88, 0.91, 0.98)
+	$FillLight.rotation_degrees = Vector3(-60, 45, 0)
 	$FillLight.shadow_enabled = false
-	# The rim light was at 0.0, so nothing separated the dark pieces from the
-	# dark board. A grazing light from behind now outlines the silhouette.
-	$RimLight.rotation_degrees = Vector3(-38, 165, 0)
-	$RimLight.light_color = Color(1.0, 0.95, 0.88)
-	$RimLight.light_energy = 0.30
+	# Rim: behind rank 8, grazing, and bright enough to sculpt. It skims the
+	# crown, neck and shoulders of a dark body and leaves a specular edge along
+	# its silhouette, so an obsidian piece reads as an object instead of a hole
+	# in the picture.
+	$RimLight.rotation_degrees = Vector3(-35, 160, 0)
+	$RimLight.light_color = Color(0.90, 0.93, 1.0)
+	$RimLight.light_energy = 0.55
 	$RimLight.shadow_enabled = false
 	# Bloom is off. With it on, the Compatibility renderer lifted the whole
 	# frame: the background went from the intended #2a1f2e to a flat #be82c6 and
@@ -447,57 +459,63 @@ func _normal_map(heights: PackedFloat32Array) -> ImageTexture:
 
 
 func _setup_piece_materials() -> void:
-	# Warm polished ivory and deep obsidian, both with brass inlay. Roughness
-	# sits well above the 0.08 near-mirror clearcoat the set used to carry: on a
-	# pale body that layer reflected the procedural sky and clipped every
-	# highlight to flat white under ACES.
-	# The Staunton bodies are OBJ meshes with no vt records, so they have no UV
-	# attribute at all. Handing a material with textures to a mesh without UVs
-	# makes the Compatibility renderer sample undefined coordinates, which is what
-	# blew the ivory out to flat white. Pieces therefore get colour only; every
-	# procedural map is reserved for the board, whose boxes do carry UVs.
-	# Pure white is never a white-piece albedo. Under a directional light a pale
-	# surface climbs straight to 1.0 and clips, and a clipped surface has no
-	# shading and no shadow gradient left anywhere on it to show the carving.
-	# Warm carved bone instead, with the same micro-detail on both sets.
-	var ivory := Color(0.76, 0.71, 0.62)
-	var ebony := Color(0.14, 0.12, 0.10)
-	var brass := Color(0.78, 0.60, 0.20)
+	# Both sets are balanced against each other rather than tuned alone, because
+	# the board is only ever seen with both of them on it.
+	#
+	# THEME classic - warm polished alabaster against satin obsidian, with
+	# champagne-silver collars. THEME royal_wood - boxwood cream against
+	# espresso rosewood, with antique-gold trim.
+	var warm := piece_theme == "royal_wood"
+	var body_light := Color(0.84, 0.79, 0.70) if not warm else Color(0.86, 0.76, 0.60)
+	var body_dark := Color(0.20, 0.21, 0.24) if not warm else Color(0.28, 0.17, 0.11)
+	var accent := Color(0.82, 0.80, 0.75) if not warm else Color(0.83, 0.65, 0.24)
 	var carve := _piece_carve_map()
-	if piece_theme == "royal_wood":
-		# Carved pale ash and dark walnut. Rougher and less specular than the
-		# classic set: turned wood absorbs light where polished ivory bounces it,
-		# which is most of what separates the two sets at a glance.
-		_piece_ivory_material = _luxury_piece_material(Color(0.80, 0.72, 0.55), 0.46, 0.0, false, false, 0.10, null, carve, 0.25)
-		_piece_obsidian_material = _luxury_piece_material(Color(0.30, 0.19, 0.13), 0.46, 0.0, false, false, 0.10, null, carve, 0.25)
-		_piece_gold_material = _luxury_piece_material(brass, 0.20, 0.90, false, false, 0.50)
-	else:
-		_piece_ivory_material = _luxury_piece_material(ivory, 0.35, 0.0, false, false, 0.10, null, carve, 0.25)
-		_piece_obsidian_material = _luxury_piece_material(ebony, 0.30, 0.05, false, false, 0.10, null, carve, 0.25)
-		_piece_gold_material = _luxury_piece_material(brass, 0.20, 0.90, false, false, 0.50)
+	# White pieces: polished but never a mirror. roughness 0.24 with a low
+	# metallic_specular keeps the pale body mostly diffuse, which is what stops
+	# it climbing to 1.0 and clipping to flat white under ACES - and a clipped
+	# surface has no shading and no shadow gradient left anywhere on it to show
+	# the carving. Pure white is never a white-piece albedo.
+	_piece_ivory_material = _luxury_piece_material(body_light, 0.24, 0.05, false, false, 0.06, null, carve, 0.25)
+	# Black pieces: never pure black. A satin body with a real clearcoat lobe is
+	# what gives the camera-facing side of a dark piece a highlight, so it reads
+	# as a solid object beside the white set instead of a silhouette. The
+	# specular term is back at its default here because a dark albedo cannot
+	# clip the way a pale one does.
+	_piece_obsidian_material = _luxury_piece_material(body_dark, 0.22, 0.12, false, true, 0.50, null, carve, 0.25, 0.40, 0.20)
+	_piece_gold_material = _luxury_piece_material(accent, 0.22 if warm else 0.20, 0.90, false, false, 0.50)
 
 
-## Fine procedural carving shared by both piece sets. A FastNoiseLite turned into
-## a normal map at a low scale, so ivory and ebony read as worked material
-## instead of moulded plastic. This needs UVs on the mesh, which is why
-## _piece_mesh() projects them onto the OBJ bodies.
+## Fine procedural carving shared by both piece sets. A FastNoiseLite turned
+## into a 128x128 normal map, built as a plain Image and cached once, so every
+## one of the thirty-two pieces shares a single texture resource: nothing here
+## is regenerated per piece, per theme switch or per frame. This needs UVs on
+## the mesh, which is why _piece_mesh() projects them onto the OBJ bodies.
 func _piece_carve_map() -> Texture2D:
 	if _mesh_cache.has("carve_normal"):
 		return _mesh_cache["carve_normal"]
+	var size := 128
 	var grain := FastNoiseLite.new()
 	grain.seed = 4471
 	grain.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	grain.frequency = 0.08
-	var texture := NoiseTexture2D.new()
-	texture.width = 128
-	texture.height = 128
-	texture.seamless = true
-	texture.generate_mipmaps = true
-	texture.as_normal_map = true
-	texture.bump_strength = 3.0
-	texture.noise = grain
+	var heights := PackedFloat32Array()
+	heights.resize(size * size)
+	for y in size:
+		for x in size:
+			heights[y * size + x] = grain.get_noise_2d(float(x), float(y))
+	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
+	var strength := 3.0
+	for y in size:
+		for x in size:
+			var left: float = heights[y * size + ((x - 1 + size) % size)]
+			var right: float = heights[y * size + ((x + 1) % size)]
+			var up: float = heights[((y - 1 + size) % size) * size + x]
+			var down: float = heights[((y + 1) % size) * size + x]
+			var normal := Vector3(left - right, up - down, 1.0 / strength).normalized()
+			image.set_pixel(x, y, Color(normal.x * 0.5 + 0.5, normal.y * 0.5 + 0.5, normal.z * 0.5 + 0.5, 1.0))
+	var texture := ImageTexture.create_from_image(image)
 	_mesh_cache["carve_normal"] = texture
-	return _mesh_cache["carve_normal"]
+	return texture
 
 
 ## The Staunton OBJ bodies carry no vt records, so they arrive with no UV
@@ -537,6 +555,13 @@ func _piece_mesh(kind: String) -> Mesh:
 		lowest = minf(lowest, point.y)
 		highest = maxf(highest, point.y)
 	var span := maxf(0.0001, highest - lowest)
+	# The bodies ship with no vn records either, so their faces arrive flat
+	# shaded. Averaging the face normals of every welded vertex is what turns the
+	# knight's chest and neck from stacked boxes into carved curves, and it costs
+	# one pass at load time on a mesh that is then cached and shared.
+	var smoothed: PackedVector3Array = PackedVector3Array()
+	if not has_normals:
+		smoothed = _smoothed_normals(positions, indices)
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in positions.size():
@@ -546,6 +571,8 @@ func _piece_mesh(kind: String) -> Mesh:
 		# detail rather than as one big smear.
 		if has_normals:
 			tool.set_normal(source_normals[i])
+		else:
+			tool.set_normal(smoothed[i])
 		tool.set_uv(Vector2(angle / TAU + 0.5, (vertex.y - lowest) / span) * 2.0)
 		tool.add_vertex(vertex)
 	for index in indices:
@@ -554,24 +581,75 @@ func _piece_mesh(kind: String) -> Mesh:
 	# UV and no normal attribute. Both are produced here: without them the
 	# renderer samples undefined coordinates, which is what used to blow the ivory
 	# out to flat white, and without tangents the carve map cannot be applied.
-	if not has_normals:
-		tool.generate_normals()
 	tool.generate_tangents()
 	var mesh := tool.commit()
 	_mesh_cache[cache_key] = mesh
 	return mesh
 
 
+## Averages the area-weighted face normal of every vertex that shares a
+## position, which welds the duplicated vertices an OBJ export leaves behind and
+## gives one smooth normal per corner of the solid. Positions are quantised to a
+## 0.0005 grid so floating-point noise cannot split what is really one point.
+func _smoothed_normals(positions: PackedVector3Array, indices: PackedInt32Array) -> PackedVector3Array:
+	var slots := PackedInt32Array()
+	slots.resize(positions.size())
+	var accumulators: Array = []
+	var lookup := {}
+	for i in positions.size():
+		var point: Vector3 = positions[i]
+		var key := "%d_%d_%d" % [roundi(point.x * 2000.0), roundi(point.y * 2000.0), roundi(point.z * 2000.0)]
+		if not lookup.has(key):
+			lookup[key] = accumulators.size()
+			accumulators.append(Vector3.ZERO)
+		slots[i] = lookup[key]
+	for corner in range(0, indices.size(), 3):
+		var a: int = indices[corner]
+		var b: int = indices[corner + 1]
+		var c: int = indices[corner + 2]
+		var face: Vector3 = (positions[b] - positions[a]).cross(positions[c] - positions[a])
+		if face.length_squared() < 0.0000001:
+			continue
+		accumulators[slots[a]] = (accumulators[slots[a]] as Vector3) + face
+		accumulators[slots[b]] = (accumulators[slots[b]] as Vector3) + face
+		accumulators[slots[c]] = (accumulators[slots[c]] as Vector3) + face
+	var normals := PackedVector3Array()
+	normals.resize(positions.size())
+	for i in positions.size():
+		var accumulated: Vector3 = accumulators[slots[i]]
+		normals[i] = accumulated.normalized() if accumulated.length_squared() > 0.0000001 else Vector3.UP
+	return normals
+
+
 func _create_board() -> void:
-	# Light squares are soft marble, dark squares are wood-grained walnut. Both
-	# carry a procedural FastNoiseLite map, so the satin finish catches the key
-	# light without ever glinting back a flat white. metallic_specular is pinned
-	# low: at Godot's 0.5 default a broad flat face reflects the whole sky on top
-	# of its diffuse term and clips to white under ACES.
-	_board_light_material = _material(
-		Color(0.72, 0.66, 0.56), 0.30, 0.0, false, 0.06, _surface_map("marble"), _surface_map("marble_normal"))
-	_board_dark_material = _material(
-		Color(0.32, 0.14, 0.10), 0.26, 0.0, false, 0.06, _surface_map("walnut"), _surface_map("walnut_normal"))
+	# Both themes share one geometry - three solid centred slabs plus the grid -
+	# so nothing is rebuilt or duplicated when the theme changes; only colour and
+	# grain differ. THEME classic is Carrara marble and obsidian with an ebony
+	# apron and a champagne-silver trim; THEME royal_wood is honey maple over dark
+	# mahogany with a rosewood apron and an antique-gold trim.
+	var warm := piece_theme == "royal_wood"
+	var light_square := Color(0.86, 0.84, 0.80) if not warm else Color(0.82, 0.68, 0.48)
+	var dark_square := Color(0.22, 0.25, 0.30) if not warm else Color(0.34, 0.16, 0.09)
+	var square_roughness := 0.18 if not warm else 0.28
+	var apron := Color(0.14, 0.14, 0.16) if not warm else Color(0.26, 0.11, 0.06)
+	var trim := Color(0.82, 0.80, 0.75) if not warm else Color(0.83, 0.65, 0.24)
+	var trim_roughness := 0.20 if not warm else 0.22
+	var table := Color(0.11, 0.11, 0.14) if not warm else Color(0.20, 0.09, 0.06)
+	var light_map := "marble" if not warm else "walnut"
+	var dark_map := "walnut" if not warm else "rosewood"
+	var apron_map := "marble" if not warm else "rosewood"
+	# metallic_specular is pinned low on the squares: at Godot's 0.5 default a
+	# broad flat face reflects the whole sky on top of its diffuse term and
+	# clips to white under ACES.
+	_board_light_material = _material(light_square, square_roughness, 0.0, false, 0.05,
+		_surface_map(light_map), _surface_map(light_map + "_normal"))
+	_board_dark_material = _material(dark_square, square_roughness, 0.0, false, 0.05,
+		_surface_map(dark_map), _surface_map(dark_map + "_normal"))
+	var apron_material := _matte_material(apron, 0.42,
+		_surface_map(apron_map), _surface_map(apron_map + "_normal"), 0.08)
+	var trim_material := _material(trim, trim_roughness, 0.90, false, 0.50)
+	var table_material := _matte_material(table, 0.55,
+		_surface_map(apron_map), _surface_map(apron_map + "_normal"), 0.06)
 
 	# The grid is static, so the 32 light squares share one surface and the 32
 	# dark squares share another: two draw calls instead of 64, and two mesh
@@ -594,33 +672,21 @@ func _create_board() -> void:
 		squares.material_override = _board_light_material if merged == light_tool else _board_dark_material
 		board.add_child(squares)
 
-	# Brass inlay and rosewood moulding, both built by _add_frame_rails(): the two
-	# long rails run the full outer width and the two short rails fill exactly the
-	# clear span between them, so there is no overlapping corner plank and no seam
-	# along the run. The first tier's inner face sits at exactly +/-4.0, so it
-	# meets the tiles for the full tile height and no slot opens underneath the
-	# brass trim for the backdrop to show through.
-	var brass := _material(Color(0.75, 0.58, 0.22), 0.25, 0.85, false, 0.50)
-	var frame_wood := _matte_material(Color("7a4e3a"), 0.48, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.12)
-
-	# Thin metallic inner trim, hugging the grid edge.
-	_add_frame_rails(4.04, 0.04, 0.05, 0.04, brass)
-	# Outer moulding: three stacked tiers with shrinking footprints, which fakes a
-	# bevelled edge where a single box would show a hard 90 degrees.
-	_add_frame_rails(4.50, 0.50, 0.00, 0.14, frame_wood)
-	_add_frame_rails(4.44, 0.38, 0.09, 0.04, brass)
-	_add_frame_rails(4.38, 0.32, 0.135, 0.05, frame_wood)
-
-	# The slab under the tiles. Every box is a single centred box whose top face
-	# lands exactly on the one above it, so the stack runs continuously from the
-	# tile bottoms down to the table with no gap and no overhang on any side: the
-	# first slab is exactly as wide as the outer frame.
-	var table_material := _matte_material(Color("3a2620"), 0.72, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.06)
-	var table_edge_material := _matte_material(Color("4a322a"), 0.62, _surface_map("rosewood"), _surface_map("rosewood_normal"), 0.08)
-	_add_board_box(Vector3.ZERO, Vector3(9.00, 0.10, 9.00), table_edge_material)
-	_add_board_box(Vector3(0, -0.28, 0), Vector3(9.60, 0.22, 9.60), table_material)
-	_add_board_box(Vector3(0, -0.47, 0), Vector3(10.90, 0.16, 10.90), table_edge_material)
-	_add_board_box(Vector3(0, -0.72, 0), Vector3(11.80, 0.34, 11.80), table_material)
+	# Slab two: the metallic trim, a ring 0.08 wider than the grid on every side
+	# with its top face a hair under the tile tops, so it reads as an inset band
+	# rather than a painted stripe.
+	_add_board_box(Vector3(0, -0.012, 0), Vector3(8.16, 0.162, 8.16), trim_material)
+	# Slab one: the apron. One solid centred box, so there is never a slot, a
+	# seam, a lip or an overhang anywhere for the backdrop to show through - the
+	# old multi-part frame left exactly that, a black trench around the grid and
+	# under the coordinate letters. The labels now sit on solid material.
+	_add_board_box(Vector3(0, -0.015, 0), Vector3(9.40, 0.16, 9.40), apron_material)
+	# The plinth and the two table steps below it. Each is centred and exactly as
+	# wide as the slab above, so the stack runs continuously from the tile
+	# bottoms down to the table with no gap and no overhang on any side.
+	_add_board_box(Vector3(0, -0.145, 0), Vector3(9.40, 0.10, 9.40), apron_material)
+	_add_board_box(Vector3(0, -0.295, 0), Vector3(10.40, 0.20, 10.40), table_material)
+	_add_board_box(Vector3(0, -0.545, 0), Vector3(11.60, 0.30, 11.60), table_material)
 
 	_add_board_coordinates()
 
@@ -636,26 +702,14 @@ func _shared_square_mesh() -> BoxMesh:
 	return mesh
 
 
-## Four rails forming a rectangular frame. The two long rails run the full outer
-## width and the two short rails fill exactly the clear span between them, which
-## is what keeps the corners from overlapping and the run from showing a seam.
-func _add_frame_rails(outer_half: float, rail_depth: float, centre_y: float, height: float, material: Material) -> void:
-	var length := outer_half * 2.0
-	var inner := outer_half - rail_depth
-	var offset := outer_half - rail_depth * 0.5
-	_add_board_box(Vector3(0, centre_y, offset), Vector3(length, height, rail_depth), material)
-	_add_board_box(Vector3(0, centre_y, -offset), Vector3(length, height, rail_depth), material)
-	_add_board_box(Vector3(offset, centre_y, 0), Vector3(rail_depth, height, inner * 2.0), material)
-	_add_board_box(Vector3(-offset, centre_y, 0), Vector3(rail_depth, height, inner * 2.0), material)
-
-
 func _add_board_coordinates() -> void:
-	# Brass engraving inset into the outer border, lit rather than unshaded so it
-	# catches the key light the way real engraved metal does. The top lip of the
-	# frame ends at y = 0.16, and the labels sit a hair above that surface: placed
-	# any lower they end up buried inside the frame mesh and simply vanish.
-	var label_color := Color("e8c56a")
-	var label_y := 0.165
+	# Brass (or champagne) engraving on the apron, lit rather than unshaded so it
+	# catches the key light the way real engraved metal does. Slab one's top face
+	# is at y = 0.065, so the labels sit a hair above solid material: placed any
+	# lower they end up buried inside the mesh and simply vanish, and there is
+	# never a void underneath them.
+	var label_color := Color("e8c56a") if piece_theme == "royal_wood" else Color("d9d5cc")
+	var label_y := 0.072
 	for index in BOARD_SIZE:
 		for data in [
 			["abcdefgh"[index], Vector3((index - 3.5) * SQUARE_SIZE, label_y, 4.22)],
@@ -721,7 +775,7 @@ func _sync_pieces() -> void:
 			else:
 				node.name = _piece_node_name(kind, file, rank)
 				node.set_meta("square", square)
-				node.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.11, (rank - 3.5) * SQUARE_SIZE)
+				node.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.072, (rank - 3.5) * SQUARE_SIZE)
 
 
 func _kind_for_code(code: String) -> String:
@@ -740,7 +794,9 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	var is_white := code == code.to_upper()
 	var piece := Node3D.new()
 	piece.name = _piece_node_name(kind, file, rank)
-	piece.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.11, (rank - 3.5) * SQUARE_SIZE)
+	# The tile tops are at y = 0.07, so a piece sits directly on its square
+	# instead of hovering the width of its own base above it.
+	piece.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.072, (rank - 3.5) * SQUARE_SIZE)
 	piece.set_meta("square", Vector2i(file, rank))
 	piece.set_meta("kind", kind)
 	piece.set_meta("code", code)
@@ -772,9 +828,9 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 
 func _add_royal_wood_piece(piece: Node3D, kind: String, is_white: bool, wood: Material, gold: Material) -> void:
 	# The carved set shares the same sculpted Staunton topology as the classic
-	# set, but is finished differently: a metal collar at the foot of every
-	# piece (pawns included) and its own metalwork, so the two sets read as
-	# different objects rather than recolours of one another.
+	# set, but is finished differently: a taller, wider turned foot and its own
+	# palette, so the two sets read as different objects rather than recolours of
+	# one another.
 	var model := MeshInstance3D.new()
 	model.name = "RoyalWoodSculpture"
 	model.mesh = _piece_mesh(kind)
@@ -954,10 +1010,12 @@ func _lathe_mesh(vertices: PackedVector3Array, normals: PackedVector3Array, uvs:
 
 ## An ultra-thin flush inlay: 0.015 tall, standing only 0.004 proud of the body
 ## profile, revolved as a flat annulus so it reads as machined metal let into
-## the wood rather than as a donut ring sitting on top of it.
-func _flush_band(radius: float) -> Array:
-	var half := ORNAMENT_BAND_HEIGHT * 0.5
-	var outer := radius + ORNAMENT_BAND_PROUD
+## the wood rather than as a donut ring sitting on top of it. A revolved annulus
+## is used rather than a torus because a torus makes height and protrusion the
+## same number, and the brief wants them to differ.
+func _flush_band(radius: float, height := ORNAMENT_BAND_HEIGHT, proud := ORNAMENT_BAND_PROUD) -> Array:
+	var half := height * 0.5
+	var outer := radius + proud
 	return [
 		[radius, -half, 1, 1],
 		[outer, -half, 1, 1],
@@ -1110,22 +1168,21 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	var neck: float = profile.neck
 	var neck_y: float = profile.neck_y
 	var flutes: int = profile.flutes
-	var metal_foot := variant == "royal_wood"
 	# The carved set is finished differently from the classic one: a taller, wider
 	# turned foot, so it reads as a different object rather than a recolour.
-	if metal_foot:
+	if variant == "royal_wood":
 		foot *= 1.14
 	# Tiered foot. The lower collar is a fluted lathe rather than a smooth
 	# cylinder, and the fluting is shallow: 0.008 of amplitude over 16 grooves.
-	_ornament_add(parts, "cylinder", foot * 0.88, foot, 0.05, Vector3(0, 0.025, 0), ORNAMENT_ACCENT if metal_foot else ORNAMENT_BODY)
+	# Nothing here protrudes past the turned profile. Every metal accent on a
+	# piece is a flush band let into the shape, never a ring sitting on top of
+	# it: the old torus collars and the twelve-bead ring read as a cogwheel
+	# around the base.
+	_ornament_add(parts, "cylinder", foot * 0.88, foot, 0.05, Vector3(0, 0.025, 0), ORNAMENT_BODY)
 	_fluted_add(parts, foot * 0.60, foot * 0.88, 0.055, Vector3(0, 0.082, 0), ORNAMENT_BODY, 16, 0.012)
-	# Flush inlay one of two, let into the base step. A flat revolved annulus
-	# 0.015 tall standing 0.004 proud, not a donut ring sitting on the surface:
-	# the twelve gold spheres that used to ring the base read as a cogwheel.
+	# Flush inlay one of three, let into the base step. A flat revolved annulus
+	# 0.015 tall standing only 0.004 proud.
 	_flush_band_add(parts, foot * 0.64, Vector3(0, 0.108, 0))
-	# A second collar at the top of the foot, only on the carved set.
-	if metal_foot:
-		_ornament_add(parts, "torus", foot * 0.98, 0.016, 0.0, Vector3(0, 0.135, 0), ORNAMENT_ACCENT)
 	# Shallow fluting, and only on the narrow mid-stem shaft: the base below and
 	# the head above stay smooth and polished.
 	if flutes > 0:
@@ -1134,9 +1191,9 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 		_fluted_add(parts, stem + 0.004, stem + 0.004, flute_height,
 			Vector3(0, flute_bottom + flute_height * 0.5, 0), ORNAMENT_BODY,
 			ORNAMENT_FLUTE_COUNT, ORNAMENT_FLUTE_DEPTH)
-	# Mid-stem brass band.
-	_ornament_add(parts, "torus", stem + 0.012, 0.007, 0.0, Vector3(0, stem_top * 0.5, 0), ORNAMENT_ACCENT)
-	# Turned neck collar, with the second flush inlay let into it.
+	# Flush inlay two of three, on the mid-stem shaft.
+	_flush_band_add(parts, stem + 0.004, Vector3(0, stem_top * 0.5, 0), 0.010, 0.004)
+	# Turned neck collar, with the third flush inlay let into it.
 	_ornament_add(parts, "cylinder", neck * 0.88, neck, 0.07, Vector3(0, neck_y - 0.045, 0), ORNAMENT_BODY)
 	_flush_band_add(parts, neck, Vector3(0, neck_y + 0.015, 0))
 	return parts
@@ -1144,10 +1201,10 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 
 ## Appends one flush inlay band to a part list, taking only the gold surface out
 ## of the lathe so it lands in the trim mesh's gold slot.
-func _flush_band_add(parts: Array, radius: float, position: Vector3) -> void:
-	var key := "band:%s:%d" % [radius, ORNAMENT_FLUTE_SEGMENTS]
+func _flush_band_add(parts: Array, radius: float, position: Vector3, height := ORNAMENT_BAND_HEIGHT, proud := ORNAMENT_BAND_PROUD) -> void:
+	var key := "band:%s:%s:%s:%d" % [radius, height, proud, ORNAMENT_FLUTE_SEGMENTS]
 	if not _mesh_cache.has(key):
-		var surfaces := _lathe_surfaces(_flush_band(radius), ORNAMENT_FLUTE_SEGMENTS)
+		var surfaces := _lathe_surfaces(_flush_band(radius, height, proud), ORNAMENT_FLUTE_SEGMENTS)
 		_mesh_cache[key] = surfaces[1]
 	parts.append([_mesh_cache[key], Transform3D(Basis.IDENTITY, position), ORNAMENT_ACCENT])
 
@@ -1184,13 +1241,14 @@ func _ornate_identity_parts(parts: Array, kind: String, variant: String) -> void
 			_ornament_add(parts, "torus", 0.150, 0.012, 0.0, Vector3(0, 0.86, 0), ORNAMENT_ACCENT)
 			_ornament_add(parts, "torus", 0.120, 0.009, 0.0, Vector3(0, 1.06, 0), ORNAMENT_ACCENT)
 		"bishop":
-			# Carved mitre with a gold-inlaid slit and a patterned collar.
+			# Carved mitre with a patterned collar and a small finial ball, and
+			# nothing else. The gold slab that used to be rotated out of the
+			# mitre's flank is gone: from the camera it read as a stick jammed
+			# through the side of the head. The mitre stays clean and symmetrical.
 			_ornament_add(parts, "torus", 0.205, 0.024, 0.0, Vector3(0, 0.91, 0), ORNAMENT_ACCENT)
 			_ornament_add(parts, "sphere", 0.235, 0.0, 0.0, Vector3(0, 1.10, 0), ORNAMENT_BODY)
-			_ornament_add(parts, "box", 0.055, 0.34, 0.10, Vector3(0.0, 1.12, -0.19), ORNAMENT_ACCENT,
-				Vector3(0.0, 0.0, -28.0))
-			_ornament_add(parts, "sphere", 0.060, 0.0, 0.0, Vector3(0, 1.35, 0), ORNAMENT_ACCENT)
 			_ornament_add(parts, "torus", 0.070, 0.008, 0.0, Vector3(0, 1.02, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "sphere", 0.060, 0.0, 0.0, Vector3(0, 1.35, 0), ORNAMENT_ACCENT)
 		"queen":
 			# Multi-pointed coronet of brass balls over a fluted drum.
 			_ornament_add(parts, "torus", 0.240, 0.026, 0.0, Vector3(0, 1.05, 0), ORNAMENT_ACCENT)
@@ -1216,11 +1274,9 @@ func _ornate_identity_parts(parts: Array, kind: String, variant: String) -> void
 			_ornament_add(parts, "sphere", 0.075, 0.0, 0.0, Vector3(0, 1.40, 0), ORNAMENT_ACCENT)
 			_ornament_add(parts, "box", 0.05, 0.34, 0.05, Vector3(0, 1.55, 0), ORNAMENT_ACCENT)
 			_ornament_add(parts, "box", 0.26, 0.05, 0.05, Vector3(0, 1.60, 0), ORNAMENT_ACCENT)
-	# royal_wood adds a foot collar on every piece, including pawns, which is
-	# what separates it from the classic set at a glance.
-	if variant == "royal_wood":
-		var foot_radius: float = _ornate_profile(kind).foot
-		_ornament_add(parts, "torus", foot_radius * 0.99, 0.014, 0.0, Vector3(0, 0.098, 0), ORNAMENT_ACCENT)
+	# royal_wood separates itself from the classic set by the taller, wider turned
+	# foot in _ornate_trim_parts() and by its own colours - not by an extra
+	# protruding collar ring, which is the cogwheel the brief asked to remove.
 
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
@@ -1843,11 +1899,12 @@ func _update_accessibility_buttons() -> void:
 
 func _apply_accessibility() -> void:
 	# This runs at the end of _ready(), so these are the albedoes the board
-	# actually renders with; they have to track _create_board() or the two disagree.
+	# actually renders with; they have to track _create_board() or the two
+	# disagree. The neutral path leaves the theme's own colours alone.
 	if is_instance_valid(_board_light_material):
-		_board_light_material.albedo_color = Color(0.78, 0.72, 0.62) if high_contrast_enabled else Color(0.72, 0.66, 0.56)
+		_board_light_material.albedo_color = Color(0.90, 0.89, 0.86) if high_contrast_enabled else _board_light_material.albedo_color
 	if is_instance_valid(_board_dark_material):
-		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("8d4a5e") if high_contrast_enabled else Color(0.32, 0.14, 0.10))
+		_board_dark_material.albedo_color = Color("263654") if colorblind_enabled else (Color("6e7f9c") if high_contrast_enabled else _board_dark_material.albedo_color)
 	coordinates_root.visible = coordinates_enabled
 	_ui_theme.default_font_size = 21 if large_text_enabled else 16
 	_apply_theme_recursive($UI)
@@ -2769,14 +2826,15 @@ func _new_game() -> void:
 	_save_autosave()
 
 
-func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false, sheen := 0.30, figure: Texture2D = null, normal: Texture2D = null, bump_scale := 0.7) -> StandardMaterial3D:
+func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false, sheen := 0.30, figure: Texture2D = null, normal: Texture2D = null, bump_scale := 0.7, clearcoat := 0.40, clearcoat_roughness := 0.20) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = roughness
 	material.metallic = metallic
 	material.metallic_specular = sheen
 	material.clearcoat_enabled = glossy
-	material.clearcoat_roughness = 0.42 if glossy else 0.0
+	material.clearcoat = clearcoat
+	material.clearcoat_roughness = clearcoat_roughness if glossy else 0.0
 	# Explicit rather than left to the default: an emitting pale albedo is the
 	# other way a white piece ends up as a glowing white silhouette.
 	material.emission_enabled = emissive

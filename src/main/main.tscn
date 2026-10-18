@@ -10,26 +10,26 @@ script = ExtResource("1_main")
 [node name="Board" type="Node3D" parent="."]
 
 [node name="KeyLight" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-47, 43, 0)
-light_color = Color(1, 0.94, 0.85, 1)
+rotation_degrees = Vector3(-48, -32, 0)
+light_color = Color(1, 0.96, 0.9, 1)
 light_energy = 0.85
 shadow_enabled = true
-shadow_bias = 0.02
-shadow_normal_bias = 1.0
+shadow_bias = 0.01
+shadow_normal_bias = 0.25
 shadow_opacity = 0.62
 shadow_blur = 1.2
-directional_shadow_max_distance = 18.0
+directional_shadow_max_distance = 22.0
 
 [node name="FillLight" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-40, 135, 0)
-light_color = Color(0.867, 0.933, 1, 1)
-light_energy = 0.25
+rotation_degrees = Vector3(-60, 45, 0)
+light_color = Color(0.88, 0.91, 0.98, 1)
+light_energy = 0.3
 shadow_enabled = false
 
 [node name="RimLight" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-38, 165, 0)
-light_color = Color(1, 0.95, 0.88, 1)
-light_energy = 0.3
+rotation_degrees = Vector3(-35, 160, 0)
+light_color = Color(0.9, 0.93, 1, 1)
+light_energy = 0.55
 shadow_enabled = false
 
 [node name="CameraRig" type="Node3D" parent="."]
