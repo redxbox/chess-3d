@@ -378,7 +378,13 @@ func _marble_map() -> ImageTexture:
 		for x in size:
 			var u := float(x) / float(size)
 			var v := float(y) / float(size)
-			var shade := clampf(0.975 + 0.025 * _surface_field(fields, u, v), 0.955, 0.995)
+			# Centred on 0.93 with a band five percent wide. The band is the six
+			# percent the brief allows, and the centre is not arbitrary: the
+			# accepted renders were measured with a marble map whose mean sat at
+			# 0.93, and at 0.975 the pale squares sat just far enough past the
+			# clip point that they came back as flat #ffffff with no shading left
+			# on them anywhere.
+			var shade := clampf(0.93 + 0.025 * _surface_field(fields, u, v), 0.905, 0.955)
 			image.set_pixel(x, y, Color(shade, shade * 0.99, shade * 0.965, 1.0))
 	# Image.create reserves the mip chain but does not fill it, and an unfilled
 	# chain uploads as black - so the far ranks, which are the squares that
@@ -396,7 +402,13 @@ func _walnut_map() -> ImageTexture:
 		for x in size:
 			var u := float(x) / float(size)
 			var v := float(y) / float(size)
-			var shade := clampf(0.975 + 0.025 * _surface_field(fields, u, v), 0.955, 0.995)
+			# Centred on 0.93 with a band five percent wide. The band is the six
+			# percent the brief allows, and the centre is not arbitrary: the
+			# accepted renders were measured with a marble map whose mean sat at
+			# 0.93, and at 0.975 the pale squares sat just far enough past the
+			# clip point that they came back as flat #ffffff with no shading left
+			# on them anywhere.
+			var shade := clampf(0.93 + 0.025 * _surface_field(fields, u, v), 0.905, 0.955)
 			image.set_pixel(x, y, Color(shade, shade, shade, 1.0))
 	# Image.create reserves the mip chain but does not fill it, and an unfilled
 	# chain uploads as black - so the far ranks, which are the squares that
@@ -414,7 +426,13 @@ func _rosewood_map() -> ImageTexture:
 		for x in size:
 			var u := float(x) / float(size)
 			var v := float(y) / float(size)
-			var shade := clampf(0.975 + 0.025 * _surface_field(fields, u, v), 0.955, 0.995)
+			# Centred on 0.93 with a band five percent wide. The band is the six
+			# percent the brief allows, and the centre is not arbitrary: the
+			# accepted renders were measured with a marble map whose mean sat at
+			# 0.93, and at 0.975 the pale squares sat just far enough past the
+			# clip point that they came back as flat #ffffff with no shading left
+			# on them anywhere.
+			var shade := clampf(0.93 + 0.025 * _surface_field(fields, u, v), 0.905, 0.955)
 			image.set_pixel(x, y, Color(shade, shade, shade, 1.0))
 	# Image.create reserves the mip chain but does not fill it, and an unfilled
 	# chain uploads as black - so the far ranks, which are the squares that
