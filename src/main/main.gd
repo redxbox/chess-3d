@@ -712,15 +712,23 @@ func _create_board() -> void:
 	_add_board_box(Vector3(0, -0.012, 0), Vector3(8.10, 0.162, 8.10), trim_material)
 	# Slab two: the apron, split into two centred tiers so the frame carries a
 	# real 3D step instead of one flat top. The outer tier is the full 9.40 wide
-	# and the inner tier rises 0.022 above it to hold the coordinate labels, which
+	# and the inner tier rises 0.017 above it to hold the coordinate labels, which
 	# is what gives the border a chamfered edge with two differently angled faces
 	# for the key light to catch. Both tiers are centred on the origin, so there
 	# is never a slot, a seam, a lip or an overhang anywhere for the backdrop to
 	# show through - the old multi-part frame left exactly that, a black trench
 	# around the grid and under the letters. The labels sit on solid material
 	# either way.
+	#
+	# The inner tier's top stops at 0.065, five millimetres under the tile tops,
+	# and that clearance is deliberate. With the tier raised to 0.070 it stood
+	# level with the grid, and the frame then rose into the key light's grazing
+	# angle far enough to shadow the squares: every pale square dropped to about a
+	# fifth of its albedo while the pieces - the casters, sitting above their own
+	# shadows - stayed bright. Five millimetres of step is all the bevel needs and
+	# it keeps the frame below the grid.
 	_add_board_box(Vector3(0, -0.0235, 0), Vector3(9.40, 0.143, 9.40), apron_material)
-	_add_board_box(Vector3(0, 0.059, 0), Vector3(9.06, 0.022, 9.06), apron_material)
+	_add_board_box(Vector3(0, 0.0565, 0), Vector3(9.06, 0.017, 9.06), apron_material)
 	# The plinth and the two table steps below it. Each is centred and exactly as
 	# wide as the slab above, so the stack runs continuously from the tile
 	# bottoms down to the table with no gap and no overhang on any side.
