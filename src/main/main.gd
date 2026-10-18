@@ -745,7 +745,7 @@ func _create_board() -> void:
 	# shadows both did less work than the piece geometry they replaced. The
 	# royal_wood square ran to #fff194 - a hot yellow with the red channel pinned
 	# at 255 - where the accepted render measured #cf9f60.
-	var light_square := Color(0.745, 0.725, 0.685) if not warm else Color(0.765, 0.635, 0.45)
+	var light_square := Color(0.745, 0.725, 0.685) if not warm else Color(0.69, 0.575, 0.405)
 	var dark_square := Color(0.22, 0.25, 0.30) if not warm else Color(0.34, 0.16, 0.09)
 	var square_roughness := 0.26 if not warm else 0.30
 	# The outer frame was a near-black albedo (0.14), which renders as an unlit
