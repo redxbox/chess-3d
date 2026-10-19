@@ -28,7 +28,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.12.0"
-const APP_BUILD := "22.68"
+const APP_BUILD := "22.69"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
@@ -708,26 +708,6 @@ func _pinched_stem(point: Vector3, low: float, high: float, base_radius: float, 
 ## position, which welds the duplicated vertices an OBJ export leaves behind and
 ## gives one smooth normal per corner of the solid. Positions are quantised to a
 ## 0.0005 grid so floating-point noise cannot split what is really one point.
-## Forces every vertex normal to point away from the solid. A chess piece is a
-## blob around its own centroid, so "away from the centroid" is a reliable outward
-## test for every kind of surface on it - flat faces, bevelled bands and the side
-## walls of a lathe alike. One inward normal on a stem is what shows up as a hard
-## black seam down the +X side, where that strip of surface stops taking light
-## completely; with back-face culling on, an inward-wound face can vanish instead
-## and show the inside of the solid.
-func _repair_normals(positions: PackedVector3Array, normals: PackedVector3Array) -> PackedVector3Array:
-	if positions.size() != normals.size() or positions.is_empty():
-		return normals
-	var centre := Vector3.ZERO
-	for point in positions:
-		centre += point
-	centre /= float(maxi(1, positions.size()))
-	for i in positions.size():
-		if normals[i].dot(positions[i] - centre) < 0.0:
-			normals[i] = -normals[i]
-	return normals
-
-
 func _smoothed_normals(positions: PackedVector3Array, indices: PackedInt32Array) -> PackedVector3Array:
 	var slots := PackedInt32Array()
 	slots.resize(positions.size())
@@ -755,7 +735,7 @@ func _smoothed_normals(positions: PackedVector3Array, indices: PackedInt32Array)
 	for i in positions.size():
 		var accumulated: Vector3 = accumulators[slots[i]]
 		normals[i] = accumulated.normalized() if accumulated.length_squared() > 0.0000001 else Vector3.UP
-	return _repair_normals(positions, normals)
+	return normals
 
 
 func _create_board() -> void:
@@ -1233,7 +1213,6 @@ func _lathe_ring_into(vertices: PackedVector3Array, normals: PackedVector3Array,
 func _lathe_mesh(vertices: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, indices: PackedInt32Array) -> Mesh:
 	if vertices.is_empty():
 		return null
-	normals = _repair_normals(vertices, normals)
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
@@ -1327,7 +1306,7 @@ func _fluted_cylinder_arrays(top_radius: float, bottom_radius: float, height: fl
 	var result := []
 	result.resize(Mesh.ARRAY_MAX)
 	result[Mesh.ARRAY_VERTEX] = vertices
-	result[Mesh.ARRAY_NORMAL] = _repair_normals(vertices, normals)
+	result[Mesh.ARRAY_NORMAL] = normals
 	result[Mesh.ARRAY_TEX_UV] = uvs
 	result[Mesh.ARRAY_INDEX] = indices
 	return result
@@ -1441,7 +1420,7 @@ func _turned_stem_arrays(bottom_radius: float, waist: float, top_radius: float, 
 	var result := []
 	result.resize(Mesh.ARRAY_MAX)
 	result[Mesh.ARRAY_VERTEX] = vertices
-	result[Mesh.ARRAY_NORMAL] = _repair_normals(vertices, normals)
+	result[Mesh.ARRAY_NORMAL] = normals
 	result[Mesh.ARRAY_TEX_UV] = uvs
 	result[Mesh.ARRAY_INDEX] = indices
 	return result
@@ -1617,13 +1596,15 @@ func _ornate_knight_head(parts: Array, profile: Dictionary, facing: float) -> vo
 		_ornament_add(parts, "cone", neck * 0.19, 0.16, 0.0,
 			Vector3(side * neck * 0.38, base_y + 0.36, facing * 0.03), ORNAMENT_BODY,
 			Vector3(-12.0 * facing, 0.0, -side * 16.0))
-	# Mane: a curved row of ridges down the back of the neck, on the far side from
-	# the snout.
-	for i in 5:
-		var step := float(i) / 4.0
-		_ornament_add(parts, "box", neck * 0.32, 0.055, neck * 0.14,
-			Vector3(0.0, base_y + 0.30 - step * 0.22,
-				-facing * (0.09 + step * 0.11)), ORNAMENT_BODY)
+	# Mane: a short curved row of ridges sitting on the back of the neck, on the
+	# far side from the snout. They stay inside the neck's own radius - the first
+	# version let them drift out to 0.44, well past the piece's 0.335 foot, where
+	# they read as a pair of wings stuck on the sides.
+	for i in 4:
+		var step := float(i) / 3.0
+		_ornament_add(parts, "box", neck * 0.22, 0.045, neck * 0.10,
+			Vector3(0.0, base_y + 0.28 - step * 0.18,
+				-facing * (0.05 + step * 0.04)), ORNAMENT_BODY)
 
 
 ## Piece-specific crowns and caps, replacing the old single-ring accents.
@@ -3266,10 +3247,6 @@ func _luxury_piece_material(color: Color, roughness: float, metallic: float, emi
 	material.clearcoat_enabled = false
 	material.clearcoat = 0.0
 	material.clearcoat_roughness = 0.0
-	# Faces are never culled on a piece. One inward-wound face on a stem reads as
-	# a hard black seam down the +X side, and with back-face culling on it can
-	# vanish entirely and show the inside of the solid.
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	# Explicit rather than left to the default: an emitting pale albedo is the
 	# other way a white piece ends up as a glowing white silhouette.
 	material.emission_enabled = emissive
