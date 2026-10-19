@@ -29,7 +29,7 @@ shadow_enabled = false
 [node name="RimLight" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-35, 160, 0)
 light_color = Color(0.9, 0.93, 1, 1)
-light_energy = 0.5
+light_energy = 0.25
 shadow_enabled = false
 
 [node name="CameraRig" type="Node3D" parent="."]

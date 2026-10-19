@@ -28,7 +28,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.12.0"
-const APP_BUILD := "22.66"
+const APP_BUILD := "22.68"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
@@ -264,6 +264,9 @@ func _setup_environment() -> void:
 	$KeyLight.shadow_bias = 0.01
 	$KeyLight.shadow_normal_bias = 0.25
 	$KeyLight.shadow_blur = 1.2
+	# A wide shadow reach. At 22 the far ranks sat at the edge of the shadow map's
+	# orthographic frustum and their contact shadows were not drawn at all.
+	$KeyLight.directional_shadow_max_distance = 40.0
 	# Fill: soft, front-right and low, no shadow. This is what actually lights
 	# the side of a piece the camera can see.
 	$FillLight.light_energy = 0.28
@@ -276,7 +279,12 @@ func _setup_environment() -> void:
 	# in the picture.
 	$RimLight.rotation_degrees = Vector3(-35, 160, 0)
 	$RimLight.light_color = Color(0.90, 0.93, 1.0)
-	$RimLight.light_energy = 0.50
+	# 0.25, not the 0.50 this rig was balanced at. The rim skims the crown, the
+	# neck and the shoulders from behind, and at 0.50 its grazing lobe on a dark
+	# body with any specular at all was enough to clip the rook's crown and the
+	# pawns' collars to white rings. 0.25 still leaves a specular edge along the
+	# silhouette, which is the whole point of a rim, without the blowout.
+	$RimLight.light_energy = 0.25
 	$RimLight.shadow_enabled = false
 	# Bloom is off. With it on, the Compatibility renderer lifted the whole
 	# frame: the background went from the intended #2a1f2e to a flat #be82c6 and
@@ -541,7 +549,11 @@ func _setup_piece_materials() -> void:
 	# as a solid object beside the white set instead of a silhouette. The
 	# specular term is back at its default here because a dark albedo cannot
 	# clip the way a pale one does.
-	_piece_obsidian_material = _luxury_piece_material(body_dark, 0.22, 0.12, false, true, 0.50, null, carve, 0.25, 0.40, 0.20)
+	# The dark body's specular term is 0.35 rather than the 0.50 default. At 0.50
+	# the sky reflection and the rim light's grazing lobe rode on top of the
+	# diffuse and the crown, the collars and the coronet bands all clipped to
+	# white rings wherever the light caught them.
+	_piece_obsidian_material = _luxury_piece_material(body_dark, 0.22, 0.12, false, false, 0.35, null, carve, 0.25, 0.40, 0.20)
 	_piece_gold_material = _luxury_piece_material(accent, 0.22 if warm else 0.20, 0.90, false, false, 0.10)
 
 
@@ -696,6 +708,26 @@ func _pinched_stem(point: Vector3, low: float, high: float, base_radius: float, 
 ## position, which welds the duplicated vertices an OBJ export leaves behind and
 ## gives one smooth normal per corner of the solid. Positions are quantised to a
 ## 0.0005 grid so floating-point noise cannot split what is really one point.
+## Forces every vertex normal to point away from the solid. A chess piece is a
+## blob around its own centroid, so "away from the centroid" is a reliable outward
+## test for every kind of surface on it - flat faces, bevelled bands and the side
+## walls of a lathe alike. One inward normal on a stem is what shows up as a hard
+## black seam down the +X side, where that strip of surface stops taking light
+## completely; with back-face culling on, an inward-wound face can vanish instead
+## and show the inside of the solid.
+func _repair_normals(positions: PackedVector3Array, normals: PackedVector3Array) -> PackedVector3Array:
+	if positions.size() != normals.size() or positions.is_empty():
+		return normals
+	var centre := Vector3.ZERO
+	for point in positions:
+		centre += point
+	centre /= float(maxi(1, positions.size()))
+	for i in positions.size():
+		if normals[i].dot(positions[i] - centre) < 0.0:
+			normals[i] = -normals[i]
+	return normals
+
+
 func _smoothed_normals(positions: PackedVector3Array, indices: PackedInt32Array) -> PackedVector3Array:
 	var slots := PackedInt32Array()
 	slots.resize(positions.size())
@@ -723,7 +755,7 @@ func _smoothed_normals(positions: PackedVector3Array, indices: PackedInt32Array)
 	for i in positions.size():
 		var accumulated: Vector3 = accumulators[slots[i]]
 		normals[i] = accumulated.normalized() if accumulated.length_squared() > 0.0000001 else Vector3.UP
-	return normals
+	return _repair_normals(positions, normals)
 
 
 func _create_board() -> void:
@@ -761,8 +793,13 @@ func _create_board() -> void:
 	# has to stay a metal, but at metallic_specular 0.50 the sky reflection rode
 	# on top of the diffuse term and the whole ring clipped into a flat white
 	# stripe running down the h-file side of the board.
-	var trim := Color(0.62, 0.61, 0.58) if not warm else Color(0.72, 0.56, 0.20)
-	var trim_roughness := 0.24 if not warm else 0.26
+	# The inlay between the grid and the apron. It has to stay a metal, but it is
+	# deliberately a dark, rough one: at 0.82 with a 0.50 specular it read as a
+	# bright white band down the side of the board, and even at 0.62 the grazing
+	# rim light left a visible stripe to the right of file h. Rougher and darker
+	# still, it reads as machined metal let into the frame.
+	var trim := Color(0.42, 0.41, 0.39) if not warm else Color(0.58, 0.44, 0.15)
+	var trim_roughness := 0.42 if not warm else 0.40
 	var table := Color(0.27, 0.23, 0.31) if not warm else Color(0.24, 0.13, 0.08)
 	var light_map := "marble" if not warm else "walnut"
 	var dark_map := "walnut" if not warm else "rosewood"
@@ -770,10 +807,14 @@ func _create_board() -> void:
 	# metallic_specular is pinned low on the squares: at Godot's 0.5 default a
 	# broad flat face reflects the whole sky on top of its diffuse term and
 	# clips to white under ACES.
-	_board_light_material = _material(light_square, square_roughness, 0.0, false, 0.05,
-		_surface_map(light_map), _surface_map(light_map + "_normal"))
-	_board_dark_material = _material(dark_square, square_roughness, 0.0, false, 0.05,
-		_surface_map(dark_map), _surface_map(dark_map + "_normal"))
+	# The squares carry no albedo texture at all - flat colour, no veining, no
+	# figure. The brief asks for smooth squares free of 45-degree diagonal lines,
+	# and a noise field on a face this broad is only ever a pattern: on the far
+	# ranks, where a tile is nine pixels wide on screen, it aliases into visible
+	# banding no matter how the mip chain is filtered. The frame and the table keep
+	# their maps, because there the surface is large enough for the figure to read.
+	_board_light_material = _material(light_square, square_roughness, 0.0, false, 0.05)
+	_board_dark_material = _material(dark_square, square_roughness, 0.0, false, 0.05)
 	var apron_material := _material(apron, apron_roughness, apron_metallic, false, 0.06,
 		_surface_map(apron_map), _surface_map(apron_map + "_normal"))
 	var trim_material := _material(trim, trim_roughness, 0.90, false, 0.10)
@@ -782,9 +823,17 @@ func _create_board() -> void:
 
 	# The grid is static, so the 32 light squares share one surface and the 32
 	# dark squares share another: two draw calls instead of 64, and two mesh
-	# resources instead of 64 unique BoxMeshes. Each square is still centred at
+	# resources instead of 64 unique BoxMeshes. Each square is centred at
 	# (file - 3.5) * tile_size and (rank - 3.5) * tile_size, so the grid spans
 	# exactly -4.0 * tile_size to +4.0 * tile_size around the origin.
+	#
+	# That is the same centre the trim slab, the apron, the plinth and both table
+	# steps use, and the same origin the a-h and 1-8 labels are measured from, so
+	# the grid, the frame and the letters all agree on where the middle of the
+	# board is. There is deliberately no half-tile offset anywhere: a tile centre
+	# of (file - 3.5) puts the a-file's left edge and the h-file's right edge
+	# exactly 4.0 out, which is exactly where the trim ring starts, so the exposed
+	# inlay is the same width on all four sides.
 	var square_mesh := _shared_square_mesh()
 	var light_tool := SurfaceTool.new()
 	light_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -851,6 +900,10 @@ func _add_board_coordinates() -> void:
 	# is at y = 0.065, so the labels sit a hair above solid material: placed any
 	# lower they end up buried inside the mesh and simply vanish, and there is
 	# never a void underneath them.
+	#
+	# Both axes use (index - 3.5) * tile_size, exactly the centre of the tile they
+	# name, so the letters and the digits sit on the tiles they refer to rather
+	# than half a tile off them.
 	var label_color := Color("e8c56a") if piece_theme == "royal_wood" else Color("d9d5cc")
 	var label_y := 0.073
 	for index in BOARD_SIZE:
@@ -933,6 +986,21 @@ func _piece_node_name(kind: String, file: int, rank: int) -> String:
 	return "%s_%d_%d" % [kind.capitalize(), file, rank]
 
 
+## Walks a piece's subtree and forces the body material onto every mesh that is
+## not the merged trim mesh. The trim carries its own two surfaces with their
+## materials already set, so it is left alone; anything else - a sub-mesh someone
+## adds later - would otherwise render with Godot's default white material.
+func _apply_piece_materials(piece: Node3D, body: Material) -> void:
+	for child in piece.get_children():
+		var mesh_instance := child as MeshInstance3D
+		if mesh_instance == null:
+			continue
+		if mesh_instance.name == "OrnateTrim" or mesh_instance.name == "RoyalWoodTrim":
+			continue
+		if mesh_instance.material_override == null:
+			mesh_instance.material_override = body
+
+
 func _add_piece(kind: String, code: String, file: int, rank: int, body: Material, accent: Material) -> void:
 	var is_white := code == code.to_upper()
 	var piece := Node3D.new()
@@ -965,16 +1033,19 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	# The Staunton bodies are deliberately plain, so all the carving - tiered
 	# foot, filigree, fluting, collars and the crowns - lives in this one merged
 	# trim mesh rather than in a swarm of child nodes.
+	# The knight's head is built facing -Z for white and +Z for black, straight
+	# into the mesh, so nothing has to be spun afterwards: the old code rotated
+	# the whole trim, which was harmless for the revolved foot and stem but hid
+	# the fact that the head was a flat plate facing the wrong way.
 	var trim := MeshInstance3D.new()
 	trim.name = "OrnateTrim"
-	trim.mesh = _ornate_mesh(kind, body, accent, "classic")
+	trim.mesh = _ornate_mesh(kind, body, accent, "classic", -1.0 if is_white else 1.0)
 	trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	if kind == "knight":
-		# The sculpted head faces +X, so the set is mirrored the same way the
-		# body model used to be. The foot and stem are revolved, so rotating the
-		# whole trim is invisible on them.
-		trim.rotation.y = 0.0 if is_white else PI
 	piece.add_child(trim)
+	# Belt and braces: every sub-mesh of a piece carries the body material, so no
+	# surface can fall back to the default white StandardMaterial3D if a future
+	# part is added as its own node instead of being merged into the trim mesh.
+	_apply_piece_materials(piece, body)
 
 
 func _add_royal_wood_piece(piece: Node3D, kind: String, is_white: bool, wood: Material, gold: Material) -> void:
@@ -993,13 +1064,14 @@ func _add_royal_wood_piece(piece: Node3D, kind: String, is_white: bool, wood: Ma
 		if kind == "bishop":
 			model.rotation.y = PI * 0.25 if is_white else PI * 1.25
 		piece.add_child(model)
+	# As with the classic set, the knight's head faces down the board from inside
+	# the mesh itself, so the trim is never spun.
 	var trim := MeshInstance3D.new()
 	trim.name = "RoyalWoodTrim"
-	trim.mesh = _ornate_mesh(kind, wood, gold, "royal_wood")
+	trim.mesh = _ornate_mesh(kind, wood, gold, "royal_wood", -1.0 if is_white else 1.0)
 	trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	if kind == "knight":
-		trim.rotation.y = 0.0 if is_white else PI
 	piece.add_child(trim)
+	_apply_piece_materials(piece, wood)
 
 
 ## ---------------------------------------------------------------------------
@@ -1055,6 +1127,16 @@ func _ornament_primitive(shape: String, a: float, b: float, c: float) -> Mesh:
 			var box := BoxMesh.new()
 			box.size = Vector3(a, b, c)
 			created = box
+		"cone":
+			# A cylinder whose top radius is zero: watertight, and the only way to
+			# get a pointed ear out of the primitive set.
+			var cone := CylinderMesh.new()
+			cone.top_radius = 0.0
+			cone.bottom_radius = a
+			cone.height = b
+			cone.radial_segments = maxi(6, _radial_segments() / 2)
+			cone.rings = 1
+			created = cone
 	_mesh_cache[key] = created
 	return created
 
@@ -1151,6 +1233,7 @@ func _lathe_ring_into(vertices: PackedVector3Array, normals: PackedVector3Array,
 func _lathe_mesh(vertices: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, indices: PackedInt32Array) -> Mesh:
 	if vertices.is_empty():
 		return null
+	normals = _repair_normals(vertices, normals)
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
@@ -1199,6 +1282,8 @@ func _fluted_cylinder_arrays(top_radius: float, bottom_radius: float, height: fl
 		vertices.append(radial * (radius * flute) + Vector3(0.0, half, 0.0))
 		normals.append(radial)
 		normals.append(radial)
+		# Fluting tilts the surface, so the normal follows the flute's own slope
+		# rather than staying purely radial.
 		uvs.append(Vector2(t * float(flutes), 0.0))
 		uvs.append(Vector2(t * float(flutes), 1.0))
 	for i in segments:
@@ -1242,7 +1327,7 @@ func _fluted_cylinder_arrays(top_radius: float, bottom_radius: float, height: fl
 	var result := []
 	result.resize(Mesh.ARRAY_MAX)
 	result[Mesh.ARRAY_VERTEX] = vertices
-	result[Mesh.ARRAY_NORMAL] = normals
+	result[Mesh.ARRAY_NORMAL] = _repair_normals(vertices, normals)
 	result[Mesh.ARRAY_TEX_UV] = uvs
 	result[Mesh.ARRAY_INDEX] = indices
 	return result
@@ -1306,9 +1391,10 @@ func _turned_stem_arrays(bottom_radius: float, waist: float, top_radius: float, 
 		var slope := _stem_slope(t, bottom_radius, waist, top_radius, height)
 		var flute := 1.0 + depth * sin(angle * float(flutes))
 		var radial := Vector3(cos(angle), 0.0, sin(angle))
-		# Outward normal of a surface of revolution: the radial direction tilted
-		# by minus the profile slope.
-		var normal := Vector3(radial.x, -slope, radial.z).normalized()
+		# Outward normal of a surface of revolution: the radial direction, tilted
+		# by the profile slope turned the right way round. dr/dy positive means
+		# the surface leans outward going up, so the normal leans down.
+		var normal := (radial + Vector3(0.0, -slope, 0.0)).normalized()
 		vertices.append(radial * (radius * flute) + Vector3(0.0, -half, 0.0))
 		vertices.append(radial * (radius * flute) + Vector3(0.0, half, 0.0))
 		normals.append(normal)
@@ -1355,7 +1441,7 @@ func _turned_stem_arrays(bottom_radius: float, waist: float, top_radius: float, 
 	var result := []
 	result.resize(Mesh.ARRAY_MAX)
 	result[Mesh.ARRAY_VERTEX] = vertices
-	result[Mesh.ARRAY_NORMAL] = normals
+	result[Mesh.ARRAY_NORMAL] = _repair_normals(vertices, normals)
 	result[Mesh.ARRAY_TEX_UV] = uvs
 	result[Mesh.ARRAY_INDEX] = indices
 	return result
@@ -1421,12 +1507,15 @@ func _ornate_profile(kind: String) -> Dictionary:
 	return profile
 
 
-func _ornate_mesh(kind: String, body: Material, accent: Material, variant: String) -> ArrayMesh:
-	var key := "trim:%s:%s:%d:%d:%d" % [kind, variant, body.get_instance_id(), accent.get_instance_id(), _radial_segments()]
+func _ornate_mesh(kind: String, body: Material, accent: Material, variant: String, facing: float) -> ArrayMesh:
+	# `facing` is -1 for white and +1 for black: it is the direction down the board
+	# the piece looks, and only the knight head actually uses it, but it is part of
+	# the cache key because a white knight and a black knight are different meshes.
+	var key := "trim:%s:%s:%d:%d:%d:%d" % [kind, variant, body.get_instance_id(), accent.get_instance_id(), _radial_segments(), int(facing)]
 	if _mesh_cache.has(key):
 		return _mesh_cache[key]
 	var parts: Array = _ornate_trim_parts(kind, variant)
-	_ornate_identity_parts(parts, kind, variant)
+	_ornate_identity_parts(parts, kind, variant, facing)
 	var mesh := ArrayMesh.new()
 	for material_index in [ORNAMENT_BODY, ORNAMENT_ACCENT]:
 		var tool := SurfaceTool.new()
@@ -1492,115 +1581,54 @@ func _flush_band_add(parts: Array, radius: float, position: Vector3, height := O
 	parts.append([_mesh_cache[key], Transform3D(Basis.IDENTITY, position), ORNAMENT_ACCENT])
 
 
-## Emits one triangle of the knight head, wound so its normal points away from
-## the mesh's own centre. The head is a solid blob around that centre, which
-## makes "away from the centre" a reliable outward test for the flat faces, the
-## bevel bands and the side walls alike, and it removes any chance of a face
-## being lit from inside.
-func _emit_head_triangle(tool: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, centre: Vector3) -> void:
-	var normal := (b - a).cross(c - a)
-	if normal.length_squared() < 0.0000001:
-		return
-	if normal.dot(a - centre) < 0.0:
-		var swap: Vector3 = b
-		b = c
-		c = swap
-		normal = -normal
-	normal = normal.normalized()
-	tool.set_normal(normal)
-	tool.set_uv(_head_uv(a))
-	tool.add_vertex(a)
-	tool.set_uv(_head_uv(b))
-	tool.add_vertex(b)
-	tool.set_uv(_head_uv(c))
-	tool.add_vertex(c)
-
-
-## Triangulates one flat end of the extrusion as a fan from the middle of its
-## own ring.
-func _emit_head_fan(tool: SurfaceTool, ring: PackedVector3Array, centre: Vector3) -> void:
-	var middle := Vector3.ZERO
-	for point in ring:
-		middle += point
-	middle /= float(maxi(1, ring.size()))
-	for i in ring.size():
-		var j := (i + 1) % ring.size()
-		_emit_head_triangle(tool, middle, ring[i], ring[j], centre)
-
-
-## Cylindrical UVs, matching the projection the Staunton bodies get.
-func _head_uv(point: Vector3) -> Vector2:
-	return Vector2(atan2(point.z, point.x) / TAU + 0.5, point.y)
-
-
-## The knight's head. The shipped OBJ builds it from stacked boxes, which read as
-## cubes the moment a silhouette shows. This is the same head as one 2D side
-## profile - snout, jaw, arched mane, pointed ears - extruded across Z through
-## four layers: the outer pair carries the flat face and the inset pair gives
-## the bevelled edge, so the sides taper instead of meeting at a hard wall. It is
-## built once and cached, and it lands in the trim mesh's body slot like any
-## other carved part.
-func _knight_head_mesh() -> Mesh:
-	var key := "knight_head"
-	if _mesh_cache.has(key):
-		var cached: Mesh = _mesh_cache[key]
-		return cached
-	# [x, y] of the side profile, running from the back of the neck up over the
-	# mane and the ears, down the face, and back along the jaw and throat.
-	var profile: Array = [
-		[-0.150, 0.780], [-0.205, 0.950], [-0.140, 1.055], [-0.062, 1.082],
-		[-0.034, 1.215], [0.022, 1.058], [0.084, 1.195], [0.106, 1.028],
-		[0.188, 0.958], [0.232, 0.858], [0.242, 0.768], [0.196, 0.722],
-		[0.116, 0.718], [0.060, 0.658], [-0.050, 0.618], [-0.122, 0.690]
-	]
-	# Half-width in Z for the same sixteen points: wide through the neck and the
-	# chest, pinched at the ears and at the nose.
-	var widths: Array = [
-		0.145, 0.120, 0.100, 0.078, 0.016, 0.084,
-		0.016, 0.108, 0.118, 0.100, 0.058, 0.072,
-		0.090, 0.104, 0.118, 0.132
-	]
-	var count := profile.size()
-	var back := PackedVector3Array()
-	var inner_back := PackedVector3Array()
-	var inner_front := PackedVector3Array()
-	var front := PackedVector3Array()
-	for i in count:
-		# Indexed through a typed local: a bare Variant chain like profile[i][0]
-		# is not something the analyser will type-check.
-		var row: Array = profile[i]
-		var x: float = row[0]
-		var y: float = row[1]
-		var half_width: float = widths[i]
-		back.append(Vector3(x, y, -half_width))
-		inner_back.append(Vector3(x, y, -half_width * 0.55))
-		inner_front.append(Vector3(x, y, half_width * 0.55))
-		front.append(Vector3(x, y, half_width))
-	var centre := Vector3.ZERO
-	for row in [back, inner_back, inner_front, front]:
-		for point in row:
-			centre += point
-	centre /= float(maxi(1, count * 4))
-	var tool := SurfaceTool.new()
-	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-	_emit_head_fan(tool, front, centre)
-	_emit_head_fan(tool, back, centre)
-	var layers := [back, inner_back, inner_front, front]
-	for layer in layers.size() - 1:
-		var near: PackedVector3Array = layers[layer]
-		var far: PackedVector3Array = layers[layer + 1]
-		for i in count:
-			var j := (i + 1) % count
-			_emit_head_triangle(tool, near[i], far[i], far[j], centre)
-			_emit_head_triangle(tool, near[i], far[j], near[j], centre)
-	tool.generate_tangents()
-	var built: Mesh = tool.commit()
-	_mesh_cache[key] = built
-	return built
+## The knight's head, assembled from watertight primitives: an angled neck, a
+## tapered snout aimed at the opponent, two ear cones, and a curved row of mane
+## ridges down the back of the neck. `facing` is -1 for white and +1 for black, so
+## the snout points down the board at the other side.
+##
+## The polygon extrusion that was here before is gone. It was one side profile
+## pushed through four Z layers, and the profile is a third as deep as it is wide,
+## so from the camera - which looks straight down +Z at the flat front face - the
+## whole head read as a vertical plate with a notch cut out of the top. Every
+## primitive here is closed, so there is no face that can be wound inside out and
+## vanish, and the silhouette is a head from every angle rather than only from the
+## front.
+func _ornate_knight_head(parts: Array, profile: Dictionary, facing: float) -> void:
+	var neck: float = profile.neck
+	# The neck collar tops out at neck_y - 0.01, so the head starts exactly there
+	# and there is no gap between the collar and the neck.
+	var base_y: float = profile.neck_y - 0.01
+	# Angled neck: a truncated cone leaning forward, narrower than the collar so
+	# the collar reads as a ring the neck rises out of.
+	_ornament_add(parts, "cylinder", neck * 0.78, neck * 0.58, 0.22,
+		Vector3(0.0, base_y + 0.11, facing * 0.02), ORNAMENT_BODY,
+		Vector3(14.0 * facing, 0.0, 0.0))
+	# Skull.
+	_ornament_add(parts, "sphere", neck * 0.74, 0.0, 0.0,
+		Vector3(0.0, base_y + 0.24, facing * 0.05), ORNAMENT_BODY)
+	# Tapered snout: a truncated cone laid along Z with the small end forward. A
+	# rotation of +90 degrees about X carries the cylinder's +Y axis onto +Z, so
+	# the sign of the facing picks which end leads.
+	_ornament_add(parts, "cylinder", neck * 0.30, neck * 0.60, 0.26,
+		Vector3(0.0, base_y + 0.15, facing * 0.15), ORNAMENT_BODY,
+		Vector3(90.0 * facing, 0.0, 0.0))
+	# Ears: two cones, tilted back and outward.
+	for side in [-1.0, 1.0]:
+		_ornament_add(parts, "cone", neck * 0.19, 0.16, 0.0,
+			Vector3(side * neck * 0.38, base_y + 0.36, facing * 0.03), ORNAMENT_BODY,
+			Vector3(-12.0 * facing, 0.0, -side * 16.0))
+	# Mane: a curved row of ridges down the back of the neck, on the far side from
+	# the snout.
+	for i in 5:
+		var step := float(i) / 4.0
+		_ornament_add(parts, "box", neck * 0.32, 0.055, neck * 0.14,
+			Vector3(0.0, base_y + 0.30 - step * 0.22,
+				-facing * (0.09 + step * 0.11)), ORNAMENT_BODY)
 
 
 ## Piece-specific crowns and caps, replacing the old single-ring accents.
-func _ornate_identity_parts(parts: Array, kind: String, variant: String) -> void:
+func _ornate_identity_parts(parts: Array, kind: String, variant: String, facing: float) -> void:
+	var profile := _ornate_profile(kind)
 	match kind:
 		"pawn":
 			# A classic Staunton pawn is one uninterrupted sphere with a single
@@ -1611,22 +1639,24 @@ func _ornate_identity_parts(parts: Array, kind: String, variant: String) -> void
 			_ornament_add(parts, "torus", 0.135, 0.010, 0.0, Vector3(0, 0.72, 0), ORNAMENT_ACCENT)
 			_ornament_add(parts, "sphere", 0.115, 0.0, 0.0, Vector3(0, 0.83, 0), ORNAMENT_BODY)
 		"rook":
-			# Stonework battlements around a flanged crown, with a brass rim.
-			_ornament_add(parts, "torus", 0.205, 0.018, 0.0, Vector3(0, 0.84, 0), ORNAMENT_ACCENT)
+			# Stonework battlements around a flanged crown. One thin metal ring at
+			# the neck below the crown and nothing else: the second ring that used
+			# to sit on top of the battlements was a wide bright hoop catching the
+			# rim light, and together with the crown it read as a white band
+			# wrapped round a black piece.
+			_ornament_add(parts, "torus", 0.168, 0.009, 0.0, Vector3(0, 0.80, 0), ORNAMENT_ACCENT)
 			_ornament_add(parts, "cylinder", 0.225, 0.205, 0.13, Vector3(0, 0.90, 0), ORNAMENT_BODY)
 			var merlons := 6 if _radial_segments() <= 12 else 8
 			for i in merlons:
 				var merlon_angle := PI * 2.0 * float(i) / float(merlons)
 				_ornament_add(parts, "box", 0.085, 0.14, 0.085,
 					Vector3(cos(merlon_angle) * 0.165, 0.99, sin(merlon_angle) * 0.165), ORNAMENT_BODY)
-			_ornament_add(parts, "torus", 0.175, 0.012, 0.0, Vector3(0, 1.05, 0), ORNAMENT_ACCENT)
 		"knight":
-			# The head is sculpted, not stacked: one side profile extruded across
-			# Z. The old build fanned seven separate cylinders around the neck as
-			# a mane, which read as a bottle brush, and hung two torus hoops in
-			# mid-air where the head used to be a box. The only metal accent left
-			# on a knight is the flush band at its neck, from the trim parts.
-			parts.append([_knight_head_mesh(), Transform3D(Basis.IDENTITY, Vector3.ZERO), ORNAMENT_BODY])
+			# Built from closed primitives so no face can be wound inside out and
+			# disappear. The old build fanned seven separate cylinders around the
+			# neck as a mane, which read as a bottle brush, and hung two torus
+			# hoops in mid-air where the head used to be a box.
+			_ornate_knight_head(parts, profile, facing)
 		"bishop":
 			# Carved mitre with a patterned collar and a small finial ball, and
 			# nothing else. The gold slab that used to be rotated out of the
@@ -3230,9 +3260,16 @@ func _luxury_piece_material(color: Color, roughness: float, metallic: float, emi
 	material.roughness = roughness
 	material.metallic = metallic
 	material.metallic_specular = sheen
-	material.clearcoat_enabled = glossy
-	material.clearcoat = clearcoat
-	material.clearcoat_roughness = clearcoat_roughness if glossy else 0.0
+	# No clearcoat on any piece. The clearcoat lobe is a second specular sitting on
+	# top of the first, and on a dark body under a grazing rim light it is what
+	# turned the rook's crown and the pawns' collars into bright white hoops.
+	material.clearcoat_enabled = false
+	material.clearcoat = 0.0
+	material.clearcoat_roughness = 0.0
+	# Faces are never culled on a piece. One inward-wound face on a stem reads as
+	# a hard black seam down the +X side, and with back-face culling on it can
+	# vanish entirely and show the inside of the solid.
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	# Explicit rather than left to the default: an emitting pale albedo is the
 	# other way a white piece ends up as a glowing white silhouette.
 	material.emission_enabled = emissive
