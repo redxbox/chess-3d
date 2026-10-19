@@ -1433,7 +1433,7 @@ func _turned_stem_arrays(kind: String, low: float, high: float, segments: int, f
 			indices.append(b)
 			indices.append(c)
 			indices.append(d)
-	result := []
+	var result := []
 	result.resize(Mesh.ARRAY_MAX)
 	result[Mesh.ARRAY_VERTEX] = vertices
 	result[Mesh.ARRAY_NORMAL] = normals
