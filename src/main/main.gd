@@ -28,7 +28,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.12.0"
-const APP_BUILD := "22.69"
+const APP_BUILD := "22.70"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
@@ -554,7 +554,21 @@ func _setup_piece_materials() -> void:
 	# diffuse and the crown, the collars and the coronet bands all clipped to
 	# white rings wherever the light caught them.
 	_piece_obsidian_material = _luxury_piece_material(body_dark, 0.22, 0.12, false, false, 0.35, null, carve, 0.25, 0.40, 0.20)
-	_piece_gold_material = _luxury_piece_material(accent, 0.22 if warm else 0.20, 0.90, false, false, 0.10)
+	# The trim roughness is 0.42 (0.40 on royal_wood) - the same value the board
+	# inlay uses - and it is not a taste decision. The accent is metallic 0.90
+	# with metallic_specular 0.10, so almost all of its light is one specular
+	# lobe, and the width of that lobe is the roughness. At 0.20 the lobe is so
+	# tight that the flat faces of the king's cross, the queen's coronet balls
+	# and every collar torus miss it completely and the sky they do reflect is
+	# the dark sky-top: measured in the render, those parts came back at
+	# luminance under 25 - solid black blobs on an ivory body. The board inlay
+	# runs the identical material family (metallic 0.90, metallic_specular 0.10)
+	# at roughness 0.42 and measures luminance 103, i.e. it renders at roughly
+	# its own albedo. Matching that roughness is what turns the trim from a
+	# black ring into machined metal. The albedo stays at 0.60 and the specular
+	# stays at 0.10, so the reflection is still a fraction of what clipped the
+	# collars to white rings at 0.82 / 0.50.
+	_piece_gold_material = _luxury_piece_material(accent, 0.40 if warm else 0.42, 0.90, false, false, 0.10)
 
 
 ## Fine procedural carving shared by both piece sets. A FastNoiseLite turned
