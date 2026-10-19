@@ -28,7 +28,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.12.0"
-const APP_BUILD := "22.71"
+const APP_BUILD := "22.72"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 @onready var board: Node3D = $Board
@@ -645,35 +645,20 @@ func _piece_mesh(kind: String) -> Mesh:
 		lowest = minf(lowest, point.y)
 		highest = maxf(highest, point.y)
 	var span := maxf(0.0001, highest - lowest)
-	# The base radius is measured off the mesh rather than assumed, so the same
-	# rule covers the pawn's 0.26 foot and the king's 0.33 one.
-	var base_radius := 0.0
-	for point in positions:
-		if point.y <= lowest + span * 0.08:
-			base_radius = maxf(base_radius, Vector2(point.x, point.z).length())
-	base_radius = maxf(0.0001, base_radius)
-	# The waist band is read once, not per vertex: it only depends on the kind.
-	var waist_low: float = lowest + _ornate_profile(kind).waist_low
-	var waist_high: float = lowest + _ornate_profile(kind).waist_high
-	var neck_radius: float = _ornate_profile(kind).neck
-	# The pinched silhouette has to exist before the normals are averaged, or the
-	# smoothing pass would average the faces of the straight cone the OBJ shipped
-	# and hand the turned stem cone normals.
-	var shaped := PackedVector3Array()
-	shaped.resize(positions.size())
-	for i in positions.size():
-		shaped[i] = _pinched_stem(positions[i], waist_low, waist_high, base_radius, neck_radius)
 	# The bodies ship with no vn records either, so their faces arrive flat
-	# shaded. Averaging the face normals of every welded vertex is what turns the
-	# knight's chest and neck from stacked boxes into carved curves, and it costs
-	# one pass at load time on a mesh that is then cached and shared.
+	# shaded. Averaging the area-weighted face normal of every welded vertex is
+	# what turns the bishop's mitre and the queen's coronet from facets into
+	# carved curves, and it costs one pass at load time on a mesh that is then
+	# cached and shared. The knight is the exception: its OBJ is a stack of
+	# boxes, so it is never loaded here at all and its head is sculpted in the
+	# trim layer instead.
 	var smoothed: PackedVector3Array = PackedVector3Array()
 	if not has_normals:
-		smoothed = _smoothed_normals(shaped, indices)
+		smoothed = _smoothed_normals(positions, indices)
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i in shaped.size():
-		var vertex: Vector3 = shaped[i]
+	for i in positions.size():
+		var vertex: Vector3 = positions[i]
 		var angle := atan2(vertex.z, vertex.x)
 		# Two wraps around the piece keeps the carving fine enough to read as
 		# detail rather than as one big smear.
@@ -695,30 +680,79 @@ func _piece_mesh(kind: String) -> Mesh:
 	return mesh
 
 
-## Pulls the stem of a Staunton body in to a concave waist. A plain stem is a
-## straight cone, which reads as a dowel under the key light; this remaps every
-## vertex inside the waist band onto a curve that bottoms out at 0.20 of the base
-## radius and flares back out to the foot below and the neck collar above. The
-## flare is pow(t, 1.8), which is flat at the waist and steep at the ends, so the
-## silhouette turns smoothly instead of stepping. The band comes from the same
-## profile the ornament stem uses, so carving and silhouette are one surface.
-func _pinched_stem(point: Vector3, low: float, high: float, base_radius: float, neck: float) -> Vector3:
-	if point.y <= low or point.y >= high:
-		return point
-	var waist: float = base_radius * 0.20
-	var along := (point.y - low) / maxf(0.0001, high - low)
-	var away := absf(2.0 * along - 1.0)
-	var flare: float = pow(away, 1.8)
-	var target: float
-	if along < 0.5:
-		target = waist + (base_radius - waist) * flare
-	else:
-		target = waist + (neck - waist) * flare
-	var current := Vector2(point.x, point.z).length()
-	if current <= 0.0001:
-		return point
-	var squeeze := target / current
-	return Vector3(point.x * squeeze, point.y, point.z * squeeze)
+## The silhouette the Staunton bodies ship with, sampled once per kind and
+## cached. The ornament lathe follows this instead of an invented curve, so the
+## carved stem cannot strangle the piece: whatever radius the mesh reaches at a
+## given height is the radius the lathe is given there.
+const BODY_PROFILE_STEPS := 32
+
+func _body_profile(kind: String) -> Dictionary:
+	var cache_key := "bodyprofile:%s" % kind
+	if _mesh_cache.has(cache_key):
+		return _mesh_cache[cache_key]
+	var source: Mesh = PIECE_MODELS[kind]
+	var positions: PackedVector3Array = source.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var lowest := 0.0
+	var highest := 0.0
+	for point in positions:
+		lowest = minf(lowest, point.y)
+		highest = maxf(highest, point.y)
+	var span := maxf(0.0001, highest - lowest)
+	var radii := PackedFloat32Array()
+	radii.resize(BODY_PROFILE_STEPS)
+	for point in positions:
+		var step := int(clampf((point.y - lowest) / span, 0.0, 0.999999) * float(BODY_PROFILE_STEPS))
+		var radius: float = Vector2(point.x, point.z).length()
+		if radius > radii[step]:
+			radii[step] = radius
+	# The meshes are not uniformly dense in y: several kinds have height bands
+	# with no vertex at all, which would leave a zero in the table and pinch the
+	# lathe to nothing exactly where the stem is narrowest. Any empty step is
+	# filled by interpolating between the nearest steps that do have geometry.
+	for i in BODY_PROFILE_STEPS:
+		if radii[i] > 0.0001:
+			continue
+		var before := i - 1
+		while before >= 0 and radii[before] <= 0.0001:
+			before -= 1
+		var after := i + 1
+		while after < BODY_PROFILE_STEPS and radii[after] <= 0.0001:
+			after += 1
+		if before < 0 and after >= BODY_PROFILE_STEPS:
+			continue
+		if before < 0:
+			radii[i] = radii[after]
+		elif after >= BODY_PROFILE_STEPS:
+			radii[i] = radii[before]
+		else:
+			var blend: float = float(i - before) / float(after - before)
+			radii[i] = lerpf(radii[before], radii[after], blend)
+	var profile := {"lowest": lowest, "span": span, "radii": radii}
+	_mesh_cache[cache_key] = profile
+	return profile
+
+
+## Largest radius the shipped body reaches at world height `y`, linearly
+## interpolated between the sampled steps.
+func _body_radius_at(kind: String, y: float) -> float:
+	var profile: Dictionary = _body_profile(kind)
+	var radii: PackedFloat32Array = profile["radii"]
+	var lowest: float = profile["lowest"]
+	var span: float = profile["span"]
+	var scaled: float = clampf((y - lowest) / span, 0.0, 1.0) * float(radii.size() - 1)
+	var i := int(floorf(scaled))
+	if i >= radii.size() - 1:
+		return radii[radii.size() - 1]
+	return lerpf(radii[i], radii[i + 1], scaled - float(i))
+
+
+## d(radius)/d(height) of the shipped silhouette, differenced numerically so the
+## lathe's surface normal follows the real curve. A straight radial normal on a
+## surface this steep is wrong by up to sixty degrees and the stem shades as a
+## cone instead of as turned wood.
+func _body_slope_at(kind: String, y: float) -> float:
+	var delta := 0.012
+	return (_body_radius_at(kind, y + delta) - _body_radius_at(kind, y - delta)) / (2.0 * delta)
 
 
 ## Averages the area-weighted face normal of every vertex that shares a
@@ -1266,30 +1300,40 @@ func _fluted_cylinder_arrays(top_radius: float, bottom_radius: float, height: fl
 	var uvs := PackedVector2Array()
 	var indices := PackedInt32Array()
 	var half := height * 0.5
-	var side := segments + 1
-	# Side wall: two vertices per ring, bottom then top.
-	for i in side:
-		var t := float(i) / float(segments)
-		var angle := TAU * t
+	var rings := 6
+	# Side wall: one ring of `segments` vertices per height step, wrapping by one
+	# so the seam closes. The height fraction and the angle are separate
+	# variables here on purpose. The previous version drove both from one `t`,
+	# which made the radius pulse from bottom_radius to top_radius once around
+	# the piece instead of varying with height, and left only two vertices
+	# vertically - so the foot collar was a lumpy ring with no waist of its own
+	# rather than a fluted cone.
+	for j in rings + 1:
+		var t := float(j) / float(rings)
+		var y := lerpf(-half, half, t)
 		var radius := lerpf(bottom_radius, top_radius, t)
-		var flute := 1.0 + depth * sin(angle * float(flutes))
-		var radial := Vector3(cos(angle), 0.0, sin(angle))
-		vertices.append(radial * (radius * flute) + Vector3(0.0, -half, 0.0))
-		vertices.append(radial * (radius * flute) + Vector3(0.0, half, 0.0))
-		normals.append(radial)
-		normals.append(radial)
-		# Fluting tilts the surface, so the normal follows the flute's own slope
-		# rather than staying purely radial.
-		uvs.append(Vector2(t * float(flutes), 0.0))
-		uvs.append(Vector2(t * float(flutes), 1.0))
-	for i in segments:
-		var base := i * 2
-		indices.append(base)
-		indices.append(base + 1)
-		indices.append(base + 2)
-		indices.append(base + 1)
-		indices.append(base + 3)
-		indices.append(base + 2)
+		# dr/dy of a straight cone, so the normal leans the right way.
+		var slope := (top_radius - bottom_radius) / maxf(0.001, height)
+		for i in segments + 1:
+			var angle := TAU * float(i) / float(segments)
+			var flute := 1.0 + depth * sin(angle * float(flutes))
+			var radial := Vector3(cos(angle), 0.0, sin(angle))
+			var normal := (radial + Vector3(0.0, -slope, 0.0)).normalized()
+			vertices.append(radial * (radius * flute) + Vector3(0.0, y, 0.0))
+			normals.append(normal)
+			uvs.append(Vector2(float(i) / float(segments), t))
+	for j in rings:
+		for i in segments:
+			var a := j * (segments + 1) + i
+			var b := a + 1
+			var c := a + (segments + 1)
+			var d := c + 1
+			indices.append(a)
+			indices.append(c)
+			indices.append(b)
+			indices.append(b)
+			indices.append(c)
+			indices.append(d)
 	# Caps. The bottom cap faces down, so its winding runs the other way.
 	var cap_ys := [-half, half]
 	for cap_index in 2:
@@ -1343,98 +1387,53 @@ func _fluted_add(parts: Array, top_radius: float, bottom_radius: float, height: 
 	parts.append([_mesh_cache[key], Transform3D(Basis.IDENTITY, position), material_index])
 
 
-## The concave stem curve: `waist` at mid-height, flaring to `bottom_radius` at
-## the foot and `top_radius` at the neck collar. The flare is pow(t, 1.8), which
-## is flat at the waist and steep at the ends.
-func _stem_radius(t: float, bottom_radius: float, waist: float, top_radius: float) -> float:
-	var away := absf(2.0 * t - 1.0)
-	var flare: float = pow(away, 1.8)
-	if t < 0.5:
-		return waist + (bottom_radius - waist) * flare
-	return waist + (top_radius - waist) * flare
-
-
-## d(radius) / d(height) of the same curve, differenced numerically so it cannot
-## drift out of step with _stem_radius(). The surface normal needs it: a straight
-## radial normal on a curve this steep is wrong by up to sixty degrees, and the
-## stem would shade as a cone instead of as turned wood.
-func _stem_slope(t: float, bottom_radius: float, waist: float, top_radius: float, height: float) -> float:
-	var span := maxf(0.001, height)
-	var delta := 0.004
-	var before := maxf(0.0, t - delta)
-	var after := minf(1.0, t + delta)
-	if after - before <= 0.0:
-		return 0.0
-	var radius_before := _stem_radius(before, bottom_radius, waist, top_radius)
-	var radius_after := _stem_radius(after, bottom_radius, waist, top_radius)
-	return (radius_after - radius_before) / ((after - before) * span)
-
-
-## A fluted lathe whose radius follows the concave curve instead of a straight
-## cone. It pinches to `waist` at mid-height and flares back out to the foot and
-## the neck collar, which is the graceful silhouette the brief asks for.
-func _turned_stem_arrays(bottom_radius: float, waist: float, top_radius: float, height: float, segments: int, flutes: int, depth: float) -> Array:
+## A fluted lathe whose radius is the shipped Staunton silhouette itself,
+## sampled off the body mesh, standing a hair proud of it so the fluting reads
+## as carving cut into the wood rather than as a sleeve buried inside it.
+##
+## It used to follow an invented curve that bottomed out at a hardcoded waist
+## and flared to the foot radius at both band edges. That curve spent most of
+## its height pinned near the waist - pow(away, 1.8) is 0.29 by the time it is
+## halfway out - so a pawn's stem was 0.052 across under a 0.261 foot, and the
+## knight's was 0.065 under 0.326 where the model says 0.163. Reading the real
+## radius off the mesh makes both numbers unreachable as mistakes.
+func _turned_stem_arrays(kind: String, low: float, high: float, segments: int, flutes: int, depth: float, scale: float) -> Array:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var indices := PackedInt32Array()
-	var half := height * 0.5
-	var side := segments + 1
-	for i in side:
-		var t := float(i) / float(segments)
-		var angle := TAU * t
-		var radius := _stem_radius(t, bottom_radius, waist, top_radius)
-		var slope := _stem_slope(t, bottom_radius, waist, top_radius, height)
-		var flute := 1.0 + depth * sin(angle * float(flutes))
-		var radial := Vector3(cos(angle), 0.0, sin(angle))
-		# Outward normal of a surface of revolution: the radial direction, tilted
-		# by the profile slope turned the right way round. dr/dy positive means
-		# the surface leans outward going up, so the normal leans down.
-		var normal := (radial + Vector3(0.0, -slope, 0.0)).normalized()
-		vertices.append(radial * (radius * flute) + Vector3(0.0, -half, 0.0))
-		vertices.append(radial * (radius * flute) + Vector3(0.0, half, 0.0))
-		normals.append(normal)
-		normals.append(normal)
-		uvs.append(Vector2(t * float(flutes), 0.0))
-		uvs.append(Vector2(t * float(flutes), 1.0))
-	for i in segments:
-		var base := i * 2
-		indices.append(base)
-		indices.append(base + 1)
-		indices.append(base + 2)
-		indices.append(base + 1)
-		indices.append(base + 3)
-		indices.append(base + 2)
-	var cap_ys := [-half, half]
-	for cap_index in 2:
-		var cap_y: float = cap_ys[cap_index]
-		var radius: float = bottom_radius if cap_y < 0.0 else top_radius
-		var upward := cap_y > 0.0
-		var centre := vertices.size()
-		vertices.append(Vector3(0.0, cap_y, 0.0))
-		normals.append(Vector3(0.0, 1.0 if upward else -1.0, 0.0))
-		uvs.append(Vector2(0.5, 0.5))
-		var ring_start := vertices.size()
-		for i in segments:
+	var span := maxf(0.001, high - low)
+	var rings := 16
+	for j in rings + 1:
+		var t := float(j) / float(rings)
+		var y := low + span * t
+		var radius := (_body_radius_at(kind, y) + ORNAMENT_BAND_PROUD) * scale
+		var slope := _body_slope_at(kind, y)
+		for i in segments + 1:
 			var angle := TAU * float(i) / float(segments)
 			var flute := 1.0 + depth * sin(angle * float(flutes))
-			vertices.append(Vector3(cos(angle) * radius * flute, cap_y, sin(angle) * radius * flute))
-			normals.append(Vector3(0.0, 1.0 if upward else -1.0, 0.0))
-			uvs.append(Vector2(0.5 + 0.5 * cos(angle), 0.5 + 0.5 * sin(angle)))
+			var radial := Vector3(cos(angle), 0.0, sin(angle))
+			# Outward normal of a surface of revolution: the radial direction,
+			# tilted by the profile slope turned the right way round. dr/dy
+			# positive means the surface leans outward going up, so the normal
+			# leans down.
+			var normal := (radial + Vector3(0.0, -slope, 0.0)).normalized()
+			vertices.append(radial * (radius * flute) + Vector3(0.0, y - (low + high) * 0.5, 0.0))
+			normals.append(normal)
+			uvs.append(Vector2(float(i) / float(segments), t))
+	for j in rings:
 		for i in segments:
-			var next := ring_start + ((i + 1) % segments)
-			var here := ring_start + i
-			if upward:
-				indices.append(centre)
-				indices.append(here)
-				indices.append(next)
-			else:
-				indices.append(centre)
-				indices.append(next)
-				indices.append(here)
-	# Mesh arrays are indexed by the ARRAY_* constants and are expected to be
-	# ARRAY_MAX long; a short four-entry list is rejected outright.
-	var result := []
+			var a := j * (segments + 1) + i
+			var b := a + 1
+			var c := a + (segments + 1)
+			var d := c + 1
+			indices.append(a)
+			indices.append(c)
+			indices.append(b)
+			indices.append(b)
+			indices.append(c)
+			indices.append(d)
+	result := []
 	result.resize(Mesh.ARRAY_MAX)
 	result[Mesh.ARRAY_VERTEX] = vertices
 	result[Mesh.ARRAY_NORMAL] = normals
@@ -1443,24 +1442,21 @@ func _turned_stem_arrays(bottom_radius: float, waist: float, top_radius: float, 
 	return result
 
 
-## Appends the turned stem to a part list, spanning the waist band from the
-## profile. Cached by its dimensions, so the six kinds share nothing and the
-## two themes only diverge where the royal_wood foot makes them.
-func _turned_stem_add(parts: Array, profile: Dictionary, foot: float) -> void:
-	var low: float = profile.waist_low
-	var high: float = profile.waist_high
+## Appends the turned stem to a part list, spanning the profile's stem band.
+## Cached by kind and band, so the six kinds share nothing and the two themes
+## only diverge where the royal_wood foot scales them.
+func _turned_stem_add(parts: Array, kind: String, profile: Dictionary, scale: float) -> void:
+	var low: float = profile.stem_low
+	var high: float = profile.stem_high
 	var height: float = high - low
 	if height <= 0.001:
 		return
-	# `foot` is passed in rather than read off the profile because the carved set
-	# scales its foot, and the stem has to flare out to the foot it is actually
-	# sitting on.
-	var key := "tstem:%s:%s:%s:%s:%d" % [foot, profile.stem, profile.neck, height, ORNAMENT_FLUTE_SEGMENTS]
+	var key := "tstem:%s:%s:%s:%s:%d" % [kind, low, high, scale, ORNAMENT_FLUTE_SEGMENTS]
 	if not _mesh_cache.has(key):
 		var tool := SurfaceTool.new()
 		tool.create_from_arrays(
-			_turned_stem_arrays(foot, profile.stem, profile.neck, height,
-				ORNAMENT_FLUTE_SEGMENTS, ORNAMENT_FLUTE_COUNT, ORNAMENT_FLUTE_DEPTH),
+			_turned_stem_arrays(kind, low, high, ORNAMENT_FLUTE_SEGMENTS,
+				profile.flutes, ORNAMENT_FLUTE_DEPTH, scale),
 			Mesh.PRIMITIVE_TRIANGLES)
 		_mesh_cache[key] = tool.commit()
 	parts.append([_mesh_cache[key], Transform3D(Basis.IDENTITY, Vector3(0, low + height * 0.5, 0)), ORNAMENT_BODY])
@@ -1468,38 +1464,47 @@ func _turned_stem_add(parts: Array, profile: Dictionary, foot: float) -> void:
 
 ## Per-kind Staunton proportions, in the same units as the body models
 ## (pawn 0.91 tall ... king 1.62 tall, foot radius about 0.33).
+##
+## Every number here is measured off the shipped .obj, not chosen. The earlier
+## table invented a waist of 0.052-0.065 for all six kinds, which is a fifth of
+## what the models actually are: the pawn's stem narrows to 0.073 of its 0.261
+## foot, the bishop's to 0.082 of 0.326, and the knight's to 0.163 of 0.326 -
+## the widest waist of the six, because a Staunton knight's neck carries a head
+## nearly as broad as its own foot. Forcing all six onto one constant is what
+## turned every stem into a toothpick and the knight into a lollipop.
+##
+## `stem_low` / `stem_high` are the vertical band the turned lathe covers; it is
+## the concave part of the silhouette, from just above the foot to just below
+## the neck collar. `waist` and `waist_y` locate the narrowest point, which is
+## where the second flush inlay sits. `neck` is the radius the body actually
+## reaches at `neck_y`, so the collar is sized by the mesh and not by taste.
 func _ornate_profile(kind: String) -> Dictionary:
-	# `stem` is the waist radius, not a sleeve radius: 0.20 of the base radius,
-	# which is what makes the silhouette go in at the middle instead of running
-	# parallel to the foot. `waist_low` and `waist_high` are the vertical band,
-	# in the same 0-based units as the body models, across which both the body
-	# mesh is pinched and the ornament stem is turned.
 	var profile := {
-		"foot": 0.30, "stem": 0.052,
-		"neck": 0.125, "neck_y": 0.66, "flutes": 8,
-		"waist_low": 0.118, "waist_high": 0.455
+		"foot": 0.261, "stem_low": 0.180, "stem_high": 0.560,
+		"waist": 0.073, "waist_y": 0.501,
+		"neck": 0.105, "neck_y": 0.660, "flutes": 8
 	}
 	match kind:
 		"rook":
-			profile.foot = 0.335; profile.stem = 0.065
-			profile.neck = 0.17; profile.neck_y = 0.80; profile.flutes = 10
-			profile.waist_low = 0.165; profile.waist_high = 0.543
+			profile.foot = 0.326; profile.stem_low = 0.236; profile.stem_high = 0.900
+			profile.waist = 0.099; profile.waist_y = 0.767
+			profile.neck = 0.139; profile.neck_y = 0.800; profile.flutes = 10
 		"knight":
-			profile.foot = 0.335; profile.stem = 0.065
-			profile.neck = 0.15; profile.neck_y = 0.76; profile.flutes = 0
-			profile.waist_low = 0.172; profile.waist_high = 0.726
+			profile.foot = 0.326; profile.stem_low = 0.264; profile.stem_high = 0.860
+			profile.waist = 0.163; profile.waist_y = 0.330
+			profile.neck = 0.237; profile.neck_y = 0.760; profile.flutes = 0
 		"bishop":
-			profile.foot = 0.325; profile.stem = 0.065
-			profile.neck = 0.155; profile.neck_y = 0.84; profile.flutes = 8
-			profile.waist_low = 0.188; profile.waist_high = 0.670
+			profile.foot = 0.326; profile.stem_low = 0.268; profile.stem_high = 0.900
+			profile.waist = 0.082; profile.waist_y = 0.670
+			profile.neck = 0.127; profile.neck_y = 0.840; profile.flutes = 8
 		"queen":
-			profile.foot = 0.335; profile.stem = 0.065
-			profile.neck = 0.17; profile.neck_y = 0.98; profile.flutes = 12
-			profile.waist_low = 0.209; profile.waist_high = 0.745
+			profile.foot = 0.326; profile.stem_low = 0.298; profile.stem_high = 0.960
+			profile.waist = 0.082; profile.waist_y = 0.820
+			profile.neck = 0.121; profile.neck_y = 0.980; profile.flutes = 12
 		"king":
-			profile.foot = 0.335; profile.stem = 0.065
-			profile.neck = 0.175; profile.neck_y = 1.02; profile.flutes = 12
-			profile.waist_low = 0.227; profile.waist_high = 0.810
+			profile.foot = 0.326; profile.stem_low = 0.324; profile.stem_high = 1.020
+			profile.waist = 0.085; profile.waist_y = 0.729
+			profile.neck = 0.145; profile.neck_y = 1.020; profile.flutes = 12
 	return profile
 
 
@@ -1535,13 +1540,16 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	var parts: Array = []
 	var profile := _ornate_profile(kind)
 	var foot: float = profile.foot
-	var stem: float = profile.stem
 	var neck: float = profile.neck
 	var neck_y: float = profile.neck_y
 	# The carved set is finished differently from the classic one: a taller, wider
-	# turned foot, so it reads as a different object rather than a recolour.
+	# turned foot, so it reads as a different object rather than a recolour. The
+	# stem lathe is scaled by the same factor, or royal_wood's foot would step
+	# inward where it meets a classic-width stem.
+	var scale := 1.0
 	if variant == "royal_wood":
 		foot *= 1.14
+		scale = 1.14
 	# Tiered foot. The lower collar is a fluted lathe rather than a smooth
 	# cylinder, and the fluting is shallow: 0.008 of amplitude over 16 grooves.
 	# Nothing here protrudes past the turned profile. Every metal accent on a
@@ -1553,14 +1561,13 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	# Flush inlay one of three, let into the base step. A flat revolved annulus
 	# 0.015 tall standing only 0.004 proud.
 	_flush_band_add(parts, foot * 0.64, Vector3(0, 0.108, 0))
-	# The mid-stem shaft: a turned lathe spanning the waist band, pinched to
-	# `stem` at its middle and flaring into the foot below and the neck collar
-	# above. It follows the same curve the body mesh is pinched onto, so the
-	# carving and the silhouette are one surface rather than a sleeve buried in
-	# the wood, and the fluting is actually visible along the whole stem.
-	_turned_stem_add(parts, profile, foot)
-	# Flush inlay two of three, sitting on the waist itself.
-	_flush_band_add(parts, stem + 0.004, Vector3(0, (profile.waist_low + profile.waist_high) * 0.5, 0), 0.010, 0.004)
+	# The mid-stem shaft: a turned lathe spanning the stem band, following the
+	# radius the body mesh itself reaches at every height. The carving and the
+	# silhouette are one surface rather than a sleeve buried in the wood, and the
+	# fluting is visible along the whole stem.
+	_turned_stem_add(parts, kind, profile, scale)
+	# Flush inlay two of three, sitting on the narrowest point of the stem.
+	_flush_band_add(parts, (profile.waist + 0.004) * scale, Vector3(0, profile.waist_y, 0), 0.010, 0.004)
 	# Turned neck collar, with the third flush inlay let into it.
 	_ornament_add(parts, "cylinder", neck * 0.88, neck, 0.07, Vector3(0, neck_y - 0.045, 0), ORNAMENT_BODY)
 	_flush_band_add(parts, neck, Vector3(0, neck_y + 0.015, 0))
@@ -1594,24 +1601,31 @@ func _ornate_knight_head(parts: Array, profile: Dictionary, facing: float) -> vo
 	# The neck collar tops out at neck_y - 0.01, so the head starts exactly there
 	# and there is no gap between the collar and the neck.
 	var base_y: float = profile.neck_y - 0.01
-	# Angled neck: a truncated cone leaning forward, narrower than the collar so
-	# the collar reads as a ring the neck rises out of.
-	_ornament_add(parts, "cylinder", neck * 0.78, neck * 0.58, 0.22,
-		Vector3(0.0, base_y + 0.11, facing * 0.02), ORNAMENT_BODY,
-		Vector3(14.0 * facing, 0.0, 0.0))
-	# Skull.
-	_ornament_add(parts, "sphere", neck * 0.74, 0.0, 0.0,
-		Vector3(0.0, base_y + 0.24, facing * 0.05), ORNAMENT_BODY)
+	# Every dimension here is read off the shipped knight.obj, because the head
+	# used to be sized off `neck` as if the knight's neck were as slim as a
+	# pawn's: at 0.15 the skull came out at 0.111 across under a 0.326 foot, so
+	# the piece read as a tower on a stick. The model's neck is 0.237 at the
+	# collar and its head 0.303 - the widest waist of the six kinds, which is
+	# what makes a Staunton knight's head sit on the piece instead of hovering
+	# above it.
+	#
+	# Angled neck: a truncated cone leaning forward, widening into the head.
+	_ornament_add(parts, "cylinder", neck * 1.04, neck * 0.94, 0.26,
+		Vector3(0.0, base_y + 0.13, facing * 0.02), ORNAMENT_BODY,
+		Vector3(10.0 * facing, 0.0, 0.0))
+	# Skull, as wide as the model's own head.
+	_ornament_add(parts, "sphere", neck * 1.28, 0.0, 0.0,
+		Vector3(0.0, base_y + 0.26, -facing * 0.03), ORNAMENT_BODY)
 	# Tapered snout: a truncated cone laid along Z with the small end forward. A
 	# rotation of +90 degrees about X carries the cylinder's +Y axis onto +Z, so
 	# the sign of the facing picks which end leads.
-	_ornament_add(parts, "cylinder", neck * 0.30, neck * 0.60, 0.26,
-		Vector3(0.0, base_y + 0.15, facing * 0.15), ORNAMENT_BODY,
+	_ornament_add(parts, "cylinder", neck * 0.42, neck * 0.68, 0.24,
+		Vector3(0.0, base_y + 0.19, -facing * 0.14), ORNAMENT_BODY,
 		Vector3(90.0 * facing, 0.0, 0.0))
-	# Ears: two cones, tilted back and outward.
+	# Ears: two cones, tilted back and outward, sitting on the crown.
 	for side in [-1.0, 1.0]:
-		_ornament_add(parts, "cone", neck * 0.19, 0.16, 0.0,
-			Vector3(side * neck * 0.38, base_y + 0.36, facing * 0.03), ORNAMENT_BODY,
+		_ornament_add(parts, "cone", neck * 0.17, 0.22, 0.0,
+			Vector3(side * neck * 0.42, base_y + 0.47, facing * 0.02), ORNAMENT_BODY,
 			Vector3(-12.0 * facing, 0.0, -side * 16.0))
 	# Mane: a short curved row of ridges sitting on the back of the neck, on the
 	# far side from the snout. They stay inside the neck's own radius - the first
@@ -1619,9 +1633,9 @@ func _ornate_knight_head(parts: Array, profile: Dictionary, facing: float) -> vo
 	# they read as a pair of wings stuck on the sides.
 	for i in 4:
 		var step := float(i) / 3.0
-		_ornament_add(parts, "box", neck * 0.22, 0.045, neck * 0.10,
-			Vector3(0.0, base_y + 0.28 - step * 0.18,
-				-facing * (0.05 + step * 0.04)), ORNAMENT_BODY)
+		_ornament_add(parts, "box", neck * 0.20, 0.055, neck * 0.10,
+			Vector3(0.0, base_y + 0.36 - step * 0.20,
+				-facing * (0.06 + step * 0.05)), ORNAMENT_BODY)
 
 
 ## Piece-specific crowns and caps, replacing the old single-ring accents.
