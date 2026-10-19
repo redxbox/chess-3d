@@ -211,7 +211,10 @@ jobs:
         run: |
           set -uo pipefail
           AAPT="$(find /usr/lib/android-sdk/build-tools -type f -name aapt | sort -V | tail -1)"
-          test -x "$AAPT"
+          if [ -z "$AAPT" ] || [ ! -x "$AAPT" ]; then
+            echo "::error title=aapt not found::no executable aapt under /usr/lib/android-sdk/build-tools"
+            exit 1
+          fi
           "$AAPT" dump permissions build/android/chess-3d.apk | tee build/android/permissions.log
           grep -q 'android.permission.VIBRATE' build/android/permissions.log || {
             echo "::error title=Missing permission::android.permission.VIBRATE not in the APK"
@@ -230,7 +233,7 @@ jobs:
           if [ "$got_name" != "$want_name" ]; then
             echo "::error title=APK versionName mismatch::export_presets.cfg says $want_name, the APK says $got_name"
             exit 1
-          }
+          fi
           printf '## APK identity\n\n| field | value |\n| --- | --- |\n| version name | `%s` |\n| version code | `%s` |\n\nInstall this build; **About** reports `%s`.\n' "$got_name" "$got_code" "$got_name" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload APK
         uses: actions/upload-artifact@v4
