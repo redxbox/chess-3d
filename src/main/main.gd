@@ -88,10 +88,13 @@ const BOARD_THEMES := {
 	# about a factor of three as well as in hue.
 	"jade": {
 		"label": "JADE & BRONZE",
-		"light_square": Color(0.60, 0.72, 0.61),
-		"dark_square": Color(0.10, 0.24, 0.18),
+		# Celadon is a desaturated green, not mint. The first render ran the light
+		# square at 0.60 / 0.72 / 0.61 and the key light pushed it to a bright
+		# mint that read as a different material from the rest of the set.
+		"light_square": Color(0.525, 0.645, 0.545),
+		"dark_square": Color(0.115, 0.255, 0.195),
 		"square_roughness": 0.22,
-		"apron": Color(0.16, 0.21, 0.18),
+		"apron": Color(0.24, 0.30, 0.26),
 		"apron_roughness": 0.30,
 		"apron_metallic": 0.35,
 		"trim": Color(0.52, 0.44, 0.24),
@@ -99,7 +102,7 @@ const BOARD_THEMES := {
 		"table": Color(0.10, 0.16, 0.15),
 		"apron_map": "marble",
 		"label_color": Color(0.80, 0.85, 0.66),
-		"swatch_light": Color(0.66, 0.78, 0.66),
+		"swatch_light": Color(0.60, 0.71, 0.61),
 		"swatch_dark": Color(0.10, 0.24, 0.18),
 	},
 	# Royal blue: the tournament pairing. Ivory on a saturated blue, gold inlay,
@@ -109,7 +112,9 @@ const BOARD_THEMES := {
 		"light_square": Color(0.738, 0.712, 0.655),
 		"dark_square": Color(0.13, 0.22, 0.42),
 		"square_roughness": 0.24,
-		"apron": Color(0.11, 0.12, 0.17),
+		# 0.11 rendered as an unlit black edge - the same failure the classic frame
+		# had at 0.14 - so the frame is dark navy rather than near-black.
+		"apron": Color(0.155, 0.175, 0.245),
 		"apron_roughness": 0.24,
 		"apron_metallic": 0.20,
 		"trim": Color(0.55, 0.45, 0.20),
@@ -155,11 +160,16 @@ const PIECE_THEMES := {
 	# specular lobe than satin wood, which is the whole difference in the finish.
 	"marble": {
 		"label": "CARRARA & NERO",
-		"light": Color(0.80, 0.80, 0.79),
-		"dark": Color(0.17, 0.18, 0.21),
-		"accent": Color(0.66, 0.68, 0.70),
-		"light_roughness": 0.12,
-		"dark_roughness": 0.10,
+		# Carrara is greyer and rougher than alabaster, and the first render made
+		# the point the hard way: at 0.80 with a 0.12 roughness the marble bodies
+		# came back as flat white plaster with the carving polished out of them.
+		# Polished stone is a tighter lobe, not a brighter albedo, so the sheen
+		# is carried by the roughness and the albedo stays under the clip point.
+		"light": Color(0.76, 0.765, 0.77),
+		"dark": Color(0.16, 0.17, 0.20),
+		"accent": Color(0.64, 0.66, 0.68),
+		"light_roughness": 0.18,
+		"dark_roughness": 0.14,
 		"accent_roughness": 0.30,
 		"accent_metallic": 0.55,
 		"trim_variant": "marble",
@@ -1208,7 +1218,15 @@ func _body_material(code: String) -> Material:
 ## So a black knight - on the far side of the board - is turned half a turn from
 ## the model's own facing, and a white knight is not turned at all.
 func _knight_yaw(_file: int, is_white: bool) -> float:
-	return 0.0 if is_white else PI
+	# The body is sculpted with the muzzle along -Z, so PI turns the white
+	# horses round to face their own player and 0 leaves the black ones facing
+	# theirs. Both armies are therefore seen in profile-to-face from their own
+	# side of the table, which is where each player's camera spends the game: at
+	# yaw 0 / PI the near army showed the back of its horses' heads, and the
+	# head is the one piece in this set that is worth looking at. It is also the
+	# only yaw that is not a quarter turn - the rejected build put them at +-90
+	# degrees, i.e. nose-on into the board's flank.
+	return PI if is_white else 0.0
 
 
 ## Which carved variant the current piece theme asks for. Kept in one place so
