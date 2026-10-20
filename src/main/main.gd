@@ -1030,12 +1030,16 @@ func _body_material(code: String) -> Material:
 ## own back of the head - the one view in which a Staunton knight reads as a lump.
 ## Spinning it a quarter turn puts the muzzle along X instead and the default
 ## view gets the two things that actually say "horse": the long skull and muzzle
-## in profile, and the row of mane ridges down the neck. The two knights of an
-## army are mirrored, so the pair frames the board instead of both pointing the
-## same way, and black is turned through PI so its knights face their own wing.
-func _knight_yaw(file: int, is_white: bool) -> float:
-	var yaw := PI * 0.5 if file < 3.5 else -PI * 0.5
-	return yaw if is_white else yaw + PI
+## in profile, and the row of mane ridges down the neck.
+##
+## The two knights of an army are mirrored about the board's centre line, so the
+## b-file horse looks at the a-file and the g-file horse at the h-file. Black
+## gets exactly the same yaw as white on the same file, because a real set is
+## symmetric under a half turn of the board: b1 must map onto g8, and g8 with
+## white's -90 turned through PI is -90 again. Adding PI for black instead
+## pointed one army's knights out to the wings and the other's into the middle.
+func _knight_yaw(file: int) -> float:
+	return PI * 0.5 if file < 3.5 else -PI * 0.5
 
 
 func _piece_node_name(kind: String, file: int, rank: int) -> String:
@@ -1088,7 +1092,7 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	if kind == "bishop":
 		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
 	elif kind == "knight":
-		model.rotation.y = _knight_yaw(file, is_white)
+		model.rotation.y = _knight_yaw(file)
 	piece.add_child(model)
 	# The Staunton bodies are deliberately plain, so all the carving - tiered
 	# foot, filigree, fluting, collars and the crowns - lives in this one merged
@@ -1126,7 +1130,7 @@ func _add_royal_wood_piece(piece: Node3D, kind: String, is_white: bool, file: in
 	if kind == "bishop":
 		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
 	elif kind == "knight":
-		model.rotation.y = _knight_yaw(file, is_white)
+		model.rotation.y = _knight_yaw(file)
 	piece.add_child(model)
 	var trim_mesh := _ornate_mesh(kind, wood, gold, "royal_wood")
 	if trim_mesh.get_surface_count() > 0:
