@@ -27,9 +27,162 @@ const SQUARE_SIZE := 1.0
 ## the same value in application/config/version, and export_presets.cfg carries
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
-const APP_VERSION_FALLBACK := "0.12.0"
+const APP_VERSION_FALLBACK := "0.13.0"
 const APP_BUILD := "22.72"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
+
+## ---------------------------------------------------------------------------
+## User-selectable themes
+##
+## The board and the pieces are chosen independently, the way a real set is
+## chosen: any of the four boards can be played with any of the four sets of
+## pieces. Both lists are plain data, and every colour, roughness and tile
+## pattern the renderer uses is read from them, so adding a fifth theme is a
+## dictionary entry and nothing else.
+##
+## The colour values are not free choices. They were calibrated against this
+## scene's ACES tonemapping: the pale square is the single albedo closest to the
+## clip point, and anything above about 0.75 renders as flat #ffffff with no
+## shading left on it. Every light square below is under that, and every piece
+## albedo is a shade off white, for the same reason.
+## ---------------------------------------------------------------------------
+const BOARD_THEME_ORDER := ["classic", "royal_wood", "jade", "royal_blue"]
+const PIECE_THEME_ORDER := ["classic", "royal_wood", "marble", "baroque"]
+
+const BOARD_THEMES := {
+	"classic": {
+		"label": "MARBLE & SLATE",
+		"light_square": Color(0.745, 0.725, 0.685),
+		"dark_square": Color(0.22, 0.25, 0.30),
+		"square_roughness": 0.26,
+		"apron": Color(0.25, 0.27, 0.32),
+		"apron_roughness": 0.25,
+		"apron_metallic": 0.15,
+		"trim": Color(0.42, 0.41, 0.39),
+		"trim_roughness": 0.42,
+		"table": Color(0.27, 0.23, 0.31),
+		"apron_map": "marble",
+		"label_color": Color(0.85, 0.84, 0.81),
+		"swatch_light": Color(0.93, 0.91, 0.86),
+		"swatch_dark": Color(0.22, 0.25, 0.30),
+	},
+	"royal_wood": {
+		"label": "MAPLE & MAHOGANY",
+		"light_square": Color(0.69, 0.575, 0.405),
+		"dark_square": Color(0.34, 0.16, 0.09),
+		"square_roughness": 0.30,
+		"apron": Color(0.42, 0.22, 0.12),
+		"apron_roughness": 0.28,
+		"apron_metallic": 0.05,
+		"trim": Color(0.58, 0.44, 0.15),
+		"trim_roughness": 0.40,
+		"table": Color(0.24, 0.13, 0.08),
+		"apron_map": "rosewood",
+		"label_color": Color(0.91, 0.77, 0.42),
+		"swatch_light": Color(0.76, 0.63, 0.45),
+		"swatch_dark": Color(0.34, 0.16, 0.09),
+	},
+	# Jade: pale celadon against deep nephrite, with a dark bronze frame and a
+	# brass inlay. The green pair is the one combination that stays readable for
+	# every kind of colour vision, because the two squares differ in lightness by
+	# about a factor of three as well as in hue.
+	"jade": {
+		"label": "JADE & BRONZE",
+		"light_square": Color(0.60, 0.72, 0.61),
+		"dark_square": Color(0.10, 0.24, 0.18),
+		"square_roughness": 0.22,
+		"apron": Color(0.16, 0.21, 0.18),
+		"apron_roughness": 0.30,
+		"apron_metallic": 0.35,
+		"trim": Color(0.52, 0.44, 0.24),
+		"trim_roughness": 0.38,
+		"table": Color(0.10, 0.16, 0.15),
+		"apron_map": "marble",
+		"label_color": Color(0.80, 0.85, 0.66),
+		"swatch_light": Color(0.66, 0.78, 0.66),
+		"swatch_dark": Color(0.10, 0.24, 0.18),
+	},
+	# Royal blue: the tournament pairing. Ivory on a saturated blue, gold inlay,
+	# near-black frame.
+	"royal_blue": {
+		"label": "IVORY & ROYAL BLUE",
+		"light_square": Color(0.738, 0.712, 0.655),
+		"dark_square": Color(0.13, 0.22, 0.42),
+		"square_roughness": 0.24,
+		"apron": Color(0.11, 0.12, 0.17),
+		"apron_roughness": 0.24,
+		"apron_metallic": 0.20,
+		"trim": Color(0.55, 0.45, 0.20),
+		"trim_roughness": 0.38,
+		"table": Color(0.09, 0.10, 0.15),
+		"apron_map": "marble",
+		"label_color": Color(0.88, 0.80, 0.52),
+		"swatch_light": Color(0.90, 0.87, 0.80),
+		"swatch_dark": Color(0.13, 0.22, 0.42),
+	},
+}
+
+const PIECE_THEMES := {
+	"classic": {
+		"label": "ALABASTER & OBSIDIAN",
+		"light": Color(0.82, 0.78, 0.70),
+		"dark": Color(0.20, 0.21, 0.24),
+		"accent": Color(0.60, 0.59, 0.56),
+		"light_roughness": 0.24,
+		"dark_roughness": 0.22,
+		"accent_roughness": 0.42,
+		"accent_metallic": 0.40,
+		"trim_variant": "classic",
+		"swatch_light": Color(0.87, 0.83, 0.75),
+		"swatch_dark": Color(0.20, 0.21, 0.24),
+	},
+	"royal_wood": {
+		"label": "BOXWOOD & ROSEWOOD",
+		"light": Color(0.86, 0.76, 0.60),
+		"dark": Color(0.28, 0.17, 0.11),
+		"accent": Color(0.72, 0.56, 0.20),
+		"light_roughness": 0.24,
+		"dark_roughness": 0.22,
+		"accent_roughness": 0.40,
+		"accent_metallic": 0.40,
+		"trim_variant": "royal_wood",
+		"swatch_light": Color(0.91, 0.81, 0.64),
+		"swatch_dark": Color(0.28, 0.17, 0.11),
+	},
+	# Marble: the same six bodies, polished harder and colder. The pale set is
+	# Carrara - a hair cooler and greyer than alabaster - and the dark set is
+	# nero, which is a touch bluer than obsidian. Polished stone takes a tighter
+	# specular lobe than satin wood, which is the whole difference in the finish.
+	"marble": {
+		"label": "CARRARA & NERO",
+		"light": Color(0.80, 0.80, 0.79),
+		"dark": Color(0.17, 0.18, 0.21),
+		"accent": Color(0.66, 0.68, 0.70),
+		"light_roughness": 0.12,
+		"dark_roughness": 0.10,
+		"accent_roughness": 0.30,
+		"accent_metallic": 0.55,
+		"trim_variant": "marble",
+		"swatch_light": Color(0.86, 0.86, 0.85),
+		"swatch_dark": Color(0.17, 0.18, 0.21),
+	},
+	# Baroque: jet against antique bronze, with the heaviest gold of the four -
+	# an extra pair of inlay rings on the stem and a wider collar. It is the one
+	# theme that deliberately adds silhouette, not just colour.
+	"baroque": {
+		"label": "BRONZE & JET",
+		"light": Color(0.62, 0.50, 0.34),
+		"dark": Color(0.11, 0.11, 0.13),
+		"accent": Color(0.83, 0.64, 0.22),
+		"light_roughness": 0.30,
+		"dark_roughness": 0.18,
+		"accent_roughness": 0.34,
+		"accent_metallic": 0.50,
+		"trim_variant": "baroque",
+		"swatch_light": Color(0.71, 0.58, 0.40),
+		"swatch_dark": Color(0.11, 0.11, 0.13),
+	},
+}
 
 @onready var board: Node3D = $Board
 @onready var camera_rig: Node3D = $CameraRig
@@ -116,8 +269,22 @@ var black_time := 600.0
 var _autosave_accumulator := 0.0
 const AUTOSAVE_PATH := "user://autosave.json"
 const PIECE_THEME_PATH := "user://piece_theme.txt"
+const BOARD_THEME_PATH := "user://board_theme.txt"
 var piece_theme := "classic"
-var _piece_theme_button: Button
+var board_theme := "classic"
+var _style_button: Button
+## The style picker is built once, the first time it is opened, and then only
+## relabelled: it holds 8 cards with ~20 child nodes each and rebuilding that on
+## every open would be the most expensive thing the menu does.
+var _theme_overlay: ColorRect
+var _theme_board_cards: Dictionary = {}
+var _theme_piece_cards: Dictionary = {}
+var _theme_apply_button: Button
+var _theme_preview_label: Label
+## Chosen but not yet applied. Nothing is written and the scene is not reloaded
+## until the player presses Apply, so they can browse all eight options first.
+var _theme_pick_board := "classic"
+var _theme_pick_piece := "classic"
 ## Guards the pending move animation so a scene rebuild can never leave
 ## animating_move stuck on true (which would freeze all board input).
 var _move_tween: Tween
@@ -138,6 +305,7 @@ func _ready() -> void:
 	var configured_version := str(ProjectSettings.get_setting("application/config/version", ""))
 	_app_version = configured_version if configured_version != "" else APP_VERSION_FALLBACK
 	_load_piece_theme()
+	_load_board_theme()
 	_setup_environment()
 	_setup_piece_materials()
 	decor_root.name = "EnvironmentDetails"
@@ -532,28 +700,31 @@ func _normal_map(heights: PackedFloat32Array) -> ImageTexture:
 
 
 func _setup_piece_materials() -> void:
-	# Both sets are balanced against each other rather than tuned alone, because
-	# the board is only ever seen with both of them on it.
-	#
-	# THEME classic - warm polished alabaster against satin obsidian, with
-	# champagne-silver collars. THEME royal_wood - boxwood cream against
-	# espresso rosewood, with antique-gold trim.
-	var warm := piece_theme == "royal_wood"
-	var body_light := Color(0.82, 0.78, 0.70) if not warm else Color(0.86, 0.76, 0.60)
-	var body_dark := Color(0.20, 0.21, 0.24) if not warm else Color(0.28, 0.17, 0.11)
+	# The four sets are balanced against each other rather than tuned alone,
+	# because the board is only ever seen with one of them on it:
+	#   classic   - warm polished alabaster against satin obsidian, silver trim
+	#   royal_wood- boxwood cream against espresso rosewood, antique gold
+	#   marble    - Carrara against nero, polished stone, brighter silver
+	#   baroque   - antique bronze against jet, with the heaviest gold
+	# Every colour, roughness and metallic below comes from PIECE_THEMES; the two
+	# spot values that used to be hard-coded here are now per theme, so a polish
+	# change cannot silently apply to the wooden set.
+	var palette: Dictionary = PIECE_THEMES.get(piece_theme, PIECE_THEMES["classic"])
+	var body_light: Color = palette.light
+	var body_dark: Color = palette.dark
 	# The trim colour is shared by the piece collars and the board inlay. At the
 	# old 0.82 / 0.83 albedo with metallic_specular 0.50 every collar and coronet
 	# band clipped to a white ring wherever the light caught it, which is why the
 	# black pieces on the h-file side had bright white hoops round their bases
 	# while the same pieces on the a-file side read as dark metal.
-	var accent := Color(0.60, 0.59, 0.56) if not warm else Color(0.72, 0.56, 0.20)
+	var accent: Color = palette.accent
 	var carve := _piece_carve_map()
 	# White pieces: polished but never a mirror. roughness 0.24 with a low
 	# metallic_specular keeps the pale body mostly diffuse, which is what stops
 	# it climbing to 1.0 and clipping to flat white under ACES - and a clipped
 	# surface has no shading and no shadow gradient left anywhere on it to show
 	# the carving. Pure white is never a white-piece albedo.
-	_piece_ivory_material = _luxury_piece_material(body_light, 0.24, 0.05, false, false, 0.06, null, carve, 0.25)
+	_piece_ivory_material = _luxury_piece_material(body_light, palette.light_roughness, 0.05, false, false, 0.06, null, carve, 0.25)
 	# Black pieces: never pure black. A satin body with a real clearcoat lobe is
 	# what gives the camera-facing side of a dark piece a highlight, so it reads
 	# as a solid object beside the white set instead of a silhouette. The
@@ -563,7 +734,7 @@ func _setup_piece_materials() -> void:
 	# the sky reflection and the rim light's grazing lobe rode on top of the
 	# diffuse and the crown, the collars and the coronet bands all clipped to
 	# white rings wherever the light caught them.
-	_piece_obsidian_material = _luxury_piece_material(body_dark, 0.22, 0.12, false, false, 0.35, null, carve, 0.25, 0.40, 0.20)
+	_piece_obsidian_material = _luxury_piece_material(body_dark, palette.dark_roughness, 0.12, false, false, 0.35, null, carve, 0.25, 0.40, 0.20)
 	# The trim has to be readable on the side of the piece the camera actually
 	# sees, and that decides its metallicity. The key light sits at yaw -32,
 	# i.e. it arrives from -X, so every face pointing at the camera (+X) gets
@@ -581,7 +752,7 @@ func _setup_piece_materials() -> void:
 	# of the 0.41 that clipped the collars to white rings at 0.82 / 0.50 with a
 	# clearcoat lobe on top, and the lobe is twice as wide, so the peak is far
 	# lower. The albedo is untouched.
-	_piece_gold_material = _luxury_piece_material(accent, 0.40 if warm else 0.42, 0.40, false, false, 0.30)
+	_piece_gold_material = _luxury_piece_material(accent, palette.accent_roughness, palette.accent_metallic, false, false, 0.30)
 
 
 ## Fine procedural carving shared by both piece sets. A FastNoiseLite turned
@@ -800,12 +971,12 @@ func _smoothed_normals(positions: PackedVector3Array, indices: PackedInt32Array)
 
 
 func _create_board() -> void:
-	# Both themes share one geometry - the grid plus the centred slabs below it -
-	# so nothing is rebuilt or duplicated when the theme changes; only colour and
-	# grain differ. THEME classic is Carrara marble and obsidian with a brushed
-	# slate frame and a silver inlay; THEME royal_wood is honey maple over dark
-	# mahogany with a warm mahogany frame and an antique-gold inlay.
-	var warm := piece_theme == "royal_wood"
+	# All four board themes share one geometry - the grid plus the centred slabs
+	# below it - so nothing is rebuilt or duplicated when the theme changes; only
+	# colour, grain and the inlay metal differ. The palette comes from
+	# BOARD_THEMES, keyed by the user's choice, and not from the piece theme: a
+	# player can put the bronze set on the jade board if that is what they like.
+	var palette: Dictionary = BOARD_THEMES.get(board_theme, BOARD_THEMES["classic"])
 	# The classic light square is deliberately below the brief's 0.86. At 0.86 the
 	# square is indistinguishable from the alabaster pieces, and even at 0.80 the
 	# square saturated: with the relief and the fill's grazing shadows both doing
@@ -818,18 +989,18 @@ func _create_board() -> void:
 	# shadows both did less work than the piece geometry they replaced. The
 	# royal_wood square ran to #fff194 - a hot yellow with the red channel pinned
 	# at 255 - where the accepted render measured #cf9f60.
-	var light_square := Color(0.745, 0.725, 0.685) if not warm else Color(0.69, 0.575, 0.405)
-	var dark_square := Color(0.22, 0.25, 0.30) if not warm else Color(0.34, 0.16, 0.09)
-	var square_roughness := 0.26 if not warm else 0.30
+	var light_square: Color = palette.light_square
+	var dark_square: Color = palette.dark_square
+	var square_roughness: float = palette.square_roughness
 	# The outer frame was a near-black albedo (0.14), which renders as an unlit
 	# silhouette no matter what the lighting does. It is now a light-reactive
 	# surface in its own right - brushed dark slate for classic, warm mahogany for
 	# royal_wood - with the roughness and metallic the brief asks for, and the
 	# bevel step below gives it an angled facet that actually catches the key
 	# light instead of one flat normal pointing straight up.
-	var apron := Color(0.25, 0.27, 0.32) if not warm else Color(0.42, 0.22, 0.12)
-	var apron_roughness := 0.25 if not warm else 0.28
-	var apron_metallic := 0.15 if not warm else 0.05
+	var apron: Color = palette.apron
+	var apron_roughness: float = palette.apron_roughness
+	var apron_metallic: float = palette.apron_metallic
 	# The inner trim ring is the metal inlay between the grid and the apron. It
 	# has to stay a metal, but at metallic_specular 0.50 the sky reflection rode
 	# on top of the diffuse term and the whole ring clipped into a flat white
@@ -839,12 +1010,13 @@ func _create_board() -> void:
 	# bright white band down the side of the board, and even at 0.62 the grazing
 	# rim light left a visible stripe to the right of file h. Rougher and darker
 	# still, it reads as machined metal let into the frame.
-	var trim := Color(0.42, 0.41, 0.39) if not warm else Color(0.58, 0.44, 0.15)
-	var trim_roughness := 0.42 if not warm else 0.40
-	var table := Color(0.27, 0.23, 0.31) if not warm else Color(0.24, 0.13, 0.08)
-	var light_map := "marble" if not warm else "walnut"
-	var dark_map := "walnut" if not warm else "rosewood"
-	var apron_map := "marble" if not warm else "rosewood"
+	var trim: Color = palette.trim
+	var trim_roughness: float = palette.trim_roughness
+	var table: Color = palette.table
+	# The squares carry no albedo texture at all (see the note below), so only
+	# the apron and the table need a tile pattern. It follows the family the
+	# theme belongs to: stone boards get marble, wooden ones get rosewood.
+	var apron_map: String = palette.apron_map
 	# metallic_specular is pinned low on the squares: at Godot's 0.5 default a
 	# broad flat face reflects the whole sky on top of its diffuse term and
 	# clips to white under ACES.
@@ -945,7 +1117,7 @@ func _add_board_coordinates() -> void:
 	# Both axes use (index - 3.5) * tile_size, exactly the centre of the tile they
 	# name, so the letters and the digits sit on the tiles they refer to rather
 	# than half a tile off them.
-	var label_color := Color("e8c56a") if piece_theme == "royal_wood" else Color("d9d5cc")
+	var label_color: Color = BOARD_THEMES.get(board_theme, BOARD_THEMES["classic"]).label_color
 	var label_y := 0.073
 	for index in BOARD_SIZE:
 		for data in [
@@ -1025,20 +1197,26 @@ func _body_material(code: String) -> Material:
 
 ## Which way a knight's horse head points.
 ##
-## The knight body was rebuilt (see tools/build_knight.py) with its muzzle
-## sculpted down -Z, i.e. pointing at the opponent, which is how a real set
-## orients it. Nothing has to be spun for that: the node yaw is zero for both
-## armies and the two knights of an army are identical, which is what the
-## symmetry of the board asks for - b1 has to map onto g8 under a half turn.
+## The body is sculpted with its muzzle down -Z (see tools/build_knight.py), so
+## the node yaw decides which way the horse looks. A real set has each army's
+## knights facing its own player - the white horses on b1 and g1 look back at
+## White, the black horses on b8 and g8 look back at Black - and that is also
+## the view that reads best, because the camera looks down the board and the
+## horse is then seen from the front: two ears, a brow, a long face and the
+## muzzle pointing at the viewer, with the mane behind it.
 ##
-## This used to return plus and minus a quarter turn per file. That was a
-## workaround for the old body, which was a flat slab of a head: edge on it read
-## as a plate and only its profile said "horse", so each knight was turned to
-## show that profile. The rebuilt head has volume - a jaw, a cheek, a brow and a
-## muzzle that overhangs the throat - so the honest orientation, muzzle down the
-## board, is also the readable one.
-func _knight_yaw(_file: int) -> float:
-	return 0.0
+## So a black knight - on the far side of the board - is turned half a turn from
+## the model's own facing, and a white knight is not turned at all.
+func _knight_yaw(_file: int, is_white: bool) -> float:
+	return 0.0 if is_white else PI
+
+
+## Which carved variant the current piece theme asks for. Kept in one place so
+## the trim cache key, the trim builder and the piece assembly can never
+## disagree about which set of carving is being built.
+func _trim_variant() -> String:
+	var palette: Dictionary = PIECE_THEMES.get(piece_theme, PIECE_THEMES["classic"])
+	return String(palette.trim_variant)
 
 
 func _piece_node_name(kind: String, file: int, rank: int) -> String:
@@ -1054,7 +1232,7 @@ func _apply_piece_materials(piece: Node3D, body: Material) -> void:
 		var mesh_instance := child as MeshInstance3D
 		if mesh_instance == null:
 			continue
-		if mesh_instance.name == "OrnateTrim" or mesh_instance.name == "RoyalWoodTrim":
+		if mesh_instance.name == "OrnateTrim":
 			continue
 		if mesh_instance.material_override == null:
 			mesh_instance.material_override = body
@@ -1072,10 +1250,6 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	piece.set_meta("code", code)
 	pieces_root.add_child(piece)
 
-	if piece_theme == "royal_wood":
-		_add_royal_wood_piece(piece, kind, is_white, file, body, accent)
-		return
-
 	# Every kind, the knight included, ships as a real sculpted body. Five of them
 	# come from the Staunton-Pieces set; the knight does not, because that set's
 	# knight is a thin slab of a head and the round before this one shipped it
@@ -1091,15 +1265,13 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	if kind == "bishop":
 		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
 	elif kind == "knight":
-		model.rotation.y = _knight_yaw(file)
+		model.rotation.y = _knight_yaw(file, is_white)
 	piece.add_child(model)
 	# The Staunton bodies are deliberately plain, so all the carving - tiered
 	# foot, filigree, fluting, collars and the crowns - lives in this one merged
-	# trim mesh rather than in a swarm of child nodes. The knight gets a single
-	# gold inlay let into the waist of its own carved base and nothing else: its
-	# neck and head are the sculpt itself, and a revolved collar wrapped around a
-	# horse's chest is exactly what made the earlier version look manufactured.
-	var trim_mesh := _ornate_mesh(kind, body, accent, "classic")
+	# trim mesh rather than in a swarm of child nodes. How much carving there is
+	# depends on the chosen piece theme: see TRIM_STYLES.
+	var trim_mesh := _ornate_mesh(kind, body, accent, _trim_variant())
 	if trim_mesh.get_surface_count() > 0:
 		var trim := MeshInstance3D.new()
 		trim.name = "OrnateTrim"
@@ -1110,33 +1282,6 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	# surface can fall back to the default white StandardMaterial3D if a future
 	# part is added as its own node instead of being merged into the trim mesh.
 	_apply_piece_materials(piece, body)
-
-
-func _add_royal_wood_piece(piece: Node3D, kind: String, is_white: bool, file: int, wood: Material, gold: Material) -> void:
-	# The carved set shares the same six bodies as the classic set - five
-	# Staunton sculpts plus the generated knight - but is finished differently: a
-	# taller, wider turned foot on the five turned bodies and its own palette, so
-	# the two sets read as different objects rather than recolours of one another.
-	# Same rule as the classic set: the knight is the generated horse body, not a
-	# head modelled out of primitives, so it is loaded exactly like the others.
-	var model := MeshInstance3D.new()
-	model.name = "RoyalWoodSculpture"
-	model.mesh = _piece_mesh(kind)
-	model.material_override = wood
-	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	if kind == "bishop":
-		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
-	elif kind == "knight":
-		model.rotation.y = _knight_yaw(file)
-	piece.add_child(model)
-	var trim_mesh := _ornate_mesh(kind, wood, gold, "royal_wood")
-	if trim_mesh.get_surface_count() > 0:
-		var trim := MeshInstance3D.new()
-		trim.name = "RoyalWoodTrim"
-		trim.mesh = trim_mesh
-		trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		piece.add_child(trim)
-	_apply_piece_materials(piece, wood)
 
 
 ## ---------------------------------------------------------------------------
@@ -1220,6 +1365,16 @@ const ORNAMENT_FLUTE_SEGMENTS := 48
 const ORNAMENT_FLUTE_COUNT := 12
 const ORNAMENT_FLUTE_DEPTH := 0.008
 ## A flush inlay is 0.015 tall and stands only 0.004 proud of the body profile.
+## How much carving each piece theme gets, on top of its colours. The foot of a
+## turned Staunton body is the one place where a few per cent of height reads as
+## a completely different set, which is what lets four themes feel like four
+## sets of pieces rather than four recolours of one.
+const TRIM_STYLES := {
+	"classic": {"foot_scale": 1.00, "extra_bands": false},
+	"royal_wood": {"foot_scale": 1.14, "extra_bands": false},
+	"marble": {"foot_scale": 1.00, "extra_bands": false},
+	"baroque": {"foot_scale": 1.07, "extra_bands": true},
+}
 const ORNAMENT_BAND_HEIGHT := 0.015
 const ORNAMENT_BAND_PROUD := 0.004
 
@@ -1586,14 +1741,14 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	var foot: float = profile.foot
 	var neck: float = profile.neck
 	var neck_y: float = profile.neck_y
-	# The carved set is finished differently from the classic one: a taller, wider
-	# turned foot, so it reads as a different object rather than a recolour. The
-	# stem lathe is scaled by the same factor, or royal_wood's foot would step
-	# inward where it meets a classic-width stem.
-	var scale := 1.0
-	if variant == "royal_wood":
-		foot *= 1.14
-		scale = 1.14
+	# The sets are finished differently, not just coloured differently: the two
+	# carved themes get a taller, wider turned foot (see TRIM_STYLES), so a set
+	# reads as a different object rather than as a recolour of the same one. The
+	# stem lathe is scaled by the same factor, or the wider foot would step inward
+	# where it meets a classic-width stem.
+	var style: Dictionary = TRIM_STYLES.get(variant, TRIM_STYLES["classic"])
+	var scale: float = style.foot_scale
+	foot *= scale
 	var turned := bool(profile.get("turned", true))
 	# The knight is not a surface of revolution: its base is carved into its own
 	# body mesh by tools/build_knight.py, at exactly the 0.326 the five shipped
@@ -1639,6 +1794,15 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	# Turned neck collar, with the fourth flush inlay let into it.
 	_ornament_add(parts, "cylinder", neck * 0.88, neck, 0.07, Vector3(0, neck_y - 0.045, 0), ORNAMENT_BODY)
 	_flush_band_add(parts, neck, Vector3(0, neck_y + 0.015, 0))
+	# The baroque set is the only one that adds silhouette rather than colour: a
+	# second pair of gold rules bracketing the fluted stem, sized off the body the
+	# same way every other band is, so they sit in the wood on the pawn and on the
+	# king alike.
+	if bool(style.extra_bands):
+		var low_y: float = float(profile.stem_low) + 0.130
+		var high_y: float = float(profile.waist_y) - 0.060
+		_flush_band_add(parts, _body_radius_at(kind, low_y), Vector3(0, low_y, 0), 0.012, 0.004)
+		_flush_band_add(parts, _body_radius_at(kind, high_y), Vector3(0, high_y, 0), 0.012, 0.004)
 	return parts
 
 
@@ -2005,8 +2169,8 @@ func _create_main_menu() -> void:
 	settings.add_child(_difficulty_button)
 	_language_button = _menu_button("ENGLISH", _cycle_language, Vector2(130, 50))
 	settings.add_child(_language_button)
-	_piece_theme_button = _menu_button("PIECES: " + piece_theme.to_upper(), _cycle_piece_theme, Vector2(130, 50))
-	settings.add_child(_piece_theme_button)
+	_style_button = _menu_button(_text("style"), _open_theme_picker, Vector2(130, 50))
+	settings.add_child(_style_button)
 
 	var play_title := Label.new()
 	play_title.text = "PLAY"
@@ -2158,7 +2322,10 @@ func _text(key: String) -> String:
 		"white_turn": "نوبت سفید", "black_turn": "نوبت سیاه", "check": " — کیش", "thinking": "هوش مصنوعی در حال فکر کردن...",
 		"moves": "حرکت‌ها", "white_captured": "گرفته‌های سفید: ", "black_captured": "گرفته‌های سیاه: ",
 		"language": "زبان: فارسی", "game_over": "پایان بازی", "resign_confirm": "آیا مطمئن هستید که می‌خواهید تسلیم شوید؟",
-		"saved_automatically": "\n\nبازی به‌صورت خودکار ذخیره شد."
+		"saved_automatically": "\n\nبازی به‌صورت خودکار ذخیره شد.",
+		"style": "تم و استایل", "select_style": "انتخاب استایل", "style_subtitle": "تخته و مهره‌ها را جدا از هم انتخاب کنید",
+		"board_theme": "تخته", "piece_theme": "مهره‌ها", "apply_style": "اعمال استایل", "back": "بازگشت",
+		"style_preview": "تخته: %s  •  مهره‌ها: %s"
 	}
 	var en := {
 		"continue": "CONTINUE GAME", "new_ai": "NEW GAME VS AI", "local": "LOCAL TWO PLAYERS",
@@ -2167,7 +2334,10 @@ func _text(key: String) -> String:
 		"white_turn": "White to move", "black_turn": "Black to move", "check": " — CHECK", "thinking": "Computer thinking...",
 		"moves": "MOVES", "white_captured": "White captured: ", "black_captured": "Black captured: ",
 		"language": "LANGUAGE: ENGLISH", "game_over": "GAME OVER", "resign_confirm": "Are you sure you want to resign?",
-		"saved_automatically": "\n\nThe game was saved automatically."
+		"saved_automatically": "\n\nThe game was saved automatically.",
+		"style": "STYLE / THEME", "select_style": "SELECT STYLE", "style_subtitle": "Pick the board and the pieces separately",
+		"board_theme": "BOARD", "piece_theme": "PIECE SET", "apply_style": "APPLY", "back": "BACK",
+		"style_preview": "Board: %s  •  Pieces: %s"
 	}
 	return fa.get(key, key) if language == "fa" else en.get(key, key)
 
@@ -2176,16 +2346,297 @@ func _load_piece_theme() -> void:
 	if FileAccess.file_exists(PIECE_THEME_PATH):
 		var file := FileAccess.open(PIECE_THEME_PATH, FileAccess.READ)
 		if file: piece_theme = file.get_as_text().strip_edges()
-	if piece_theme not in ["classic", "royal_wood"]: piece_theme = "classic"
+	# Any theme that is no longer shipped falls back to the default rather than
+	# rendering with an empty palette: the two lists are the only source of truth.
+	if piece_theme not in PIECE_THEME_ORDER: piece_theme = "classic"
 
 
-func _cycle_piece_theme() -> void:
-	var themes := ["classic", "royal_wood"]
-	piece_theme = themes[(themes.find(piece_theme) + 1) % themes.size()]
-	var file := FileAccess.open(PIECE_THEME_PATH, FileAccess.WRITE)
-	if file: file.store_string(piece_theme)
-	# Persist the game before the scene reload, otherwise up to five seconds of
-	# moves could be lost when the fresh _ready() reads the autosave.
+func _load_board_theme() -> void:
+	if FileAccess.file_exists(BOARD_THEME_PATH):
+		var file := FileAccess.open(BOARD_THEME_PATH, FileAccess.READ)
+		if file: board_theme = file.get_as_text().strip_edges()
+	if board_theme not in BOARD_THEME_ORDER: board_theme = "classic"
+
+
+## Opens the style screen. The board and the piece set are chosen
+## independently, on separate rows of thumbnails, the way a shop shows a set:
+## four boards, four sets of pieces, any combination of the two.
+func _open_theme_picker() -> void:
+	if not is_instance_valid(_theme_overlay):
+		_build_theme_picker()
+	_theme_pick_board = board_theme
+	_theme_pick_piece = piece_theme
+	_refresh_theme_picker()
+	_theme_overlay.show()
+	# The menu pauses the tree, and this screen is opened from the menu, so it has
+	# to keep processing while paused or its buttons would not react.
+	_theme_overlay.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+
+
+func _build_theme_picker() -> void:
+	_theme_overlay = ColorRect.new()
+	_theme_overlay.color = Color(0.02, 0.028, 0.045, 0.97)
+	$UI.add_child(_theme_overlay)
+	_theme_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_theme_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var center := CenterContainer.new()
+	_theme_overlay.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(920, 0)
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.04, 0.048, 0.066, 0.99)
+	panel_style.border_color = Color(0.55, 0.39, 0.2, 0.85)
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(18)
+	panel_style.content_margin_left = 30
+	panel_style.content_margin_right = 30
+	panel_style.content_margin_top = 22
+	panel_style.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", panel_style)
+	center.add_child(panel)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 8)
+	panel.add_child(content)
+
+	var title := Label.new()
+	title.name = "Title"
+	title.text = _text("select_style")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 34)
+	title.add_theme_color_override("font_color", Color("e6cb8c"))
+	content.add_child(title)
+	var subtitle := Label.new()
+	subtitle.name = "Subtitle"
+	subtitle.text = _text("style_subtitle")
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.add_theme_font_size_override("font_size", 14)
+	subtitle.add_theme_color_override("font_color", Color(0.66, 0.7, 0.78))
+	content.add_child(subtitle)
+	var rule := HSeparator.new()
+	rule.add_theme_constant_override("separation", 10)
+	content.add_child(rule)
+
+	var board_header := Label.new()
+	board_header.name = "BoardHeader"
+	board_header.text = _text("board_theme")
+	board_header.add_theme_font_size_override("font_size", 14)
+	board_header.add_theme_color_override("font_color", Color("c5a96b"))
+	content.add_child(board_header)
+	var board_row := GridContainer.new()
+	board_row.name = "BoardRow"
+	board_row.columns = BOARD_THEME_ORDER.size()
+	board_row.add_theme_constant_override("h_separation", 12)
+	content.add_child(board_row)
+	for id in BOARD_THEME_ORDER:
+		var card := _theme_board_card(id)
+		board_row.add_child(card)
+		_theme_board_cards[id] = card
+
+	var piece_header := Label.new()
+	piece_header.name = "PieceHeader"
+	piece_header.text = _text("piece_theme")
+	piece_header.add_theme_font_size_override("font_size", 14)
+	piece_header.add_theme_color_override("font_color", Color("c5a96b"))
+	content.add_child(piece_header)
+	var piece_row := GridContainer.new()
+	piece_row.name = "PieceRow"
+	piece_row.columns = PIECE_THEME_ORDER.size()
+	piece_row.add_theme_constant_override("h_separation", 12)
+	content.add_child(piece_row)
+	for id in PIECE_THEME_ORDER:
+		var card := _theme_piece_card(id)
+		piece_row.add_child(card)
+		_theme_piece_cards[id] = card
+
+	_theme_preview_label = Label.new()
+	_theme_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_theme_preview_label.add_theme_font_size_override("font_size", 13)
+	_theme_preview_label.add_theme_color_override("font_color", Color(0.62, 0.66, 0.74))
+	content.add_child(_theme_preview_label)
+
+	var footer := HBoxContainer.new()
+	footer.add_theme_constant_override("separation", 12)
+	footer.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.add_child(footer)
+	var back := _menu_button(_text("back"), _close_theme_picker, Vector2(190, 52))
+	back.name = "Back"
+	footer.add_child(back)
+	_theme_apply_button = _menu_button(_text("apply_style"), _apply_theme_selection, Vector2(250, 52))
+	footer.add_child(_theme_apply_button)
+	_theme_overlay.hide()
+
+
+## One board thumbnail: a miniature 4x4 of the theme's own two squares inside a
+## frame drawn in that theme's apron colour, with the inlay metal as the border.
+## It is built from the live palette rather than a baked image, so a board theme
+## can never show a swatch that does not match what the scene renders.
+func _theme_board_card(id: String) -> Button:
+	var data: Dictionary = BOARD_THEMES[id]
+	var card := Button.new()
+	card.custom_minimum_size = Vector2(205, 168)
+	card.focus_mode = Control.FOCUS_NONE
+	card.pressed.connect(_on_board_card_pressed.bind(id))
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.offset_left = 10
+	box.offset_top = 10
+	box.offset_right = -10
+	box.offset_bottom = -8
+	box.add_theme_constant_override("separation", 6)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	card.add_child(box)
+	var frame := PanelContainer.new()
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var frame_style := StyleBoxFlat.new()
+	frame_style.bg_color = data.apron
+	frame_style.border_color = data.trim
+	frame_style.set_border_width_all(3)
+	frame_style.set_corner_radius_all(4)
+	frame_style.set_content_margin_all(4)
+	frame.add_theme_stylebox_override("panel", frame_style)
+	box.add_child(frame)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_child(grid)
+	for row in 4:
+		for column in 4:
+			var square := ColorRect.new()
+			square.color = data.light_square if (row + column) % 2 == 0 else data.dark_square
+			square.custom_minimum_size = Vector2(22, 22)
+			square.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			grid.add_child(square)
+	var name := Label.new()
+	name.name = "Name"
+	name.text = String(data.label)
+	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name.add_theme_font_size_override("font_size", 12)
+	name.add_theme_color_override("font_color", Color(0.84, 0.86, 0.9))
+	box.add_child(name)
+	return card
+
+
+## One piece thumbnail: the two armies side by side, with the trim metal as the
+## rule underneath them. Named after the materials, not "style 2", because the
+## point of the row is that these are four different sets of pieces.
+func _theme_piece_card(id: String) -> Button:
+	var data: Dictionary = PIECE_THEMES[id]
+	var card := Button.new()
+	card.custom_minimum_size = Vector2(205, 148)
+	card.focus_mode = Control.FOCUS_NONE
+	card.pressed.connect(_on_piece_card_pressed.bind(id))
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.offset_left = 10
+	box.offset_top = 10
+	box.offset_right = -10
+	box.offset_bottom = -8
+	box.add_theme_constant_override("separation", 6)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	card.add_child(box)
+	var armies := HBoxContainer.new()
+	armies.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	armies.alignment = BoxContainer.ALIGNMENT_CENTER
+	armies.add_theme_constant_override("separation", 0)
+	box.add_child(armies)
+	# Two tall rectangles read as the two armies at thumbnail size, and the
+	# rounded top edge is what makes them read as pieces rather than as swatches.
+	for colour in [data.light, data.dark]:
+		var swatch := PanelContainer.new()
+		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var swatch_style := StyleBoxFlat.new()
+		swatch_style.bg_color = colour
+		swatch_style.set_corner_radius_all(9)
+		swatch_style.corner_radius_top_left = 22
+		swatch_style.corner_radius_top_right = 22
+		swatch_style.set_border_width_all(1)
+		swatch_style.border_color = Color(0, 0, 0, 0.25)
+		swatch.add_theme_stylebox_override("panel", swatch_style)
+		swatch.custom_minimum_size = Vector2(46, 62)
+		armies.add_child(swatch)
+	var inlay := ColorRect.new()
+	inlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inlay.color = data.accent
+	inlay.custom_minimum_size = Vector2(92, 7)
+	inlay.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(inlay)
+	var name := Label.new()
+	name.name = "Name"
+	name.text = String(data.label)
+	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name.add_theme_font_size_override("font_size", 12)
+	name.add_theme_color_override("font_color", Color(0.84, 0.86, 0.9))
+	box.add_child(name)
+	return card
+
+
+func _on_board_card_pressed(id: String) -> void:
+	_theme_pick_board = id
+	_refresh_theme_picker()
+
+
+func _on_piece_card_pressed(id: String) -> void:
+	_theme_pick_piece = id
+	_refresh_theme_picker()
+
+
+## Paints the current picks. A selected card gets a two-pixel gold border and a
+## lighter fill, which is the only state the screen has: there is no separate
+## hover state, because on a phone the hover never shows.
+func _refresh_theme_picker() -> void:
+	if not is_instance_valid(_theme_overlay):
+		return
+	for id in _theme_board_cards:
+		_style_theme_card(_theme_board_cards[id], id == _theme_pick_board, BOARD_THEMES[id].apron)
+	for id in _theme_piece_cards:
+		_style_theme_card(_theme_piece_cards[id], id == _theme_pick_piece, Color(0.075, 0.085, 0.11))
+	if is_instance_valid(_theme_preview_label):
+		_theme_preview_label.text = _text("style_preview") % [
+			String(BOARD_THEMES[_theme_pick_board].label),
+			String(PIECE_THEMES[_theme_pick_piece].label),
+		]
+	if is_instance_valid(_theme_apply_button):
+		var changed := _theme_pick_board != board_theme or _theme_pick_piece != piece_theme
+		_theme_apply_button.disabled = not changed
+
+
+func _style_theme_card(card: Button, selected: bool, fill: Color) -> void:
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = fill.lightened(0.05) if selected else Color(0.055, 0.063, 0.082)
+	normal.border_color = Color("e0bd71") if selected else Color(0.28, 0.32, 0.38, 0.7)
+	normal.set_border_width_all(2 if selected else 1)
+	normal.set_corner_radius_all(12)
+	normal.set_content_margin_all(4)
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = fill.lightened(0.10) if selected else Color(0.08, 0.09, 0.115)
+	card.add_theme_stylebox_override("normal", normal)
+	card.add_theme_stylebox_override("hover", hover)
+	card.add_theme_stylebox_override("pressed", hover)
+	card.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+
+
+func _close_theme_picker() -> void:
+	if is_instance_valid(_theme_overlay):
+		_theme_overlay.hide()
+
+
+## Writes both choices and rebuilds the scene, which is the only way the board
+## meshes and the piece materials pick up a new palette - they are built once in
+## _create_board() / _setup_piece_materials(). The game is saved first, because
+## the autosave runs on a timer and up to five seconds of moves would otherwise
+## be lost when the fresh scene reads it back.
+func _apply_theme_selection() -> void:
+	var board_file := FileAccess.open(BOARD_THEME_PATH, FileAccess.WRITE)
+	if board_file: board_file.store_string(_theme_pick_board)
+	var piece_file := FileAccess.open(PIECE_THEME_PATH, FileAccess.WRITE)
+	if piece_file: piece_file.store_string(_theme_pick_piece)
+	board_theme = _theme_pick_board
+	piece_theme = _theme_pick_piece
 	_save_autosave()
 	_cancel_move_animation()
 	get_tree().reload_current_scene()
@@ -2201,6 +2652,7 @@ func _apply_language() -> void:
 	if is_instance_valid(_menu_overlay):
 		_menu_overlay.layout_direction = Control.LAYOUT_DIRECTION_RTL if language == "fa" else Control.LAYOUT_DIRECTION_LTR
 	if is_instance_valid(_language_button): _language_button.text = _text("language")
+	if is_instance_valid(_style_button): _style_button.text = _text("style")
 	if is_instance_valid(_continue_button): _continue_button.text = _text("continue")
 	if is_instance_valid(_ai_start_button): _ai_start_button.text = _text("new_ai")
 	if is_instance_valid(_local_start_button): _local_start_button.text = _text("local")
@@ -2499,6 +2951,8 @@ func _hide_secondary_windows() -> void:
 
 func _continue_game() -> void:
 	_hide_secondary_windows()
+	if is_instance_valid(_theme_overlay):
+		_theme_overlay.hide()
 	_menu_overlay.hide()
 	get_tree().paused = false
 	# A finished game restored from the autosave or the archive would otherwise
@@ -3353,6 +3807,10 @@ func _material(color: Color, roughness: float, metallic: float, glossy := false,
 ## True while a modal layer owns the screen: the setup menu, the promotion
 ## picker, or one of the information windows.
 func _modal_ui_is_open() -> bool:
+	# The style screen sits on top of the setup menu, so it has to be checked
+	# first: it owns the board input and the back button while it is open.
+	if is_instance_valid(_theme_overlay) and _theme_overlay.visible:
+		return true
 	if is_instance_valid(_menu_overlay) and _menu_overlay.visible:
 		return true
 	if is_instance_valid(_promotion_popup):
@@ -3513,6 +3971,11 @@ func _haptic(duration_ms: int) -> void:
 ## Walks out of the topmost thing on screen: promotion picker, then secondary
 ## windows, then the setup menu, and finally pauses back into the menu.
 func _handle_back_request() -> void:
+	# Back closes the style screen without applying it, which is what "back"
+	# means there - the picks are only written on Apply.
+	if is_instance_valid(_theme_overlay) and _theme_overlay.visible:
+		_theme_overlay.hide()
+		return
 	if is_instance_valid(_promotion_popup):
 		_promotion_popup.hide()
 		return

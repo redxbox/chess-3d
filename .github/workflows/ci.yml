@@ -66,16 +66,27 @@ jobs:
       - name: Render real Godot screenshot
         run: |
           mkdir -p build/preview
-          for board in classic; do
-            for pieces in classic royal_wood; do
-              name="${board}-${pieces}.png"
-              CHESS_BOARD_THEME="$board" CHESS_PIECE_THEME="$pieces" CHESS_PREVIEW_NAME="$name" \
-                xvfb-run -a -s "-screen 0 1536x864x24" \
-                godot --path . --rendering-method gl_compatibility \
-                --resolution 1536x864 --script res://tools/capture_preview.gd
-              test -s "build/preview/$name"
-            done
+          # Four combinations rather than one, because there are now four board
+          # themes and four piece sets and each of the two axes has to be seen
+          # working: the diagonal shows all four boards and all four sets in the
+          # smallest number of renders. classic-royal_wood is kept because the
+          # published showcase image is that pairing.
+          for pair in classic-classic classic-royal_wood jade-marble royal_blue-baroque royal_wood-classic; do
+            board="${pair%%-*}"
+            pieces="${pair#*-}"
+            name="${pair}.png"
+            CHESS_BOARD_THEME="$board" CHESS_PIECE_THEME="$pieces" CHESS_PREVIEW_NAME="$name" \
+              xvfb-run -a -s "-screen 0 1536x864x24" \
+              godot --path . --rendering-method gl_compatibility \
+              --resolution 1536x864 --script res://tools/capture_preview.gd
+            test -s "build/preview/$name"
           done
+          # And the style screen itself, so the picker is reviewed in CI too.
+          CHESS_PREVIEW_PICKER=1 CHESS_PREVIEW_NAME=style-picker.png \
+            xvfb-run -a -s "-screen 0 1536x864x24" \
+            godot --path . --rendering-method gl_compatibility \
+            --resolution 1536x864 --script res://tools/capture_preview.gd
+          test -s "build/preview/style-picker.png"
           cp build/preview/classic-royal_wood.png build/preview/theme-showcase-preview.png
       - name: Upload visual preview
         uses: actions/upload-artifact@v4
@@ -123,7 +134,7 @@ jobs:
           script: |
             const fs = require('fs');
             const branch = context.ref.replace('refs/heads/', '');
-            for (const name of ['classic-classic.png', 'classic-royal_wood.png']) {
+            for (const name of ['classic-classic.png', 'classic-royal_wood.png', 'jade-marble.png', 'royal_blue-baroque.png', 'royal_wood-classic.png', 'style-picker.png']) {
               const path = `docs/previews/${name}`;
               let sha;
               try {

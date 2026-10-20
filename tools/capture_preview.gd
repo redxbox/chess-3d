@@ -42,7 +42,17 @@ func capture_when_ready() -> void:
 		await process_frame
 	var main := root.get_child(0)
 	var menu_overlay := main.get("_menu_overlay") as ColorRect
-	if is_instance_valid(menu_overlay):
+	# One capture mode renders the style screen itself rather than the board, so
+	# the picker can be reviewed from CI instead of only on a device. It is taken
+	# before the menu comes down, because that is the screen the player sees when
+	# they tap the style button.
+	var show_picker := OS.get_environment("CHESS_PREVIEW_PICKER") == "1"
+	if show_picker:
+		if is_instance_valid(menu_overlay):
+			menu_overlay.hide()
+		if main.has_method("_open_theme_picker"):
+			main.call("_open_theme_picker")
+	elif is_instance_valid(menu_overlay):
 		menu_overlay.hide()
 	# The FPS readout is hidden too. The CI runner has no GPU, so its first
 	# frames land roughly a second apart and the counter settles on "1 FPS",
