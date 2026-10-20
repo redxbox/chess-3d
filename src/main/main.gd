@@ -248,11 +248,11 @@ func _setup_environment() -> void:
 	#
 	# Key: front-left and above, warm, and the only light that casts.
 	#
-	# 0.78 was calibrated against the old piece silhouettes. The turned stems, the
-	# sculpted knight head and the slimmer pawn all cast less shadow than what
-	# they replaced, and with the fill's grazing shadows doing less work the pale
-	# squares sat the rest of the way into the clip and came back as flat #ffffff
-	# with no shading left on them. 0.73 puts them back just under.
+	# 0.78 was calibrated against the old piece silhouettes. The turned stems and
+	# the slimmer pawn cast less shadow than what they replaced, and with the
+	# fill's grazing shadows doing less work the pale squares sat the rest of the
+	# way into the clip and came back as flat #ffffff with no shading left on
+	# them. 0.73 puts them back just under.
 	$KeyLight.light_energy = 0.73
 	$KeyLight.light_color = Color(1.0, 0.96, 0.90)
 	$KeyLight.rotation_degrees = Vector3(-48, -32, 0)
@@ -649,9 +649,9 @@ func _piece_mesh(kind: String) -> Mesh:
 	# shaded. Averaging the area-weighted face normal of every welded vertex is
 	# what turns the bishop's mitre and the queen's coronet from facets into
 	# carved curves, and it costs one pass at load time on a mesh that is then
-	# cached and shared. The knight is the exception: its OBJ is a stack of
-	# boxes, so it is never loaded here at all and its head is sculpted in the
-	# trim layer instead.
+	# cached and shared. The knight benefits most of all: the horse's neck, brow
+	# and haunch are one smooth surface in the .obj, and welding the duplicated
+	# export vertices is what keeps them from shading as facets.
 	var smoothed: PackedVector3Array = PackedVector3Array()
 	if not has_normals:
 		smoothed = _smoothed_normals(positions, indices)
@@ -1013,6 +1013,21 @@ func _body_material(code: String) -> Material:
 	return _piece_ivory_material if code == code.to_upper() else _piece_obsidian_material
 
 
+## Which way a knight's horse head points.
+##
+## The shipped model is sculpted with its muzzle down -Z, and the default camera
+## looks up the board from +Z, so a knight left at that angle shows the piece its
+## own back of the head - the one view in which a Staunton knight reads as a lump.
+## Spinning it a quarter turn puts the muzzle along X instead and the default
+## view gets the two things that actually say "horse": the long skull and muzzle
+## in profile, and the row of mane ridges down the neck. The two knights of an
+## army are mirrored, so the pair frames the board instead of both pointing the
+## same way, and black is turned through PI so its knights face their own wing.
+func _knight_yaw(file: int, is_white: bool) -> float:
+	var yaw := PI * 0.5 if file < 3.5 else -PI * 0.5
+	return yaw if is_white else yaw + PI
+
+
 func _piece_node_name(kind: String, file: int, rank: int) -> String:
 	return "%s_%d_%d" % [kind.capitalize(), file, rank]
 
@@ -1045,63 +1060,71 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	pieces_root.add_child(piece)
 
 	if piece_theme == "royal_wood":
-		_add_royal_wood_piece(piece, kind, is_white, body, accent)
+		_add_royal_wood_piece(piece, kind, is_white, file, body, accent)
 		return
 
-	# The knight is the one piece whose shipped body is a stack of boxes, so it
-	# is built entirely from the trim layer - turned foot, turned stem and the
-	# sculpted extruded head - and the OBJ is not loaded for it at all. Every
-	# other kind still layers carving over the Staunton body.
-	if kind != "knight":
-		var model := MeshInstance3D.new()
-		model.name = "SculptedModel"
-		model.mesh = _piece_mesh(kind)
-		model.material_override = body
-		model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		if kind == "bishop":
-			model.rotation.y = PI * 0.25 if is_white else PI * 1.25
-		piece.add_child(model)
+	# Every kind, the knight included, ships as a real sculpted Staunton body.
+	# The knight used to be the exception: its OBJ was skipped and the piece was
+	# assembled from the trim layer alone - a sphere skull, a cone snout, a tube
+	# neck and two ear cones - which from the board camera read as a ball on a
+	# stick, not as a horse. The .obj beside the other five is a proper Staunton
+	# horse head (ears, eye, muzzle, mane ridges and all), so it is loaded the
+	# same way every other body is.
+	var model := MeshInstance3D.new()
+	model.name = "SculptedModel"
+	model.mesh = _piece_mesh(kind)
+	model.material_override = body
+	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	if kind == "bishop":
+		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
+	elif kind == "knight":
+		model.rotation.y = _knight_yaw(file, is_white)
+	piece.add_child(model)
 	# The Staunton bodies are deliberately plain, so all the carving - tiered
 	# foot, filigree, fluting, collars and the crowns - lives in this one merged
-	# trim mesh rather than in a swarm of child nodes.
-	# The knight's head is built facing -Z for white and +Z for black, straight
-	# into the mesh, so nothing has to be spun afterwards: the old code rotated
-	# the whole trim, which was harmless for the revolved foot and stem but hid
-	# the fact that the head was a flat plate facing the wrong way.
-	var trim := MeshInstance3D.new()
-	trim.name = "OrnateTrim"
-	trim.mesh = _ornate_mesh(kind, body, accent, "classic", -1.0 if is_white else 1.0)
-	trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	piece.add_child(trim)
+	# trim mesh rather than in a swarm of child nodes. The knight gets the base
+	# turns only: its neck and head are the sculpt itself, and a revolved collar
+	# wrapped around a horse's chest is exactly what made it look manufactured.
+	# The knight's classic trim is empty - a body of revolution would be buried
+	# inside its own base - so the node is skipped rather than left holding an
+	# empty mesh.
+	var trim_mesh := _ornate_mesh(kind, body, accent, "classic")
+	if trim_mesh.get_surface_count() > 0:
+		var trim := MeshInstance3D.new()
+		trim.name = "OrnateTrim"
+		trim.mesh = trim_mesh
+		trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		piece.add_child(trim)
 	# Belt and braces: every sub-mesh of a piece carries the body material, so no
 	# surface can fall back to the default white StandardMaterial3D if a future
 	# part is added as its own node instead of being merged into the trim mesh.
 	_apply_piece_materials(piece, body)
 
 
-func _add_royal_wood_piece(piece: Node3D, kind: String, is_white: bool, wood: Material, gold: Material) -> void:
+func _add_royal_wood_piece(piece: Node3D, kind: String, is_white: bool, file: int, wood: Material, gold: Material) -> void:
 	# The carved set shares the same sculpted Staunton topology as the classic
 	# set, but is finished differently: a taller, wider turned foot and its own
 	# palette, so the two sets read as different objects rather than recolours of
 	# one another.
-	# Same rule as the classic set: the knight's head is sculpted in the trim
-	# layer, so its box-stacked OBJ body is never loaded.
-	if kind != "knight":
-		var model := MeshInstance3D.new()
-		model.name = "RoyalWoodSculpture"
-		model.mesh = _piece_mesh(kind)
-		model.material_override = wood
-		model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		if kind == "bishop":
-			model.rotation.y = PI * 0.25 if is_white else PI * 1.25
-		piece.add_child(model)
-	# As with the classic set, the knight's head faces down the board from inside
-	# the mesh itself, so the trim is never spun.
-	var trim := MeshInstance3D.new()
-	trim.name = "RoyalWoodTrim"
-	trim.mesh = _ornate_mesh(kind, wood, gold, "royal_wood", -1.0 if is_white else 1.0)
-	trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	piece.add_child(trim)
+	# Same rule as the classic set: the knight is the shipped horse body, not a
+	# head modelled out of primitives, so it is loaded exactly like the others.
+	var model := MeshInstance3D.new()
+	model.name = "RoyalWoodSculpture"
+	model.mesh = _piece_mesh(kind)
+	model.material_override = wood
+	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	if kind == "bishop":
+		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
+	elif kind == "knight":
+		model.rotation.y = _knight_yaw(file, is_white)
+	piece.add_child(model)
+	var trim_mesh := _ornate_mesh(kind, wood, gold, "royal_wood")
+	if trim_mesh.get_surface_count() > 0:
+		var trim := MeshInstance3D.new()
+		trim.name = "RoyalWoodTrim"
+		trim.mesh = trim_mesh
+		trim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		piece.add_child(trim)
 	_apply_piece_materials(piece, wood)
 
 
@@ -1478,11 +1501,17 @@ func _turned_stem_add(parts: Array, kind: String, profile: Dictionary, scale: fl
 ## the neck collar. `waist` and `waist_y` locate the narrowest point, which is
 ## where the second flush inlay sits. `neck` is the radius the body actually
 ## reaches at `neck_y`, so the collar is sized by the mesh and not by taste.
+##
+## `turned` says whether the body above the base is a surface of revolution at
+## all. It is true for five of the six; the knight is a horse, so it gets the
+## base turns only and everything sized off a radius is skipped.
 func _ornate_profile(kind: String) -> Dictionary:
 	var profile := {
 		"foot": 0.261, "stem_low": 0.180, "stem_high": 0.560,
 		"waist": 0.073, "waist_y": 0.501,
-		"neck": 0.105, "neck_y": 0.660, "flutes": 8
+		"neck": 0.105, "neck_y": 0.660, "flutes": 8,
+		# False for the knight, whose body is a horse rather than a turned stem.
+		"turned": true
 	}
 	match kind:
 		"rook":
@@ -1490,9 +1519,14 @@ func _ornate_profile(kind: String) -> Dictionary:
 			profile.waist = 0.099; profile.waist_y = 0.767
 			profile.neck = 0.139; profile.neck_y = 0.800; profile.flutes = 10
 		"knight":
-			profile.foot = 0.326; profile.stem_low = 0.264; profile.stem_high = 0.860
-			profile.waist = 0.163; profile.waist_y = 0.330
-			profile.neck = 0.237; profile.neck_y = 0.760; profile.flutes = 0
+			# The knight is the one body the trim does not wrap, so the stem band,
+			# waist and collar entries are deliberately left at their defaults and
+			# never read. A horse's chest is not a surface of revolution: at the
+			# collar height the body is 0.171 across in X but 0.24 deep in Z, so a
+			# lathe sized by the widest radius sticks out sideways as a ruff and
+			# one sized by the narrowest sinks into the chest.
+			profile.foot = 0.326
+			profile.turned = false
 		"bishop":
 			profile.foot = 0.326; profile.stem_low = 0.268; profile.stem_high = 0.900
 			profile.waist = 0.082; profile.waist_y = 0.670
@@ -1508,15 +1542,16 @@ func _ornate_profile(kind: String) -> Dictionary:
 	return profile
 
 
-func _ornate_mesh(kind: String, body: Material, accent: Material, variant: String, facing: float) -> ArrayMesh:
-	# `facing` is -1 for white and +1 for black: it is the direction down the board
-	# the piece looks, and only the knight head actually uses it, but it is part of
-	# the cache key because a white knight and a black knight are different meshes.
-	var key := "trim:%s:%s:%d:%d:%d:%d" % [kind, variant, body.get_instance_id(), accent.get_instance_id(), _radial_segments(), int(facing)]
+func _ornate_mesh(kind: String, body: Material, accent: Material, variant: String) -> ArrayMesh:
+	# No facing term any more: the trim is a set of bodies of revolution plus a
+	# few crown pieces, so a white and a black pawn share one mesh. The knight,
+	# whose head used to be built here facing one way or the other, is now the
+	# shipped horse body and is spun as a whole node instead.
+	var key := "trim:%s:%s:%d:%d:%d" % [kind, variant, body.get_instance_id(), accent.get_instance_id(), _radial_segments()]
 	if _mesh_cache.has(key):
 		return _mesh_cache[key]
 	var parts: Array = _ornate_trim_parts(kind, variant)
-	_ornate_identity_parts(parts, kind, variant, facing)
+	_ornate_identity_parts(parts, kind)
 	var mesh := ArrayMesh.new()
 	for material_index in [ORNAMENT_BODY, ORNAMENT_ACCENT]:
 		var tool := SurfaceTool.new()
@@ -1550,6 +1585,13 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	if variant == "royal_wood":
 		foot *= 1.14
 		scale = 1.14
+	# The knight is not a surface of revolution, so a classic foot would be built
+	# a few millimetres inside its own sculpted base and never seen. royal_wood,
+	# though, deliberately steps the foot out to 1.14, which is exactly what
+	# tells that set apart, so the wider plinth is still worth building there.
+	var turned := bool(profile.get("turned", true))
+	if not turned and variant != "royal_wood":
+		return parts
 	# Tiered foot. The lower collar is a fluted lathe rather than a smooth
 	# cylinder, and the fluting is shallow: 0.008 of amplitude over 16 grooves.
 	# Nothing here protrudes past the turned profile. Every metal accent on a
@@ -1561,6 +1603,13 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	# Flush inlay one of three, let into the base step. A flat revolved annulus
 	# 0.015 tall standing only 0.004 proud.
 	_flush_band_add(parts, foot * 0.64, Vector3(0, 0.108, 0))
+	# Everything above the base is only added for bodies that really are surfaces
+	# of revolution. The knight's horse chest is not: wrapping it in a lathe sized
+	# off the widest radius built a collar that stood 0.07 proud of the flanks,
+	# which is what turned the piece into a ball on a stand. Its own sculpted
+	# neck, ears and mane are the detail.
+	if not turned:
+		return parts
 	# The mid-stem shaft: a turned lathe spanning the stem band, following the
 	# radius the body mesh itself reaches at every height. The carving and the
 	# silhouette are one surface rather than a sleeve buried in the wood, and the
@@ -1584,63 +1633,8 @@ func _flush_band_add(parts: Array, radius: float, position: Vector3, height := O
 	parts.append([_mesh_cache[key], Transform3D(Basis.IDENTITY, position), ORNAMENT_ACCENT])
 
 
-## The knight's head, assembled from watertight primitives: an angled neck, a
-## tapered snout aimed at the opponent, two ear cones, and a curved row of mane
-## ridges down the back of the neck. `facing` is -1 for white and +1 for black, so
-## the snout points down the board at the other side.
-##
-## The polygon extrusion that was here before is gone. It was one side profile
-## pushed through four Z layers, and the profile is a third as deep as it is wide,
-## so from the camera - which looks straight down +Z at the flat front face - the
-## whole head read as a vertical plate with a notch cut out of the top. Every
-## primitive here is closed, so there is no face that can be wound inside out and
-## vanish, and the silhouette is a head from every angle rather than only from the
-## front.
-func _ornate_knight_head(parts: Array, profile: Dictionary, facing: float) -> void:
-	var neck: float = profile.neck
-	# The neck collar tops out at neck_y - 0.01, so the head starts exactly there
-	# and there is no gap between the collar and the neck.
-	var base_y: float = profile.neck_y - 0.01
-	# Every dimension here is read off the shipped knight.obj, because the head
-	# used to be sized off `neck` as if the knight's neck were as slim as a
-	# pawn's: at 0.15 the skull came out at 0.111 across under a 0.326 foot, so
-	# the piece read as a tower on a stick. The model's neck is 0.237 at the
-	# collar and its head 0.303 - the widest waist of the six kinds, which is
-	# what makes a Staunton knight's head sit on the piece instead of hovering
-	# above it.
-	#
-	# Angled neck: a truncated cone leaning forward, widening into the head.
-	_ornament_add(parts, "cylinder", neck * 1.04, neck * 0.94, 0.26,
-		Vector3(0.0, base_y + 0.13, facing * 0.02), ORNAMENT_BODY,
-		Vector3(10.0 * facing, 0.0, 0.0))
-	# Skull, as wide as the model's own head.
-	_ornament_add(parts, "sphere", neck * 1.28, 0.0, 0.0,
-		Vector3(0.0, base_y + 0.26, -facing * 0.03), ORNAMENT_BODY)
-	# Tapered snout: a truncated cone laid along Z with the small end forward. A
-	# rotation of +90 degrees about X carries the cylinder's +Y axis onto +Z, so
-	# the sign of the facing picks which end leads.
-	_ornament_add(parts, "cylinder", neck * 0.42, neck * 0.68, 0.24,
-		Vector3(0.0, base_y + 0.19, -facing * 0.14), ORNAMENT_BODY,
-		Vector3(90.0 * facing, 0.0, 0.0))
-	# Ears: two cones, tilted back and outward, sitting on the crown.
-	for side in [-1.0, 1.0]:
-		_ornament_add(parts, "cone", neck * 0.17, 0.22, 0.0,
-			Vector3(side * neck * 0.42, base_y + 0.47, facing * 0.02), ORNAMENT_BODY,
-			Vector3(-12.0 * facing, 0.0, -side * 16.0))
-	# Mane: a short curved row of ridges sitting on the back of the neck, on the
-	# far side from the snout. They stay inside the neck's own radius - the first
-	# version let them drift out to 0.44, well past the piece's 0.335 foot, where
-	# they read as a pair of wings stuck on the sides.
-	for i in 4:
-		var step := float(i) / 3.0
-		_ornament_add(parts, "box", neck * 0.20, 0.055, neck * 0.10,
-			Vector3(0.0, base_y + 0.36 - step * 0.20,
-				-facing * (0.06 + step * 0.05)), ORNAMENT_BODY)
-
-
 ## Piece-specific crowns and caps, replacing the old single-ring accents.
-func _ornate_identity_parts(parts: Array, kind: String, variant: String, facing: float) -> void:
-	var profile := _ornate_profile(kind)
+func _ornate_identity_parts(parts: Array, kind: String) -> void:
 	match kind:
 		"pawn":
 			# A classic Staunton pawn is one uninterrupted sphere with a single
@@ -1664,11 +1658,12 @@ func _ornate_identity_parts(parts: Array, kind: String, variant: String, facing:
 				_ornament_add(parts, "box", 0.085, 0.14, 0.085,
 					Vector3(cos(merlon_angle) * 0.165, 0.99, sin(merlon_angle) * 0.165), ORNAMENT_BODY)
 		"knight":
-			# Built from closed primitives so no face can be wound inside out and
-			# disappear. The old build fanned seven separate cylinders around the
-			# neck as a mane, which read as a bottle brush, and hung two torus
-			# hoops in mid-air where the head used to be a box.
-			_ornate_knight_head(parts, profile, facing)
+			# Nothing to add. The head, ears, eye and mane ridges are sculpted
+			# into the shipped body, and the base turns from _ornate_trim_parts()
+			# are the only carved layer it needs. The primitive version that used
+			# to be assembled here - sphere skull, cone snout, two ear cones, a
+			# tube neck - is what the player saw as a plain ball on a stand.
+			pass
 		"bishop":
 			# Carved mitre with a patterned collar and a small finial ball, and
 			# nothing else. The gold slab that used to be rotated out of the
