@@ -1891,8 +1891,13 @@ func _ornate_identity_parts(parts: Array, kind: String) -> void:
 			# closed, so they cannot do that.
 			_ornament_add(parts, "torus", 0.170, 0.016, 0.0, Vector3(0, 1.058, 0), ORNAMENT_ACCENT)
 			_ornament_add(parts, "cylinder", 0.150, 0.158, 0.085, Vector3(0, 1.098, 0), ORNAMENT_BODY)
-			_ornament_add(parts, "cone", 0.152, 0.275, 0.0, Vector3(0, 1.278, 0), ORNAMENT_BODY)
-			_ornament_add(parts, "sphere", 0.034, 0.0, 0.0, Vector3(0, 1.428, 0), ORNAMENT_ACCENT)
+			# The cap is two cones rather than one: a straight cone from 0.152 to
+			# a point is a party hat, and a mitre swells out of its collar and only
+			# then draws in. 0.140 over the first 0.13 and 0.150 over the last 0.16
+			# gives the shallow S that reads as carved stone.
+			_ornament_add(parts, "cone", 0.150, 0.155, 0.0, Vector3(0, 1.218, 0), ORNAMENT_BODY)
+			_ornament_add(parts, "cone", 0.140, 0.140, 0.0, Vector3(0, 1.365, 0), ORNAMENT_BODY)
+			_ornament_add(parts, "sphere", 0.034, 0.0, 0.0, Vector3(0, 1.446, 0), ORNAMENT_ACCENT)
 		"queen":
 			# Multi-pointed coronet of brass balls over a fluted drum.
 			_ornament_add(parts, "torus", 0.240, 0.026, 0.0, Vector3(0, 1.05, 0), ORNAMENT_ACCENT)
