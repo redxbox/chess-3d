@@ -27,7 +27,7 @@ const SQUARE_SIZE := 1.0
 ## the same value in application/config/version, and export_presets.cfg carries
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
-const APP_VERSION_FALLBACK := "0.13.0"
+const APP_VERSION_FALLBACK := "0.14.0"
 const APP_BUILD := "22.72"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
@@ -135,28 +135,34 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "ALABASTER & OBSIDIAN",
 		"light": Color(0.82, 0.78, 0.70),
-		"dark": Color(0.20, 0.21, 0.24),
-		"accent": Color(0.60, 0.59, 0.56),
+		# The black set used to be 0.20 / 0.21 / 0.24 at roughness 0.22, which on a
+		# phone is below the point where a dark albedo can show any shading at
+		# all: the pieces read as holes cut out of the board with a white
+		# highlight stuck on top of the crown. 0.285 at 0.30 is still unmistakably
+		# "the black pieces" - the board's dark squares are 0.22 - but the form,
+		# the fluting and the gold inlays are all visible now.
+		"dark": Color(0.285, 0.30, 0.335),
+		"accent": Color(0.62, 0.61, 0.57),
 		"light_roughness": 0.24,
-		"dark_roughness": 0.22,
-		"accent_roughness": 0.42,
-		"accent_metallic": 0.40,
+		"dark_roughness": 0.30,
+		"accent_roughness": 0.50,
+		"accent_metallic": 0.26,
 		"trim_variant": "classic",
 		"swatch_light": Color(0.87, 0.83, 0.75),
-		"swatch_dark": Color(0.20, 0.21, 0.24),
+		"swatch_dark": Color(0.285, 0.30, 0.335),
 	},
 	"royal_wood": {
 		"label": "BOXWOOD & ROSEWOOD",
 		"light": Color(0.86, 0.76, 0.60),
-		"dark": Color(0.28, 0.17, 0.11),
+		"dark": Color(0.355, 0.225, 0.155),
 		"accent": Color(0.72, 0.56, 0.20),
 		"light_roughness": 0.24,
-		"dark_roughness": 0.22,
-		"accent_roughness": 0.40,
-		"accent_metallic": 0.40,
+		"dark_roughness": 0.30,
+		"accent_roughness": 0.48,
+		"accent_metallic": 0.26,
 		"trim_variant": "royal_wood",
 		"swatch_light": Color(0.91, 0.81, 0.64),
-		"swatch_dark": Color(0.28, 0.17, 0.11),
+		"swatch_dark": Color(0.355, 0.225, 0.155),
 	},
 	# Marble: the same six bodies, polished harder and colder. The pale set is
 	# Carrara - a hair cooler and greyer than alabaster - and the dark set is
@@ -170,15 +176,15 @@ const PIECE_THEMES := {
 		# Polished stone is a tighter lobe, not a brighter albedo, so the sheen
 		# is carried by the roughness and the albedo stays under the clip point.
 		"light": Color(0.76, 0.765, 0.77),
-		"dark": Color(0.16, 0.17, 0.20),
-		"accent": Color(0.64, 0.66, 0.68),
+		"dark": Color(0.245, 0.26, 0.295),
+		"accent": Color(0.66, 0.68, 0.70),
 		"light_roughness": 0.18,
-		"dark_roughness": 0.14,
-		"accent_roughness": 0.30,
-		"accent_metallic": 0.55,
+		"dark_roughness": 0.26,
+		"accent_roughness": 0.44,
+		"accent_metallic": 0.30,
 		"trim_variant": "marble",
 		"swatch_light": Color(0.86, 0.86, 0.85),
-		"swatch_dark": Color(0.17, 0.18, 0.21),
+		"swatch_dark": Color(0.245, 0.26, 0.295),
 	},
 	# Baroque: jet against antique bronze, with the heaviest gold of the four -
 	# an extra pair of inlay rings on the stem and a wider collar. It is the one
@@ -186,15 +192,15 @@ const PIECE_THEMES := {
 	"baroque": {
 		"label": "BRONZE & JET",
 		"light": Color(0.62, 0.50, 0.34),
-		"dark": Color(0.11, 0.11, 0.13),
+		"dark": Color(0.195, 0.20, 0.225),
 		"accent": Color(0.83, 0.64, 0.22),
 		"light_roughness": 0.30,
-		"dark_roughness": 0.18,
-		"accent_roughness": 0.34,
-		"accent_metallic": 0.50,
+		"dark_roughness": 0.28,
+		"accent_roughness": 0.44,
+		"accent_metallic": 0.30,
 		"trim_variant": "baroque",
 		"swatch_light": Color(0.71, 0.58, 0.40),
-		"swatch_dark": Color(0.11, 0.11, 0.13),
+		"swatch_dark": Color(0.195, 0.20, 0.225),
 	},
 }
 
@@ -766,7 +772,12 @@ func _setup_piece_materials() -> void:
 	# of the 0.41 that clipped the collars to white rings at 0.82 / 0.50 with a
 	# clearcoat lobe on top, and the lobe is twice as wide, so the peak is far
 	# lower. The albedo is untouched.
-	_piece_gold_material = _luxury_piece_material(accent, palette.accent_roughness, palette.accent_metallic, false, false, 0.30)
+	# 0.24 rather than 0.30 of metallic_specular. The trim is the brightest thing
+	# on a dark piece, and on a phone the specular lobe on a collar torus was
+	# clipping to a flat white ring - the "white ring round the neck" the player
+	# reported. Lowering the specular and roughening the metal keeps the gold
+	# readable as metal while it reflects a sky instead of a searchlight.
+	_piece_gold_material = _luxury_piece_material(accent, palette.accent_roughness, palette.accent_metallic, false, false, 0.24)
 
 
 ## Fine procedural carving shared by both piece sets. A FastNoiseLite turned
@@ -1211,26 +1222,19 @@ func _body_material(code: String) -> Material:
 
 ## Which way a knight's horse head points.
 ##
-## The body is sculpted with its muzzle down -Z (see tools/build_knight.py), so
-## the node yaw decides which way the horse looks. A real set has each army's
-## knights facing its own player - the white horses on b1 and g1 look back at
-## White, the black horses on b8 and g8 look back at Black - and that is also
-## the view that reads best, because the camera looks down the board and the
-## horse is then seen from the front: two ears, a brow, a long face and the
-## muzzle pointing at the viewer, with the mane behind it.
+## The body is sculpted with its muzzle down -Z (see tools/build_knight.py), and
+## -Z is the far side of the board from the camera: white sits on ranks 1-2 at
+## negative Z, black on ranks 7-8 at positive Z. So a yaw of 0 points every
+## horse at the enemy, which is how a real set is placed - b1 and g1 look up the
+## board at b8 and g8, and the two armies face each other across it.
 ##
-## So a black knight - on the far side of the board - is turned half a turn from
-## the model's own facing, and a white knight is not turned at all.
-func _knight_yaw(_file: int, is_white: bool) -> float:
-	# The body is sculpted with the muzzle along -Z, so PI turns the white
-	# horses round to face their own player and 0 leaves the black ones facing
-	# theirs. Both armies are therefore seen in profile-to-face from their own
-	# side of the table, which is where each player's camera spends the game: at
-	# yaw 0 / PI the near army showed the back of its horses' heads, and the
-	# head is the one piece in this set that is worth looking at. It is also the
-	# only yaw that is not a quarter turn - the rejected build put them at +-90
-	# degrees, i.e. nose-on into the board's flank.
-	return PI if is_white else 0.0
+## Turned to face their own player (yaw PI for white) the near knights present
+## the back of the head to the camera and the far knights present their faces,
+## which is neither how a set is set up nor a good way to look at a horse. The
+## quarter turns (+-90 degrees) were rejected earlier for the same reason in the
+## other axis: nose-on to the board's flank.
+func _knight_yaw(_file: int, _is_white: bool) -> float:
+	return 0.0
 
 
 ## Which carved variant the current piece theme asks for. Kept in one place so
@@ -1839,6 +1843,26 @@ func _flush_band_add(parts: Array, radius: float, position: Vector3, height := O
 
 
 ## Piece-specific crowns and caps, replacing the old single-ring accents.
+## The bishop's mitre, as a lathe profile of rings [radius, y, hard, gold].
+##
+## It starts *inside* the body at 1.020, so its open bottom edge is buried and
+## never shows, then swells to 0.161 where the body's own head is widest and
+## tapers to a point at 1.43. The rings at 1.098-1.116 are the gold collar the
+## mitre sits on, which is the detail every Staunton bishop has at the joint.
+func _bishop_mitre_profile() -> Array:
+	return [
+		[0.132, 1.020, 0, 0],
+		[0.156, 1.075, 1, 1],
+		[0.161, 1.100, 0, 1],
+		[0.160, 1.190, 0, 0],
+		[0.147, 1.262, 0, 0],
+		[0.121, 1.328, 0, 0],
+		[0.083, 1.378, 0, 0],
+		[0.041, 1.413, 0, 0],
+		[0.000, 1.430, 1, 0],
+	]
+
+
 func _ornate_identity_parts(parts: Array, kind: String) -> void:
 	match kind:
 		"pawn":
@@ -1871,14 +1895,26 @@ func _ornate_identity_parts(parts: Array, kind: String) -> void:
 			# neck - is what the player saw as a plain ball on a stand.
 			pass
 		"bishop":
-			# Carved mitre with a patterned collar and a small finial ball, and
-			# nothing else. The gold slab that used to be rotated out of the
-			# mitre's flank is gone: from the camera it read as a stick jammed
-			# through the side of the head. The mitre stays clean and symmetrical.
-			_ornament_add(parts, "torus", 0.205, 0.024, 0.0, Vector3(0, 0.91, 0), ORNAMENT_ACCENT)
-			_ornament_add(parts, "sphere", 0.235, 0.0, 0.0, Vector3(0, 1.10, 0), ORNAMENT_BODY)
-			_ornament_add(parts, "torus", 0.070, 0.008, 0.0, Vector3(0, 1.02, 0), ORNAMENT_ACCENT)
-			_ornament_add(parts, "sphere", 0.060, 0.0, 0.0, Vector3(0, 1.35, 0), ORNAMENT_ACCENT)
+			# A real mitre, not a bulb. The shipped bishop body ends in a rounded
+			# head, and the old trim dropped a 0.235 sphere on top of it, which is
+			# why the piece read as a light bulb: a ball on a stem with a metal
+			# ring under it. What makes a bishop recognisable is the tall pointed
+			# cap with the diagonal slit across its face, so this replaces the
+			# sphere with a lathe that swallows the body's own head and rises to a
+			# point at 1.43, and then cuts the slit in gold.
+			var mitre: Array = _lathe_surfaces(_bishop_mitre_profile(), ORNAMENT_FLUTE_SEGMENTS)
+			if mitre[0] != null:
+				parts.append([mitre[0], Transform3D(Basis.IDENTITY, Vector3.ZERO), ORNAMENT_BODY])
+			if mitre[1] != null:
+				parts.append([mitre[1], Transform3D(Basis.IDENTITY, Vector3.ZERO), ORNAMENT_ACCENT])
+			# A gold ball on the point, and nothing else. The mitre's diagonal slit
+			# is deliberately not modelled: a plate tilted out of the mitre's
+			# flank is the "stick jammed through the side of the head" this piece
+			# already had once, and at the size a phone shows this piece the
+			# silhouette - a tall cap that comes to a point - is what carries the
+			# identification. The point plus the collar plus the ball is a bishop;
+			# a sphere on a stem was the light bulb the player was seeing.
+			_ornament_add(parts, "sphere", 0.034, 0.0, 0.0, Vector3(0, 1.436, 0), ORNAMENT_ACCENT)
 		"queen":
 			# Multi-pointed coronet of brass balls over a fluted drum.
 			_ornament_add(parts, "torus", 0.240, 0.026, 0.0, Vector3(0, 1.05, 0), ORNAMENT_ACCENT)
@@ -3488,10 +3524,15 @@ func _monitor_performance() -> void:
 		if animating_move or ai_thinking:
 			return
 		var current := _effective_graphics_quality()
-		# One step only, and it stops at MEDIUM. Falling to LOW turned off the
-		# shadows and the anti-aliasing, which read as a broken board rather than
-		# as a slower one.
-		_auto_quality_override = "medium" if current == "high" else "medium"
+		# One step at a time, and it can now reach LOW. LOW used to be a broken
+		# board - it turned the shadows off entirely - but LOW now keeps the key
+		# light's shadow and buys its frame time from the 3D render scale instead,
+		# so it is a legitimate last resort on a phone that is still struggling at
+		# MEDIUM rather than a trap the player falls into.
+		match current:
+			"high": _auto_quality_override = "medium"
+			"medium": _auto_quality_override = "low"
+			_: _auto_quality_override = "low"
 		_low_fps_seconds = 0
 		# Apply renderer settings now. Piece LOD refreshes after the next completed
 		# move, avoiding node replacement during Android touch/tween dispatch.
@@ -3506,8 +3547,11 @@ func _effective_graphics_quality() -> String:
 	if _auto_quality_override != "":
 		return _auto_quality_override
 	var cores := OS.get_processor_count()
-	# The floor for AUTO is MEDIUM, never LOW: LOW disables the shadows that make
-	# the pieces sit on the board.
+	# The starting point for AUTO. It is a guess about the phone, refined within
+	# a few seconds by the frame-rate watchdog above; four-thread devices start
+	# at LOW outright rather than spending their first minute dropping frames.
+	if cores <= 4:
+		return "low"
 	if cores <= 6:
 		return "medium"
 	return "high"
@@ -3531,13 +3575,30 @@ func _apply_graphics_quality() -> void:
 	# every square at once. The rig is balanced against its own shadows.
 	$FillLight.shadow_enabled = quality == "high"
 	get_viewport().msaa_3d = Viewport.MSAA_2X
+	# The 3D render scale is the cheapest lever this renderer has, and it is the
+	# one that actually matters on a weak phone: this is a forward+compatibility
+	# renderer with four directional lights, a shadowed key light and a
+	# sky-generated environment, i.e. it is fill-rate bound long before it is
+	# vertex bound. Dropping the 3D buffer to 0.85 or 0.70 costs a little
+	# sharpness on the pieces and gives back roughly a third or half of the
+	# frame time, while the UI - which is drawn on a separate canvas at full
+	# resolution - stays crisp. That is a much better trade than turning the
+	# shadows off, which makes the pieces float.
+	var render_scale := 1.0
 	match quality:
 		"high":
 			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+			render_scale = 1.0
 		"medium":
 			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+			render_scale = 0.85
 		_:
 			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+			render_scale = 0.70
+	get_viewport().scaling_3d_scale = render_scale
+	# The key light's shadow reach costs more the further it has to cover, and
+	# the ranks past the board edge never cast anything worth seeing.
+	$KeyLight.directional_shadow_max_distance = 40.0 if quality == "high" else (30.0 if quality == "medium" else 24.0)
 	_update_graphics_button()
 
 

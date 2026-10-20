@@ -1,6 +1,9 @@
 extends Node3D
 
-const PAWN_MODEL := preload("res://assets/models/persian/candidate2/optimized/pawn.glb")
+# The unused Persian model set was deleted from the repository (it shipped in
+# the APK without being referenced by the game). This preview script uses the
+# shipped Staunton body instead, which is what the game actually renders.
+const PAWN_MODEL := preload("res://assets/models/staunton/pawn.obj")
 
 
 func _ready() -> void:
@@ -25,7 +28,10 @@ func _ready() -> void:
 
 
 func _add_test_pawn(position_value: Vector3, is_white: bool) -> void:
-	var pawn := PAWN_MODEL.instantiate()
+	var pawn := Node3D.new()
+	var body := MeshInstance3D.new()
+	body.mesh = PAWN_MODEL
+	pawn.add_child(body)
 	pawn.position = position_value
 	pawn.position.y = 0.5
 	ChessMaterials.apply_to_tree(pawn, is_white)

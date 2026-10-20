@@ -98,10 +98,20 @@ ELLIPSOIDS = [
     ((0.0, 0.996, -0.320), (0.066, 0.058, 0.082)),
 ]
 
-# Carved detail: the eye, the nostril and the cheek crease. Each entry is
-# (centre, radii, sign) in the same ellipsoid form as ELLIPSOIDS; a negative
-# sign carves a groove instead of raising a bump.
+# Carved detail: the eye, the nostril, the cheek crease and the throat notch.
+# Each entry is (centre, radii, sign) in the same ellipsoid form as ELLIPSOIDS;
+# a negative sign carves a groove instead of raising a bump.
 DETAILS = [
+    # The throat notch. This is the single shape that makes a horse read as a
+    # horse rather than as a bird or a snake: the jaw overhangs the throat, so
+    # there is a real concave notch under it, and the key light leaves a shadow
+    # line along the jaw. Without it the muzzle ran straight down into the
+    # chest and the piece read as a duck from the front.
+    ((0.0, 0.905, -0.300), (0.115, 0.135, 0.120), -1.0),
+    # Cheek: the flat plate behind the jaw, either side. Widens the head where a
+    # horse is widest without widening the muzzle.
+    ((0.098, 1.110, -0.140), (0.062, 0.088, 0.115), 1.0),
+    ((-0.098, 1.110, -0.140), (0.062, 0.088, 0.115), 1.0),
     # Eye: a shallow almond on each flank, just under the brow ridge.
     ((0.108, 1.192, -0.208), (0.030, 0.024, 0.045), 1.0),
     ((-0.108, 1.192, -0.208), (0.030, 0.024, 0.045), 1.0),
@@ -119,13 +129,16 @@ DETAILS = [
 # The mane: shallow locks along the crest of the neck, from the withers to
 # between the ears. The crest surface is found from the field itself (see
 # `_crest_z`), so the locks always sit exactly on the back of the neck.
-MANE_HEIGHTS = [0.575, 0.625, 0.675, 0.725, 0.775, 0.825, 0.875, 0.925,
-                0.975, 1.025, 1.075, 1.125, 1.175]
+MANE_HEIGHTS = [0.575, 0.622, 0.669, 0.716, 0.763, 0.810, 0.857, 0.904,
+                0.951, 0.998, 1.045, 1.092, 1.139, 1.186]
 
-# Ears: two flattened blades on the crown, leaning out and forward.
+# Ears: two leaves on the crown. They are long, they lean out and slightly
+# forward, and they are thick enough at the base to read as ears rather than as
+# antennae - the previous pair tapered to 0.020 over 0.18 of height, which at
+# game distance was two pins, and the player read them as horns.
 EARS = [
-    ((0.062, 1.276, -0.100), 0.052, (0.096, 1.452, -0.150), 0.020),
-    ((-0.062, 1.276, -0.100), 0.052, (-0.096, 1.452, -0.150), 0.020),
+    ((0.058, 1.250, -0.090), 0.060, (0.105, 1.430, -0.135), 0.024),
+    ((-0.058, 1.250, -0.090), 0.060, (-0.105, 1.430, -0.135), 0.024),
 ]
 
 # Smooth-union radius. Small enough that the jaw notch stays sharp, large
@@ -136,7 +149,7 @@ BLEND = 0.038
 # bodies are 5-15k triangles; this one is held to the same order so the whole
 # set stays inside the Android budget on a mid-range phone.
 VOXEL = 0.0038
-TARGET_TRIANGLES = 16000
+TARGET_TRIANGLES = 10000
 
 
 def _smooth_min(a, b, k):
@@ -243,14 +256,28 @@ def _mane(px, py, pz):
     total = None
     for y in MANE_HEIGHTS:
         crest = _crest_z(y)
-        dz = (pz - (crest - 0.020)) / 0.036
-        dy = (py - y) / 0.042
-        dx = px / 0.070
+        # A lock is a flattened plate on the centre line, not a ball: narrow
+        # across the piece, tall along the neck and reaching back past the
+        # crest. That is what makes the mane a fin with a scalloped outer edge -
+        # a real crest of hair, in silhouette - instead of the row of bumps the
+        # first build made, which the player read as neither mane nor anything.
+        dz = (pz - (crest + 0.034)) / 0.056
+        dy = (py - y) / 0.058
+        dx = px / 0.054
         lock = np.sqrt(dx * dx + dy * dy + dz * dz) - 1.0
-        # A wide smooth union, so the locks melt into one raised crest with a
-        # gentle scallop along it. Blended tightly they read as a row of beads
-        # stuck to the back of the neck, which is worse than a plain ridge.
+        # A generous blend: the locks are wide enough to fuse into one thick
+        # crest, and the scallop along its edge is what is left of the
+        # individual locks. Blended tightly they are a row of beads again.
         total = lock if total is None else _smooth_min(total, lock, 0.055)
+    # Forelock: the tuft that falls forward between the ears. It is the one part
+    # of the mane that is visible from the front, and it is what tells a player
+    # looking down the board which end of the piece is the head.
+    crest = _crest_z(1.190)
+    forelock_dz = (pz - (crest - 0.075)) / 0.062
+    forelock_dy = (py - 1.190) / 0.075
+    forelock_dx = px / 0.036
+    forelock = np.sqrt(forelock_dx * forelock_dx + forelock_dy * forelock_dy + forelock_dz * forelock_dz) - 1.0
+    total = _smooth_min(total, forelock, 0.045)
     return total
 
 
@@ -293,9 +320,20 @@ def build():
     x = np.arange(-0.42, 0.42, VOXEL)
     y = np.arange(-0.02, 1.56, VOXEL)
     z = np.arange(-0.68, 0.40, VOXEL)
-    gx, gy, gz = np.meshgrid(x, y, z, indexing="ij", sparse=False)
-    field = signed_distance(gx, gy, gz)
-    del gx, gy, gz
+    # The field is evaluated one z-slab at a time, into a preallocated array.
+    # Building the three full meshgrid arrays at once peaks at roughly 2 GB for
+    # this resolution - three float64 coordinate volumes plus the field and its
+    # temporaries - which is enough to be killed on a 2 GB CI container. A slab
+    # of 24 planes holds the peak under a quarter of that and the numbers are
+    # identical, because the field is a pure function of position.
+    field = np.empty((len(x), len(y), len(z)), dtype=np.float32)
+    slab = 24
+    gx = x[:, None, None]
+    gy = y[None, :, None]
+    for start in range(0, len(z), slab):
+        stop = min(start + slab, len(z))
+        gz = z[None, None, start:stop]
+        field[:, :, start:stop] = signed_distance(gx, gy, gz)
     vertices, faces, _normals, _values = measure.marching_cubes(
         field, level=0.0, spacing=(VOXEL, VOXEL, VOXEL))
     vertices[:, 0] += x[0]

@@ -67,7 +67,7 @@ Workflow موجود در `.github/workflows/ci.yml` در هر Push و Pull Reque
 | `input_devices/pointing/emulate_mouse_from_touch` | `true` | **باید روشن بماند.** در گودوت، نودهای داخلی `Control` (همهٔ `Button`های UI) روی صفحهٔ لمسی فقط به رویداد موس واکنش می‌دهند؛ با `false` هیچ دکمه‌ای روی اندروید کار نمی‌کند. رویداد موس مصنوعی که همین تنظیم تولید می‌کند در `_unhandled_input` با `device == -1` فیلتر می‌شود. |
 | `display/window/stretch/aspect` | `expand` | بدون آن، HUD روی گوشی‌های غیر ۱۶:۹ نامتناسب کشیده می‌شود. |
 | `application/config/quit_on_go_back` | `false` | دکمهٔ Back اندروید را به `ui_cancel` تبدیل می‌کند تا منو بسته شود، نه اینکه اپ بسته شود. |
-| `application/config/version` | `0.13.0` | منبع یگانهٔ شمارهٔ نسخه؛ برچسب داخل بازی از همین‌جا خوانده می‌شود. |
+| `application/config/version` | `0.14.0` | منبع یگانهٔ شمارهٔ نسخه؛ برچسب داخل بازی از همین‌جا خوانده می‌شود. |
 
 شمارهٔ نسخهٔ نمایش‌داده‌شده در بازی از `APP_VERSION_FALLBACK` و `APP_BUILD` در `src/main/main.gd` به‌همراه `application/config/version` در `project.godot` می‌آید؛ آن را با `version/name` در `export_presets.cfg` هماهنگ نگه دارید.
 
