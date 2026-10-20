@@ -1601,9 +1601,10 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	# carved set's 1.14 step-out - which is how the other five bodies tell that
 	# set apart - would leave the knight standing on a disc wider than its foot.
 	# It gets the one detail every other piece carries instead: a gold inlay let
-	# into the waist of the stem, at the 0.166 radius the body has there.
+	# into the waist of the stem, sized off the body's own radius there (0.191) so
+	# it sits flush instead of being buried in the wood.
 	if not turned:
-		_flush_band_add(parts, 0.166, Vector3(0, 0.396, 0), 0.012, 0.004)
+		_flush_band_add(parts, _body_radius_at(kind, 0.396), Vector3(0, 0.396, 0), 0.012, 0.004)
 		return parts
 	# Tiered foot. The lower collar is a fluted lathe rather than a smooth
 	# cylinder, and the fluting is shallow: 0.008 of amplitude over 16 grooves.
@@ -1619,7 +1620,7 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	# line sits at the same depth in the wood on all five turned bodies instead of
 	# floating on the pawn and sinking into the king.
 	_flush_band_add(parts, foot * 0.64, Vector3(0, 0.108, 0))
-	_flush_band_add(parts, _body_radius_at(kind, 0.142) - 0.004, Vector3(0, 0.142, 0), 0.010, 0.004)
+	_flush_band_add(parts, _body_radius_at(kind, 0.146), Vector3(0, 0.146, 0), 0.010, 0.004)
 	# The mid-stem shaft: a turned lathe spanning the stem band, following the
 	# radius the body mesh itself reaches at every height. The carving and the
 	# silhouette are one surface rather than a sleeve buried in the wood, and the

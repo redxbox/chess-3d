@@ -124,8 +124,8 @@ MANE_HEIGHTS = [0.575, 0.625, 0.675, 0.725, 0.775, 0.825, 0.875, 0.925,
 
 # Ears: two flattened blades on the crown, leaning out and forward.
 EARS = [
-    ((0.058, 1.290, -0.095), 0.048, (0.098, 1.470, -0.140), 0.013),
-    ((-0.058, 1.290, -0.095), 0.048, (-0.098, 1.470, -0.140), 0.013),
+    ((0.062, 1.276, -0.100), 0.052, (0.096, 1.452, -0.150), 0.020),
+    ((-0.062, 1.276, -0.100), 0.052, (-0.096, 1.452, -0.150), 0.020),
 ]
 
 # Smooth-union radius. Small enough that the jaw notch stays sharp, large
@@ -243,11 +243,14 @@ def _mane(px, py, pz):
     total = None
     for y in MANE_HEIGHTS:
         crest = _crest_z(y)
-        dz = (pz - (crest - 0.014)) / 0.040
-        dy = (py - y) / 0.038
-        dx = px / 0.060
+        dz = (pz - (crest - 0.020)) / 0.036
+        dy = (py - y) / 0.042
+        dx = px / 0.070
         lock = np.sqrt(dx * dx + dy * dy + dz * dz) - 1.0
-        total = lock if total is None else _smooth_min(total, lock, 0.030)
+        # A wide smooth union, so the locks melt into one raised crest with a
+        # gentle scallop along it. Blended tightly they read as a row of beads
+        # stuck to the back of the neck, which is worse than a plain ridge.
+        total = lock if total is None else _smooth_min(total, lock, 0.055)
     return total
 
 
