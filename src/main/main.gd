@@ -94,9 +94,13 @@ const BOARD_THEMES := {
 		"light_square": Color(0.525, 0.645, 0.545),
 		"dark_square": Color(0.115, 0.255, 0.195),
 		"square_roughness": 0.22,
-		"apron": Color(0.24, 0.30, 0.26),
-		"apron_roughness": 0.30,
-		"apron_metallic": 0.35,
+		# 0.24 at metallic 0.35 still rendered as a black edge: a metalness that
+		# high leaves almost no diffuse for the fill and ambient to reach, so the
+		# frame is lifted and the metalness halved. It reads as patinated bronze
+		# now, which is what the name of the theme promises.
+		"apron": Color(0.30, 0.375, 0.325),
+		"apron_roughness": 0.34,
+		"apron_metallic": 0.18,
 		"trim": Color(0.52, 0.44, 0.24),
 		"trim_roughness": 0.38,
 		"table": Color(0.10, 0.16, 0.15),
@@ -114,8 +118,8 @@ const BOARD_THEMES := {
 		"square_roughness": 0.24,
 		# 0.11 rendered as an unlit black edge - the same failure the classic frame
 		# had at 0.14 - so the frame is dark navy rather than near-black.
-		"apron": Color(0.155, 0.175, 0.245),
-		"apron_roughness": 0.24,
+		"apron": Color(0.225, 0.255, 0.345),
+		"apron_roughness": 0.26,
 		"apron_metallic": 0.20,
 		"trim": Color(0.55, 0.45, 0.20),
 		"trim_roughness": 0.38,
