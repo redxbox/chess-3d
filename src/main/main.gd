@@ -286,6 +286,16 @@ func _setup_environment() -> void:
 	# silhouette, which is the whole point of a rim, without the blowout.
 	$RimLight.light_energy = 0.25
 	$RimLight.shadow_enabled = false
+	# Bounce: a fourth, upward-facing light that stands in for the light the pale
+	# board throws back up. It is what keeps the underside of a piece from going
+	# to black, and that matters most for the knight: its jaw overhangs its own
+	# neck, so the whole underside of the head is a crevice the three top lights
+	# cannot reach, and at full shadow it read as a hole through the piece. Warm
+	# and dim on purpose - it must lift the shadow, not add a second key.
+	$BounceLight.light_energy = 0.16
+	$BounceLight.light_color = Color(0.97, 0.90, 0.80)
+	$BounceLight.rotation_degrees = Vector3(68, 12, 0)
+	$BounceLight.shadow_enabled = false
 	# Bloom is off. With it on, the Compatibility renderer lifted the whole
 	# frame: the background went from the intended #2a1f2e to a flat #be82c6 and
 	# the pale squares lost every bit of contrast. The gold inlays read fine on

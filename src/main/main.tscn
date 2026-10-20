@@ -32,6 +32,12 @@ light_color = Color(0.9, 0.93, 1, 1)
 light_energy = 0.25
 shadow_enabled = false
 
+[node name="BounceLight" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(68, 12, 0)
+light_color = Color(0.97, 0.9, 0.8, 1)
+light_energy = 0.16
+shadow_enabled = false
+
 [node name="CameraRig" type="Node3D" parent="."]
 rotation_degrees = Vector3(0, 0, 0)
 
