@@ -1843,26 +1843,6 @@ func _flush_band_add(parts: Array, radius: float, position: Vector3, height := O
 
 
 ## Piece-specific crowns and caps, replacing the old single-ring accents.
-## The bishop's mitre, as a lathe profile of rings [radius, y, hard, gold].
-##
-## It starts *inside* the body at 1.020, so its open bottom edge is buried and
-## never shows, then swells to 0.161 where the body's own head is widest and
-## tapers to a point at 1.43. The rings at 1.098-1.116 are the gold collar the
-## mitre sits on, which is the detail every Staunton bishop has at the joint.
-func _bishop_mitre_profile() -> Array:
-	return [
-		[0.132, 1.020, 0, 0],
-		[0.156, 1.075, 1, 1],
-		[0.161, 1.100, 0, 1],
-		[0.160, 1.190, 0, 0],
-		[0.147, 1.262, 0, 0],
-		[0.121, 1.328, 0, 0],
-		[0.083, 1.378, 0, 0],
-		[0.041, 1.413, 0, 0],
-		[0.000, 1.430, 1, 0],
-	]
-
-
 func _ornate_identity_parts(parts: Array, kind: String) -> void:
 	match kind:
 		"pawn":
@@ -1897,24 +1877,22 @@ func _ornate_identity_parts(parts: Array, kind: String) -> void:
 		"bishop":
 			# A real mitre, not a bulb. The shipped bishop body ends in a rounded
 			# head, and the old trim dropped a 0.235 sphere on top of it, which is
-			# why the piece read as a light bulb: a ball on a stem with a metal
-			# ring under it. What makes a bishop recognisable is the tall pointed
-			# cap with the diagonal slit across its face, so this replaces the
-			# sphere with a lathe that swallows the body's own head and rises to a
-			# point at 1.43, and then cuts the slit in gold.
-			var mitre: Array = _lathe_surfaces(_bishop_mitre_profile(), ORNAMENT_FLUTE_SEGMENTS)
-			if mitre[0] != null:
-				parts.append([mitre[0], Transform3D(Basis.IDENTITY, Vector3.ZERO), ORNAMENT_BODY])
-			if mitre[1] != null:
-				parts.append([mitre[1], Transform3D(Basis.IDENTITY, Vector3.ZERO), ORNAMENT_ACCENT])
-			# A gold ball on the point, and nothing else. The mitre's diagonal slit
-			# is deliberately not modelled: a plate tilted out of the mitre's
-			# flank is the "stick jammed through the side of the head" this piece
-			# already had once, and at the size a phone shows this piece the
-			# silhouette - a tall cap that comes to a point - is what carries the
-			# identification. The point plus the collar plus the ball is a bishop;
-			# a sphere on a stem was the light bulb the player was seeing.
-			_ornament_add(parts, "sphere", 0.034, 0.0, 0.0, Vector3(0, 1.436, 0), ORNAMENT_ACCENT)
+			# why the piece read as a light bulb: a ball on a stem with a metal ring
+			# under it. What makes a bishop recognisable is the tall pointed cap, so
+			# that is what is built here - a short drum to swallow the body's own
+			# head and then a tall cone to a point at 1.415 - with the gold collar
+			# at the joint and a ball on the point.
+			#
+			# Both halves are primitives rather than one lathe. A lathe would be the
+			# natural way to draw it, but a lathe is an open shell and this cap has
+			# to read as solid stone from every angle, including the low camera this
+			# game uses: a shell seen from slightly below shows its own inner wall
+			# through the front face and reads as a cup. Cylinder and cone are
+			# closed, so they cannot do that.
+			_ornament_add(parts, "torus", 0.170, 0.016, 0.0, Vector3(0, 1.058, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "cylinder", 0.150, 0.158, 0.085, Vector3(0, 1.098, 0), ORNAMENT_BODY)
+			_ornament_add(parts, "cone", 0.152, 0.275, 0.0, Vector3(0, 1.278, 0), ORNAMENT_BODY)
+			_ornament_add(parts, "sphere", 0.034, 0.0, 0.0, Vector3(0, 1.428, 0), ORNAMENT_ACCENT)
 		"queen":
 			# Multi-pointed coronet of brass balls over a fluted drum.
 			_ornament_add(parts, "torus", 0.240, 0.026, 0.0, Vector3(0, 1.05, 0), ORNAMENT_ACCENT)
