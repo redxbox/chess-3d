@@ -43,7 +43,17 @@ jobs:
       # how a multi-megabyte source export once came within one extension of
       # shipping.
       - name: Check packaged content budget
-        run: python3 tools/export_budget.py
+        shell: bash
+        run: |
+          set +e
+          output=$(python3 tools/export_budget.py 2>&1)
+          status=$?
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            encoded=$(printf '%s' "$output" | tail -20 | base64 -w0 | cut -c1-4000)
+            echo "::error title=Content budget base64::$encoded"
+          fi
+          exit "$status"
 
       - name: Run chess rules tests
         shell: bash
