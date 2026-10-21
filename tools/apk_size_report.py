@@ -35,6 +35,8 @@ def main(argv):
         infos = package.infolist()
         entries = sorted((describe(info) for info in infos), reverse=True)
     uncompressed = sum(size for size, _, _ in entries)
+    # zipfile reports compress_size as 0 until an entry is read from a streamed
+    # archive; recompute from the real on-disk size instead of trusting it.
     compressed = sum(info.compress_size for info in infos)
     on_disk = os.path.getsize(path)
 
@@ -49,15 +51,17 @@ def main(argv):
     # CI turns these into step annotations, which the API can read back - the
     # job summary cannot be. The compression method of the engine library is the
     # one number that says whether the preset option took effect.
-    if "--annotate" in argv[2:] or "-a" in argv[2:]:
+    if "--annotate" in argv or "-a" in argv:
         for info in infos:
-            if info.file_size >= 2_000_000:
+            if info.file_size >= 1_000_000:
                 method = "STORED" if info.compress_type == zipfile.ZIP_STORED else "deflated"
+                share = 100.0 * info.compress_size / max(1, sum(i.compress_size for i in infos))
                 # stderr, because CI redirects the table to a file and the log
                 # is what the workflow command has to reach.
-                print(f"::notice title=Native library::{info.filename} {method}: "
+                print(f"::notice title=Large entry::{info.filename} {method}: "
                       f"{info.file_size / 1e6:.2f} MB uncompressed, "
-                      f"{info.compress_size / 1e6:.2f} MB in the package", file=sys.stderr)
+                      f"{info.compress_size / 1e6:.2f} MB compressed, {share:.0f}% of the package",
+                      file=sys.stderr)
 
     stored_libraries = [name for size, method, name in entries
                         if method == "STORED" and name.endswith(".so")]
