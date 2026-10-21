@@ -51,7 +51,7 @@ def main(argv):
     # one number that says whether the preset option took effect.
     if "--annotate" in argv[2:] or "-a" in argv[2:]:
         for info in infos:
-            if info.filename.endswith((".so", ".pck")):
+            if info.file_size >= 2_000_000:
                 method = "STORED" if info.compress_type == zipfile.ZIP_STORED else "deflated"
                 # stderr, because CI redirects the table to a file and the log
                 # is what the workflow command has to reach.
