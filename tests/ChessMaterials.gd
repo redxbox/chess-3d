@@ -1,7 +1,12 @@
 class_name ChessMaterials
 extends RefCounted
 
-## Cached, texture-free mobile materials for geometry-only chess GLBs.
+## Cached, texture-free mobile materials for the material preview scene in this
+## folder. It is a development aid, not part of the game: `src/main/main.gd`
+## builds its own PBR materials from PIECE_THEMES. It used to live under
+## `src/`, which the export filter ships in full, so a 75-line script that only
+## the preview scene loads was going out in every APK. Everything under `tests/`
+## is excluded from the export presets.
 ## Imported image-to-3D models may expose one or two surfaces. Surface 0 always
 ## receives the army body; surface 1 receives shared polished gold when present.
 

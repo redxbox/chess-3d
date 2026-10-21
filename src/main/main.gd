@@ -4,7 +4,12 @@ extends Node3D
 const ChessRules = preload("res://src/chess/chess_game.gd")
 const OfflineAI = preload("res://src/ai/offline_ai.gd")
 const ArchiveStore = preload("res://src/storage/game_archive.gd")
-const AMBIENT_MUSIC = preload("res://assets/audio/ambient.wav")
+## The music loop is Ogg Vorbis and the six effects stay WAV, which is the
+## usual split and for once the usual reason is the real one: a 12-second loop
+## is 517 KB as 16-bit PCM and 48 KB as Vorbis at 36 dB SNR, while a 0.1-second
+## click gains nothing from a transform codec and would only acquire encoder
+## latency. That single swap is most of the audio budget.
+const AMBIENT_MUSIC = preload("res://assets/audio/ambient.ogg")
 const SOUND_STREAMS := {
 	"select": preload("res://assets/audio/select.wav"),
 	"move": preload("res://assets/audio/move.wav"),
@@ -33,29 +38,39 @@ const SOUND_STREAMS := {
 ## All three sets are OBJ with no UVs and no normals; _piece_mesh() projects and
 ## smooths them, and tools/prepare_sculpt_set.py is what put the second set on
 ## this project's height ladder in the first place.
-const PIECE_MODELS_STAUNTON := {
-	"pawn": preload("res://assets/models/staunton/pawn.obj"),
-	"rook": preload("res://assets/models/staunton/rook.obj"),
-	"knight": preload("res://assets/models/staunton/knight.obj"),
-	"bishop": preload("res://assets/models/staunton/bishop.obj"),
-	"queen": preload("res://assets/models/staunton/queen.obj"),
-	"king": preload("res://assets/models/staunton/king.obj")
-}
-const PIECE_MODELS_PERSIAN := {
-	"pawn": preload("res://assets/models/persian/pawn.obj"),
-	"rook": preload("res://assets/models/persian/rook.obj"),
-	"knight": preload("res://assets/models/persian/knight.obj"),
-	"bishop": preload("res://assets/models/persian/bishop.obj"),
-	"queen": preload("res://assets/models/persian/queen.obj"),
-	"king": preload("res://assets/models/persian/king.obj")
-}
-const PIECE_MODELS_MEDIEVAL := {
-	"pawn": preload("res://assets/models/medieval/pawn.obj"),
-	"rook": preload("res://assets/models/medieval/rook.obj"),
-	"knight": preload("res://assets/models/medieval/knight.obj"),
-	"bishop": preload("res://assets/models/medieval/bishop.obj"),
-	"queen": preload("res://assets/models/medieval/queen.obj"),
-	"king": preload("res://assets/models/medieval/king.obj")
+##
+## These are paths rather than preloads on purpose. A preload resolves when the
+## script itself is parsed, so six preloads per set meant all eighteen bodies -
+## about 4 MB of vertex data - were resident before the first frame, whether the
+## player ever chose that set or not. On a phone that is both startup time and
+## memory the game never gets back. _piece_models() loads the set that is
+## actually being worn and keeps it; the other two are only touched if the
+## player picks them, and they stay loaded once they have been.
+const PIECE_MODEL_PATHS := {
+	"staunton": {
+		"pawn": "res://assets/models/staunton/pawn.obj",
+		"rook": "res://assets/models/staunton/rook.obj",
+		"knight": "res://assets/models/staunton/knight.obj",
+		"bishop": "res://assets/models/staunton/bishop.obj",
+		"queen": "res://assets/models/staunton/queen.obj",
+		"king": "res://assets/models/staunton/king.obj"
+	},
+	"persian": {
+		"pawn": "res://assets/models/persian/pawn.obj",
+		"rook": "res://assets/models/persian/rook.obj",
+		"knight": "res://assets/models/persian/knight.obj",
+		"bishop": "res://assets/models/persian/bishop.obj",
+		"queen": "res://assets/models/persian/queen.obj",
+		"king": "res://assets/models/persian/king.obj"
+	},
+	"medieval": {
+		"pawn": "res://assets/models/medieval/pawn.obj",
+		"rook": "res://assets/models/medieval/rook.obj",
+		"knight": "res://assets/models/medieval/knight.obj",
+		"bishop": "res://assets/models/medieval/bishop.obj",
+		"queen": "res://assets/models/medieval/queen.obj",
+		"king": "res://assets/models/medieval/king.obj"
+	}
 }
 const BOARD_SIZE := 8
 const SQUARE_SIZE := 1.0
@@ -219,6 +234,7 @@ var highlights_root := Node3D.new()
 var decor_root := Node3D.new()
 var coordinates_root := Node3D.new()
 var _mesh_cache: Dictionary = {}
+var _loaded_piece_models: Dictionary = {}
 var _board_light_material: StandardMaterial3D
 var _board_dark_material: StandardMaterial3D
 var _piece_ivory_material: Material
@@ -829,8 +845,13 @@ func _piece_mesh(kind: String) -> Mesh:
 		return _mesh_cache[cache_key]
 	# The model dictionary is a Dictionary, so indexing it yields Variant; an explicit
 	# type is what lets the rest of this function be checked at all.
-	var source: Mesh = _piece_models()[kind]
-	if source.get_surface_count() == 0:
+	var models := _piece_models()
+	if not models.has(kind):
+		# A missing body must never take the board down with it: fall back to the
+		# turned set, which every install ships and which covers all six kinds.
+		models = _piece_models_for("staunton")
+	var source: Mesh = models.get(kind)
+	if source == null or source.get_surface_count() == 0:
 		return source
 	var arrays := source.surface_get_arrays(0)
 	var positions: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
@@ -1229,11 +1250,22 @@ func _piece_set() -> String:
 	return String(palette.get("model_set", "staunton"))
 
 
+## The six bodies of the set the player is wearing, loaded on first use.
 func _piece_models() -> Dictionary:
-	match _piece_set():
-		"medieval": return PIECE_MODELS_MEDIEVAL
-		"persian": return PIECE_MODELS_PERSIAN
-	return PIECE_MODELS_STAUNTON
+	return _piece_models_for(_piece_set())
+
+
+## Loads (once) and returns one set's six bodies by name.
+func _piece_models_for(set_name: String) -> Dictionary:
+	if not _loaded_piece_models.has(set_name):
+		var paths: Dictionary = PIECE_MODEL_PATHS.get(set_name, PIECE_MODEL_PATHS["staunton"])
+		var loaded := {}
+		for kind in paths:
+			var body: Resource = load(paths[kind])
+			if body != null:
+				loaded[kind] = body
+		_loaded_piece_models[set_name] = loaded
+	return _loaded_piece_models[set_name]
 
 
 ## How far round a piece has to be turned so that it faces the enemy - i.e. up
@@ -1430,9 +1462,8 @@ func _ornament_add(parts: Array, shape: String, a: float, b: float, c: float, po
 
 
 const ORNAMENT_FLUTE_SEGMENTS := 48
-## Fluting on the stem is deliberately shallow: 12 grooves, 0.008 of amplitude,
-## and only on the narrow mid-stem shaft. The base and the head stay smooth.
-const ORNAMENT_FLUTE_COUNT := 12
+## Fluting on the stem is deliberately shallow - 0.008 of amplitude - and only
+## on the narrow mid-stem shaft. The base and the head stay smooth.
 const ORNAMENT_FLUTE_DEPTH := 0.008
 ## A flush inlay is 0.015 tall and stands only 0.004 proud of the body profile.
 ## How much carving each piece theme gets, on top of its colours. The foot of a
@@ -1994,75 +2025,6 @@ func _ornate_identity_parts(parts: Array, kind: String) -> void:
 	# The turned set separates itself from the sculpted ones by its own colours and
 	# finish alone - not by an extra protruding collar ring, which is the cogwheel
 	# the brief asked to remove.
-
-
-func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
-	var mesh_instance := MeshInstance3D.new()
-	var segments := 12 if _effective_graphics_quality() == "low" else (18 if _effective_graphics_quality() == "medium" else 24)
-	var key := "cyl:%s:%s:%s:%d:%d" % [top_radius, bottom_radius, height, segments, material.get_instance_id()]
-	if not _mesh_cache.has(key):
-		var created := CylinderMesh.new()
-		created.top_radius = top_radius
-		created.bottom_radius = bottom_radius
-		created.height = height
-		created.radial_segments = segments
-		created.rings = 2
-		created.material = material
-		_mesh_cache[key] = created
-	mesh_instance.mesh = _mesh_cache[key]
-	mesh_instance.position.y = y
-	mesh_instance.rotation_degrees = rotation
-	parent.add_child(mesh_instance)
-
-
-func _add_torus(parent: Node3D, radius: float, tube: float, y: float, material: Material, rotation := Vector3.ZERO, offset := Vector3.ZERO) -> void:
-	var mesh_instance := MeshInstance3D.new()
-	var segments := 12 if _effective_graphics_quality() == "low" else (18 if _effective_graphics_quality() == "medium" else 24)
-	var key := "torus:%s:%s:%d:%d" % [radius, tube, segments, material.get_instance_id()]
-	if not _mesh_cache.has(key):
-		var created := TorusMesh.new()
-		created.inner_radius = maxf(0.01, radius - tube)
-		created.outer_radius = radius + tube
-		created.rings = segments
-		created.ring_segments = 6 if segments == 12 else 8
-		created.material = material
-		_mesh_cache[key] = created
-	mesh_instance.mesh = _mesh_cache[key]
-	mesh_instance.position = Vector3(offset.x, y + offset.y, offset.z)
-	mesh_instance.rotation_degrees = rotation
-	parent.add_child(mesh_instance)
-
-
-func _add_box(parent: Node3D, size: Vector3, position: Vector3, material: Material, rotation := Vector3.ZERO) -> void:
-	var mesh_instance := MeshInstance3D.new()
-	var key := "box:%s:%d" % [size, material.get_instance_id()]
-	if not _mesh_cache.has(key):
-		var created := BoxMesh.new()
-		created.size = size
-		created.material = material
-		_mesh_cache[key] = created
-	mesh_instance.mesh = _mesh_cache[key]
-	mesh_instance.position = position
-	mesh_instance.rotation_degrees = rotation
-	parent.add_child(mesh_instance)
-
-
-func _add_sphere(parent: Node3D, radius: float, y: float, material: Material, offset := Vector3.ZERO) -> void:
-	var mesh_instance := MeshInstance3D.new()
-	var segments := 12 if _effective_graphics_quality() == "low" else (18 if _effective_graphics_quality() == "medium" else 24)
-	var rings := 6 if segments == 12 else (9 if segments == 18 else 12)
-	var key := "sphere:%s:%d:%d:%d" % [radius, segments, rings, material.get_instance_id()]
-	if not _mesh_cache.has(key):
-		var created := SphereMesh.new()
-		created.radius = radius
-		created.height = radius * 2.0
-		created.radial_segments = segments
-		created.rings = rings
-		created.material = material
-		_mesh_cache[key] = created
-	mesh_instance.mesh = _mesh_cache[key]
-	mesh_instance.position = Vector3(offset.x, y + offset.y, offset.z)
-	parent.add_child(mesh_instance)
 
 
 func _create_ui() -> void:
@@ -3519,6 +3481,15 @@ func _create_audio() -> void:
 ## the frame size of the actual format. The old hard-coded /2 only happened to
 ## be right for this mono 16-bit file.
 func _configure_music_loop(stream: AudioStream) -> void:
+	# Ogg Vorbis carries its own loop flag, so the music needs no sample maths.
+	# Nothing here depends on the format: if the track is ever swapped back to
+	# WAV the sample loop below still runs, and if it is swapped to another Ogg
+	# the flag is all that has to be set.
+	if stream is AudioStreamOggVorbis:
+		var ogg := stream as AudioStreamOggVorbis
+		ogg.loop = true
+		ogg.loop_offset = 0.0
+		return
 	if not (stream is AudioStreamWAV):
 		return
 	var wav := stream as AudioStreamWAV

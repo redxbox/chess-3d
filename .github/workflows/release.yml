@@ -85,6 +85,8 @@ jobs:
           test -s build/android/chess-3d-beta.aab
           /usr/lib/jvm/java-17-openjdk-amd64/bin/jarsigner -verify build/android/chess-3d-beta.aab
           sha256sum build/android/chess-3d-beta.aab > build/android/chess-3d-beta.aab.sha256
+          python3 tools/apk_size_report.py build/android/chess-3d-beta.aab >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=AAB size::$(numfmt --to=iec "$(stat -c %s build/android/chess-3d-beta.aab)")"
       - name: Remove private signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/release.keystore" "$RUNNER_TEMP/upload-source.keystore"
