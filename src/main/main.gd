@@ -63,17 +63,17 @@ const SQUARE_SIZE := 1.0
 ## the same value in application/config/version, and export_presets.cfg carries
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
-const APP_VERSION_FALLBACK := "0.16.0"
-const APP_BUILD := "22.72"
+const APP_VERSION_FALLBACK := "0.16.1"
+const APP_BUILD := "24.0"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 ## ---------------------------------------------------------------------------
 ## User-selectable themes
 ##
 ## The board and the pieces are chosen independently, the way a real set is
-## chosen: any of the four boards can be played with any of the four sets of
+## chosen: any of the three boards can be played with any of the three sets of
 ## pieces. Both lists are plain data, and every colour, roughness and tile
-## pattern the renderer uses is read from them, so adding a fifth theme is a
+## pattern the renderer uses is read from them, so adding a fourth theme is a
 ## dictionary entry and nothing else.
 ##
 ## The colour values are not free choices. They were calibrated against this
@@ -82,8 +82,13 @@ const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q
 ## shading left on it. Every light square below is under that, and every piece
 ## albedo is a shade off white, for the same reason.
 ## ---------------------------------------------------------------------------
-const BOARD_THEME_ORDER := ["classic", "royal_wood", "jade", "royal_blue"]
-const PIECE_THEME_ORDER := ["medieval", "persian", "classic", "royal_wood", "marble", "baroque"]
+## Three boards and three sets, deliberately. There were four and six; the two
+## extra boards were both stone-on-stone and the three extra sets were the same
+## turned Staunton bodies in different colours, so the choice on the style screen
+## was eight things that all looked alike. What is left is three genuinely
+## different boards and three genuinely different sets of pieces.
+const BOARD_THEME_ORDER := ["classic", "royal_wood", "royal_blue"]
+const PIECE_THEME_ORDER := ["medieval", "persian", "classic"]
 ## What a fresh install wears. The hand-sculpted set is the one that reads best
 ## on a phone: a carved pawn is legible at the size a phone actually shows it,
 ## where a turned one is a silhouette.
@@ -123,33 +128,6 @@ const BOARD_THEMES := {
 		"label_color": Color(0.91, 0.77, 0.42),
 		"swatch_light": Color(0.76, 0.63, 0.45),
 		"swatch_dark": Color(0.34, 0.16, 0.09),
-	},
-	# Jade: pale celadon against deep nephrite, with a dark bronze frame and a
-	# brass inlay. The green pair is the one combination that stays readable for
-	# every kind of colour vision, because the two squares differ in lightness by
-	# about a factor of three as well as in hue.
-	"jade": {
-		"label": "JADE & BRONZE",
-		# Celadon is a desaturated green, not mint. The first render ran the light
-		# square at 0.60 / 0.72 / 0.61 and the key light pushed it to a bright
-		# mint that read as a different material from the rest of the set.
-		"light_square": Color(0.525, 0.645, 0.545),
-		"dark_square": Color(0.115, 0.255, 0.195),
-		"square_roughness": 0.22,
-		# 0.24 at metallic 0.35 still rendered as a black edge: a metalness that
-		# high leaves almost no diffuse for the fill and ambient to reach, so the
-		# frame is lifted and the metalness halved. It reads as patinated bronze
-		# now, which is what the name of the theme promises.
-		"apron": Color(0.30, 0.375, 0.325),
-		"apron_roughness": 0.34,
-		"apron_metallic": 0.18,
-		"trim": Color(0.52, 0.44, 0.24),
-		"trim_roughness": 0.38,
-		"table": Color(0.10, 0.16, 0.15),
-		"apron_map": "marble",
-		"label_color": Color(0.80, 0.85, 0.66),
-		"swatch_light": Color(0.60, 0.71, 0.61),
-		"swatch_dark": Color(0.10, 0.24, 0.18),
 	},
 	# Royal blue: the tournament pairing. Ivory on a saturated blue, gold inlay,
 	# near-black frame.
@@ -228,59 +206,6 @@ const PIECE_THEMES := {
 		"swatch_light": Color(0.87, 0.83, 0.75),
 		"swatch_dark": Color(0.285, 0.30, 0.335),
 	},
-	"royal_wood": {
-		"label": "BOXWOOD & ROSEWOOD",
-		"light": Color(0.86, 0.76, 0.60),
-		"dark": Color(0.355, 0.225, 0.155),
-		"accent": Color(0.72, 0.56, 0.20),
-		"light_roughness": 0.24,
-		"dark_roughness": 0.30,
-		"accent_roughness": 0.48,
-		"accent_metallic": 0.26,
-		"trim_variant": "royal_wood",
-		"swatch_light": Color(0.91, 0.81, 0.64),
-		"swatch_dark": Color(0.355, 0.225, 0.155),
-	},
-	# Marble: the same six bodies, polished harder and colder. The pale set is
-	# Carrara - a hair cooler and greyer than alabaster - and the dark set is
-	# nero, which is a touch bluer than obsidian. Polished stone takes a tighter
-	# specular lobe than satin wood, which is the whole difference in the finish.
-	"marble": {
-		"model_set": "staunton",
-		"label": "CARRARA & NERO",
-		# Carrara is greyer and rougher than alabaster, and the first render made
-		# the point the hard way: at 0.80 with a 0.12 roughness the marble bodies
-		# came back as flat white plaster with the carving polished out of them.
-		# Polished stone is a tighter lobe, not a brighter albedo, so the sheen
-		# is carried by the roughness and the albedo stays under the clip point.
-		"light": Color(0.76, 0.765, 0.77),
-		"dark": Color(0.245, 0.26, 0.295),
-		"accent": Color(0.66, 0.68, 0.70),
-		"light_roughness": 0.18,
-		"dark_roughness": 0.26,
-		"accent_roughness": 0.44,
-		"accent_metallic": 0.30,
-		"trim_variant": "marble",
-		"swatch_light": Color(0.86, 0.86, 0.85),
-		"swatch_dark": Color(0.245, 0.26, 0.295),
-	},
-	# Baroque: jet against antique bronze, with the heaviest gold of the four -
-	# an extra pair of inlay rings on the stem and a wider collar. It is the one
-	# theme that deliberately adds silhouette, not just colour.
-	"baroque": {
-		"model_set": "staunton",
-		"label": "BRONZE & JET",
-		"light": Color(0.62, 0.50, 0.34),
-		"dark": Color(0.195, 0.20, 0.225),
-		"accent": Color(0.83, 0.64, 0.22),
-		"light_roughness": 0.30,
-		"dark_roughness": 0.28,
-		"accent_roughness": 0.44,
-		"accent_metallic": 0.30,
-		"trim_variant": "baroque",
-		"swatch_light": Color(0.71, 0.58, 0.40),
-		"swatch_dark": Color(0.195, 0.20, 0.225),
-	},
 }
 
 @onready var board: Node3D = $Board
@@ -318,8 +243,6 @@ var _drag_piece_from := Vector2i(-1, -1)
 var _drag_piece_active := false
 var haptics_enabled := true
 var graphics_quality := "auto"
-var _auto_quality_override := ""
-var _low_fps_seconds := 0
 var _fps_accumulator := 0.0
 var _fps_label: Label
 var capture_effects_enabled := true
@@ -799,12 +722,11 @@ func _normal_map(heights: PackedFloat32Array) -> ImageTexture:
 
 
 func _setup_piece_materials() -> void:
-	# The four sets are balanced against each other rather than tuned alone,
+	# The three sets are balanced against each other rather than tuned alone,
 	# because the board is only ever seen with one of them on it:
-	#   classic   - warm polished alabaster against satin obsidian, silver trim
-	#   royal_wood- boxwood cream against espresso rosewood, antique gold
-	#   marble    - Carrara against nero, polished stone, brighter silver
-	#   baroque   - antique bronze against jet, with the heaviest gold
+	#   medieval - carved boxwood against walnut, antique gold rules
+	#   persian  - glazed faience against lapis, gold rules
+	#   classic  - polished alabaster against satin obsidian, silver trim
 	# Every colour, roughness and metallic below comes from PIECE_THEMES; the two
 	# spot values that used to be hard-coded here are now per theme, so a polish
 	# change cannot silently apply to the wooden set.
@@ -845,7 +767,7 @@ func _setup_piece_materials() -> void:
 	#
 	# Dropping metallic to 0.40 gives it a real diffuse base - 0.60 * 0.60 -
 	# which the fill and the 0.45 sky ambient can reach, so the trim reads as
-	# machined brass instead of a hole. Roughness 0.42 (0.40 on royal_wood) is
+	# machined brass instead of a hole. Roughness 0.42 is
 	# the board inlay's value and keeps the lobe wide. metallic_specular goes to
 	# 0.30 to pay for the lost metallicity: the resulting F0 is 0.079, a fifth
 	# of the 0.41 that clipped the collars to white rings at 0.82 / 0.50 with a
@@ -1077,11 +999,11 @@ func _smoothed_normals(positions: PackedVector3Array, indices: PackedInt32Array)
 
 
 func _create_board() -> void:
-	# All four board themes share one geometry - the grid plus the centred slabs
+	# All three board themes share one geometry - the grid plus the centred slabs
 	# below it - so nothing is rebuilt or duplicated when the theme changes; only
 	# colour, grain and the inlay metal differ. The palette comes from
-	# BOARD_THEMES, keyed by the user's choice, and not from the piece theme: a
-	# player can put the bronze set on the jade board if that is what they like.
+	# BOARD_THEMES, keyed by the user's choice, and not from the piece theme: any
+	# set of pieces can be played on any board.
 	var palette: Dictionary = BOARD_THEMES.get(board_theme, BOARD_THEMES["classic"])
 	# The classic light square is deliberately below the brief's 0.86. At 0.86 the
 	# square is indistinguishable from the alabaster pieces, and even at 0.80 the
@@ -1324,11 +1246,23 @@ func _piece_models() -> Dictionary:
 ## need opposite yaws for the same result. Everything else about the facing is
 ## shared, which is why it is one function and not one per set.
 func _facing_yaw(is_white: bool) -> float:
-	# Both sculpted sets face +Z; the Staunton bodies face -Z.
+	# Two facts decide this, and both are facts about the geometry rather than
+	# about taste:
+	#
+	#   1. White stands on the +Z half of the board and Black on the -Z half (the
+	#      camera is at +Z, which is why White is the near army on screen).
+	#   2. The turned Staunton bodies are sculpted with their muzzle down -Z; the
+	#      two sculpted sets are sculpted with theirs up +Z.
+	#
+	# To face the enemy, White has to look -Z and Black +Z. So a -Z-front body
+	# needs no turn for White and half a turn for Black, and a +Z-front body
+	# needs exactly the opposite. Getting this backwards - which it was - made
+	# every pair of knights stare away from each other, backs to the middle of
+	# the board.
 	var front_is_plus_z := _piece_set() != "staunton"
 	if front_is_plus_z:
-		return 0.0 if is_white else PI
-	return PI if is_white else 0.0
+		return PI if is_white else 0.0
+	return 0.0 if is_white else PI
 
 
 ## Which way a knight's horse head points: at the enemy, like every other piece.
@@ -1503,17 +1437,16 @@ const ORNAMENT_FLUTE_DEPTH := 0.008
 ## A flush inlay is 0.015 tall and stands only 0.004 proud of the body profile.
 ## How much carving each piece theme gets, on top of its colours. The foot of a
 ## turned Staunton body is the one place where a few per cent of height reads as
-## a completely different set, which is what lets four themes feel like four
-## sets of pieces rather than four recolours of one.
+## a completely different set, so the two knobs stay per theme even though all
+## three shipped sets happen to sit at the plain end of both: a future set can
+## step its foot out or add a second pair of rules without touching geometry
+## code.
 const TRIM_STYLES := {
-	# The sculpted set brings its own foot, its own crowns and its own carving, so
-	# it gets no extra silhouette at all - only the two gold rules.
+	# The two sculpted sets bring their own foot, their own crowns and their own
+	# carving, so they get no extra silhouette at all - only the two gold rules.
 	"medieval": {"foot_scale": 1.00, "extra_bands": false},
 	"persian": {"foot_scale": 1.00, "extra_bands": false},
 	"classic": {"foot_scale": 1.00, "extra_bands": false},
-	"royal_wood": {"foot_scale": 1.14, "extra_bands": false},
-	"marble": {"foot_scale": 1.00, "extra_bands": false},
-	"baroque": {"foot_scale": 1.07, "extra_bands": true},
 }
 const ORNAMENT_BAND_HEIGHT := 0.015
 const ORNAMENT_BAND_PROUD := 0.004
@@ -1772,8 +1705,8 @@ func _turned_stem_arrays(kind: String, low: float, high: float, segments: int, f
 
 
 ## Appends the turned stem to a part list, spanning the profile's stem band.
-## Cached by kind and band, so the six kinds share nothing and the two themes
-## only diverge where the royal_wood foot scales them.
+## Cached by kind and band, so the six kinds share nothing, and the lathe follows
+## the same foot_scale the foot does so a stepped-out theme stays one surface.
 func _turned_stem_add(parts: Array, kind: String, profile: Dictionary, scale: float) -> void:
 	var low: float = profile.stem_low
 	var high: float = profile.stem_high
@@ -1892,20 +1825,20 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	var foot: float = profile.foot
 	var neck: float = profile.neck
 	var neck_y: float = profile.neck_y
-	# The sets are finished differently, not just coloured differently: the two
-	# carved themes get a taller, wider turned foot (see TRIM_STYLES), so a set
-	# reads as a different object rather than as a recolour of the same one. The
-	# stem lathe is scaled by the same factor, or the wider foot would step inward
-	# where it meets a classic-width stem.
+	# The sets can be finished differently, not just coloured differently: a theme
+	# may ask for a taller, wider turned foot (see TRIM_STYLES), so a set reads as
+	# a different object rather than as a recolour of the same one. The stem lathe
+	# is scaled by the same factor, or the wider foot would step inward where it
+	# meets a classic-width stem.
 	var style: Dictionary = TRIM_STYLES.get(variant, TRIM_STYLES["classic"])
 	var scale: float = style.foot_scale
 	foot *= scale
 	var turned := bool(profile.get("turned", true))
 	# The knight is not a surface of revolution: its base is carved into its own
-	# body mesh by tools/build_knight.py, at exactly the 0.326 the five shipped
-	# bodies use. A lathe foot of the same size would z-fight with it, and the
-	# carved set's 1.14 step-out - which is how the other five bodies tell that
-	# set apart - would leave the knight standing on a disc wider than its foot.
+	# body mesh by tools/build_knight.py, at exactly the 0.326 the five turned
+	# bodies use. A lathe foot of the same size would z-fight with it, and a theme
+	# that steps its foot out would leave the knight standing on a disc wider than
+	# its own base.
 	# It gets the one detail every other piece carries instead: a gold inlay let
 	# into the waist of the stem, sized off the body's own radius there (0.191) so
 	# it sits flush instead of being buried in the wood.
@@ -1943,7 +1876,7 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	# fluting is visible along the whole stem.
 	_turned_stem_add(parts, kind, profile, scale)
 	# A turned bead above the base step, which is the detail a hand-turned
-	# Staunton foot carries and the plainest of the five bodies otherwise goes
+	# Staunton foot carries and the plainest of the turned bodies otherwise goes
 	# without. It is a shallow ribbed lathe following the real silhouette, so it
 	# reads as a ring cut into the wood rather than as a hoop pushed over it -
 	# the failure mode the torus collars had.
@@ -1955,10 +1888,10 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	# Turned neck collar, with the fourth flush inlay let into it.
 	_ornament_add(parts, "cylinder", neck * 0.88, neck, 0.07, Vector3(0, neck_y - 0.045, 0), ORNAMENT_BODY)
 	_flush_band_add(parts, neck, Vector3(0, neck_y + 0.015, 0))
-	# The baroque set is the only one that adds silhouette rather than colour: a
-	# second pair of gold rules bracketing the fluted stem, sized off the body the
-	# same way every other band is, so they sit in the wood on the pawn and on the
-	# king alike.
+	# A theme that sets extra_bands gets a second pair of gold rules bracketing the
+	# fluted stem, sized off the body the same way every other band is, so they sit
+	# in the wood on the pawn and on the king alike. None of the three shipped
+	# sets asks for it; the knob is kept for the next one.
 	if bool(style.extra_bands):
 		var low_y: float = float(profile.stem_low) + 0.130
 		var high_y: float = float(profile.waist_y) - 0.060
@@ -2058,9 +1991,9 @@ func _ornate_identity_parts(parts: Array, kind: String) -> void:
 			_ornament_add(parts, "sphere", 0.075, 0.0, 0.0, Vector3(0, 1.40, 0), ORNAMENT_ACCENT)
 			_ornament_add(parts, "box", 0.05, 0.34, 0.05, Vector3(0, 1.55, 0), ORNAMENT_ACCENT)
 			_ornament_add(parts, "box", 0.26, 0.05, 0.05, Vector3(0, 1.60, 0), ORNAMENT_ACCENT)
-	# royal_wood separates itself from the classic set by the taller, wider turned
-	# foot in _ornate_trim_parts() and by its own colours - not by an extra
-	# protruding collar ring, which is the cogwheel the brief asked to remove.
+	# The turned set separates itself from the sculpted ones by its own colours and
+	# finish alone - not by an extra protruding collar ring, which is the cogwheel
+	# the brief asked to remove.
 
 
 func _add_cylinder(parent: Node3D, top_radius: float, bottom_radius: float, height: float, y: float, material: Material, rotation := Vector3.ZERO) -> void:
@@ -2535,8 +2468,8 @@ func _load_board_theme() -> void:
 
 
 ## Opens the style screen. The board and the piece set are chosen
-## independently, on separate rows of thumbnails, the way a shop shows a set:
-## four boards, four sets of pieces, any combination of the two.
+## independently - two columns of thumbnails side by side, three boards and three
+## sets, the way a shop shows a set, any combination of the two.
 func _open_theme_picker() -> void:
 	if not is_instance_valid(_theme_overlay):
 		_build_theme_picker()
@@ -2560,10 +2493,9 @@ func _build_theme_picker() -> void:
 	_theme_overlay.add_child(center)
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var panel := PanelContainer.new()
-	# Sized from the wider of the two rows rather than from a fixed number: five
-	# piece sets and four boards, and the piece row is the wider of the two.
-	var cards := maxi(BOARD_THEME_ORDER.size(), PIECE_THEME_ORDER.size())
-	panel.custom_minimum_size = Vector2(190.0 + 218.0 * float(cards), 0)
+	# Two columns of three cards, and the width follows from the card size rather
+	# than being another number to keep in step with the list lengths.
+	panel.custom_minimum_size = Vector2(120.0 + 2.0 * (3.0 * 218.0 + 26.0), 0)
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.04, 0.048, 0.066, 0.99)
 	panel_style.border_color = Color(0.55, 0.39, 0.2, 0.85)
@@ -2602,28 +2534,41 @@ func _build_theme_picker() -> void:
 	board_header.text = _text("board_theme")
 	board_header.add_theme_font_size_override("font_size", 14)
 	board_header.add_theme_color_override("font_color", Color("c5a96b"))
-	content.add_child(board_header)
-	var board_row := GridContainer.new()
-	board_row.name = "BoardRow"
-	board_row.columns = BOARD_THEME_ORDER.size()
-	board_row.add_theme_constant_override("h_separation", 12)
-	content.add_child(board_row)
-	for id in BOARD_THEME_ORDER:
-		var card := _theme_board_card(id)
-		board_row.add_child(card)
-		_theme_board_cards[id] = card
-
 	var piece_header := Label.new()
 	piece_header.name = "PieceHeader"
 	piece_header.text = _text("piece_theme")
 	piece_header.add_theme_font_size_override("font_size", 14)
 	piece_header.add_theme_color_override("font_color", Color("c5a96b"))
-	content.add_child(piece_header)
+	# The two rows sit side by side rather than stacked, and each one is three wide:
+	# with three options apiece there is no reason for the screen to be a tall
+	# strip, and a phone held in landscape gets a wider picker with larger
+	# thumbnails for the same screen area.
+	var rows := HBoxContainer.new()
+	rows.add_theme_constant_override("separation", 26)
+	content.add_child(rows)
+	var board_column := VBoxContainer.new()
+	board_column.add_theme_constant_override("separation", 6)
+	rows.add_child(board_column)
+	board_column.add_child(board_header)
+	var board_row := GridContainer.new()
+	board_row.name = "BoardRow"
+	board_row.columns = 3
+	board_row.add_theme_constant_override("h_separation", 12)
+	board_column.add_child(board_row)
+	for id in BOARD_THEME_ORDER:
+		var card := _theme_board_card(id)
+		board_row.add_child(card)
+		_theme_board_cards[id] = card
+
+	var piece_column := VBoxContainer.new()
+	piece_column.add_theme_constant_override("separation", 6)
+	rows.add_child(piece_column)
+	piece_column.add_child(piece_header)
 	var piece_row := GridContainer.new()
 	piece_row.name = "PieceRow"
-	piece_row.columns = PIECE_THEME_ORDER.size()
+	piece_row.columns = 3
 	piece_row.add_theme_constant_override("h_separation", 12)
-	content.add_child(piece_row)
+	piece_column.add_child(piece_row)
 	for id in PIECE_THEME_ORDER:
 		var card := _theme_piece_card(id)
 		piece_row.add_child(card)
@@ -3629,48 +3574,34 @@ func _update_music_button() -> void:
 		_music_button.text = "MUSIC: ON" if music_enabled else "MUSIC: OFF"
 
 
+## Updates the frame-rate readout and nothing else.
+##
+## This function used to watch the frame rate and quietly drop the graphics
+## preset when the game ran under 28 fps for five seconds. That was a lighting
+## bug wearing a performance hat: the presets differ in ways the player can see
+## - the fill light casts shadows at HIGH and not below, and the 3D render scale
+## changes with the tier - so a few seconds into a game the whole scene would
+## suddenly look different, on its own, for no reason the player could name. It
+## read as "the lighting changes after a while".
+##
+## The frame-rate watchdog is gone. AUTO now picks a fixed preset once, from the
+## processor count, and nothing changes the picture after that except the
+## player pressing GFX.
 func _monitor_performance() -> void:
-	var fps := Engine.get_frames_per_second()
-	if is_instance_valid(_fps_label):
-		_fps_label.text = "%d FPS • %s" % [fps, _effective_graphics_quality().to_upper()]
-	if graphics_quality != "auto":
-		_low_fps_seconds = 0
+	if not is_instance_valid(_fps_label):
 		return
-	if fps > 0 and fps < 28:
-		_low_fps_seconds += 1
-	else:
-		_low_fps_seconds = maxi(0, _low_fps_seconds - 1)
-	if _low_fps_seconds >= 5:
-		# Never replace piece nodes while a move tween or AI handoff owns them.
-		if animating_move or ai_thinking:
-			return
-		var current := _effective_graphics_quality()
-		# One step at a time, and it can now reach LOW. LOW used to be a broken
-		# board - it turned the shadows off entirely - but LOW now keeps the key
-		# light's shadow and buys its frame time from the 3D render scale instead,
-		# so it is a legitimate last resort on a phone that is still struggling at
-		# MEDIUM rather than a trap the player falls into.
-		match current:
-			"high": _auto_quality_override = "medium"
-			"medium": _auto_quality_override = "low"
-			_: _auto_quality_override = "low"
-		_low_fps_seconds = 0
-		# Apply renderer settings now. Piece LOD refreshes after the next completed
-		# move, avoiding node replacement during Android touch/tween dispatch.
-		_apply_graphics_quality()
-		_mesh_cache.clear()
-		_needs_full_piece_rebuild = true
+	var fps := Engine.get_frames_per_second()
+	_fps_label.text = "%d FPS • %s" % [fps, _effective_graphics_quality().to_upper()]
 
 
 func _effective_graphics_quality() -> String:
 	if graphics_quality != "auto":
 		return graphics_quality
-	if _auto_quality_override != "":
-		return _auto_quality_override
 	var cores := OS.get_processor_count()
-	# The starting point for AUTO. It is a guess about the phone, refined within
-	# a few seconds by the frame-rate watchdog above; four-thread devices start
-	# at LOW outright rather than spending their first minute dropping frames.
+	# The whole of AUTO. It is a guess about the phone, made once, from the core
+	# count: four-thread devices start at LOW outright rather than spending their
+	# first minute dropping frames. Nothing revisits this while a game is running,
+	# because every tier change is also a visible change to the lighting.
 	if cores <= 4:
 		return "low"
 	if cores <= 6:
@@ -3682,10 +3613,10 @@ func _apply_graphics_quality() -> void:
 	var quality := _effective_graphics_quality()
 	capture_effects_enabled = quality != "low"
 	decor_root.visible = quality != "low"
-	# Shadows and MSAA are never traded away. AUTO used to fall all the way to
-	# LOW, which switched both off and left the pieces floating on the board with
-	# jagged edges; the drop now bottoms out at MEDIUM, and even a manually
-	# selected LOW keeps 2x MSAA and the key light's shadows.
+	# Shadows and MSAA are never traded away. A preset may lower the render scale
+	# and the shadow reach, but it never switches the key light's shadows or the
+	# 2x MSAA off: without them the pieces float on the board with jagged edges,
+	# which is the one trade this project does not make.
 	$KeyLight.shadow_enabled = true
 	# The fill casts at HIGH and not below. This is the brief's own rig and it
 	# stays as written: the fill sits front-right and low, so its shadows fall
@@ -3727,7 +3658,6 @@ func _cycle_graphics_quality() -> void:
 	var levels := ["auto", "low", "medium", "high"]
 	var index := levels.find(graphics_quality)
 	graphics_quality = levels[(index + 1) % levels.size()]
-	_auto_quality_override = ""
 	_mesh_cache.clear()
 	# Abandon any in-flight animation first: _create_pieces() destroys the very
 	# node the tween is targeting, which would leave animating_move stuck on.

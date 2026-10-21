@@ -137,9 +137,14 @@ def main() -> int:
     output = sys.argv[2] if len(sys.argv) > 2 else "assets/models/medieval"
     os.makedirs(output, exist_ok=True)
     for kind in KINDS:
-        path = os.path.join(source, f"{kind}.glb")
-        if not os.path.exists(path):
-            print(f"missing {path}", file=sys.stderr)
+        # A piece may arrive under a slightly different file name - the
+        # replacement king that was uploaded for the Persian set is kinge.glb -
+        # so both spellings are accepted rather than making the author rename
+        # their export.
+        candidates = [os.path.join(source, f"{kind}.glb"), os.path.join(source, f"{kind}e.glb")]
+        path = next((candidate for candidate in candidates if os.path.exists(candidate)), "")
+        if path == "":
+            print(f"missing {candidates[0]}", file=sys.stderr)
             return 1
         vertices, faces = prepare(kind, path)
         target = os.path.join(output, f"{kind}.obj")

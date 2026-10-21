@@ -24,13 +24,35 @@ cheapest of the three).
 ## Regenerating
 
 ```sh
-python3 tools/prepare_sculpt_set.py /path/to/glb/folder assets/models/persian
+python3 tools/prepare_sculpt_set.py tools/sources/persian assets/models/persian
+```
+
+The raw GLB exports live in `tools/sources/persian/`, not here: `tools/` is
+excluded from the export presets, so the source files cost nothing in the app
+package, while anything under `assets/` is shipped. Only the decimated OBJs
+belong in the game.
+
+### The king
+
+`king.obj` was rebuilt from `kinge.glb`, the replacement export supplied for
+this set, which is why that file has an `e` in its name. The whole-directory run
+above needs a GLB for all six pieces and cannot be used on this folder, so a
+single piece is rebuilt by importing the pipeline directly:
+
+```sh
+python3 - <<'EOF'
+import sys; sys.path.insert(0, "tools")
+import prepare_sculpt_set as p
+v, f = p.prepare("king", "tools/sources/persian/kinge.glb")
+p.write_obj("assets/models/persian/king.obj", "king", v, f)
+EOF
 ```
 
 ## Facing
 
-Same as the medieval set: the sculpts face **+Z**, `_facing_yaw()` turns each
-army's asymmetric pieces toward the enemy.
+Same as the medieval set: the sculpts face **+Z** while the Staunton bodies face
+**-Z**, which is the one fact `_facing_yaw()` needs to point both armies at each
+other rather than at their own player.
 
 ## Licence
 
