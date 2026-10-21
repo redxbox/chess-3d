@@ -1,0 +1,39 @@
+; Chess 3D — Godot 4 project
+; Edit this file through the Godot editor when possible.
+config_version=5
+
+[application]
+config/name="Chess 3D"
+config/icon="res://assets/icon.svg"
+run/main_scene="res://src/main/main.tscn"
+config/features=PackedStringArray("4.4", "GL Compatibility")
+config/version="0.16.0"
+config/quit_on_go_back=false
+boot_splash/bg_color=Color(0.035, 0.045, 0.06, 1)
+
+[display/window]
+size/viewport_width=1920
+size/viewport_height=1080
+size/window_width_override=1280
+size/window_height_override=720
+stretch/mode="canvas_items"
+stretch/aspect="expand"
+handheld/orientation=0
+
+[input_devices]
+; Must stay true: builtin Control nodes (every Button in the UI) only react to
+; mouse events on a touch screen. Turning it off makes the whole interface
+; untappable on Android. The duplicate mouse events it produces are filtered in
+; src/main/main.gd::_unhandled_input by rejecting InputEventMouse with
+; device == -1.
+pointing/emulate_mouse_from_touch=true
+
+[rendering]
+textures/vram_compression/import_etc2_astc=true
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+lights_and_shadows/directional_shadow/size=2048
+
+[physics]
+common/enable_pause_aware_picking=true

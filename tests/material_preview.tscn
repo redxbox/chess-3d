@@ -1,0 +1,28 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/material_preview.gd" id="1_preview"]
+
+[node name="MaterialPreview" type="Node3D"]
+script = ExtResource("1_preview")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="KeyLight" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-58, -28, 0)
+light_color = Color(1, 0.988, 0.941, 1)
+light_energy = 1.5
+shadow_enabled = true
+shadow_bias = 0.05
+shadow_normal_bias = 2.0
+
+[node name="FillLight" type="OmniLight3D" parent="."]
+position = Vector3(-2.5, 3.0, 2.5)
+light_color = Color(1, 0.961, 0.878, 1)
+light_energy = 0.24
+omni_range = 8.0
+shadow_enabled = false
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(0, 1.6, 4.5)
+rotation_degrees = Vector3(-10, 0, 0)
+current = true

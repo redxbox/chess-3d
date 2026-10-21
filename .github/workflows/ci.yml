@@ -1,0 +1,255 @@
+name: Godot CI
+
+on:
+  push:
+    branches: [main, 'arena/*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: godot-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate Godot project
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.4.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Import resources
+        run: godot --headless --editor --quit-after 10
+      - name: Run chess rules tests
+        shell: bash
+        run: |
+          set +e
+          godot --headless --path . --script res://tests/test_chess.gd 2>&1 | tee /tmp/chess-tests.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            encoded_log=$(base64 -w0 /tmp/chess-tests.log | cut -c1-6000)
+            echo "::error title=Chess tests log base64::$encoded_log"
+          fi
+          exit "$status"
+      - name: Validate startup scene
+        shell: bash
+        run: |
+          godot --headless --path . --quit-after 2 2>&1 | tee /tmp/godot-startup.log
+          if grep -E "SCRIPT ERROR|Parse Error|Invalid call|Invalid set index" /tmp/godot-startup.log; then
+            encoded_log=$(base64 -w0 /tmp/godot-startup.log | cut -c1-6000)
+            echo "::error title=Godot startup log base64::$encoded_log"
+            echo "Godot reported a runtime error during startup"
+            exit 1
+          fi
+
+  visual-preview:
+    name: Render all visual themes
+    needs: validate
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.4.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Install virtual display
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends xvfb
+          rm -rf /var/lib/apt/lists/*
+      - name: Import resources
+        run: godot --headless --editor --path . --quit-after 20
+      - name: Render real Godot screenshot
+        run: |
+          mkdir -p build/preview
+          # Four combinations rather than one, because there are now four board
+          # themes and four piece sets and each of the two axes has to be seen
+          # working: the diagonal shows all four boards and all four sets in the
+          # smallest number of renders. classic-royal_wood is kept because the
+          # published showcase image is that pairing.
+          for pair in medieval-medieval persian-persian medieval-classic classic-classic classic-royal_wood jade-marble royal_blue-baroque royal_wood-classic; do
+            board="${pair%%-*}"
+            pieces="${pair#*-}"
+            name="${pair}.png"
+            CHESS_BOARD_THEME="$board" CHESS_PIECE_THEME="$pieces" CHESS_PREVIEW_NAME="$name" \
+              xvfb-run -a -s "-screen 0 1536x864x24" \
+              godot --path . --rendering-method gl_compatibility \
+              --resolution 1536x864 --script res://tools/capture_preview.gd
+            test -s "build/preview/$name"
+          done
+          # And the style screen itself, so the picker is reviewed in CI too.
+          CHESS_PREVIEW_PICKER=1 CHESS_PREVIEW_NAME=style-picker.png \
+            xvfb-run -a -s "-screen 0 1536x864x24" \
+            godot --path . --rendering-method gl_compatibility \
+            --resolution 1536x864 --script res://tools/capture_preview.gd
+          test -s "build/preview/style-picker.png"
+          cp build/preview/classic-royal_wood.png build/preview/theme-showcase-preview.png
+      - name: Upload visual preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-theme-previews-${{ github.run_number }}
+          path: build/preview/*.png
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish latest preview on session branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/arena/01a0dc2e-chess-3d'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'docs/previews/theme-showcase-preview.png';
+            let sha;
+            try {
+              const current = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path,
+                ref: context.ref
+              });
+              sha = current.data.sha;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path,
+              branch: 'arena/01a0dc2e-chess-3d',
+              message: 'Update rendered Persian preview [skip ci]',
+              content: fs.readFileSync('build/preview/theme-showcase-preview.png').toString('base64'),
+              ...(sha ? { sha } : {})
+            });
+      # Committing the per-theme renders back to the branch gives a real visual
+      # feedback loop: the sandbox that edits the code has no Godot binary, so
+      # without this step lighting and material changes could only be judged by
+      # the arithmetic behind them.
+      - name: Publish per-theme renders on this branch
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/arena/')
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const branch = context.ref.replace('refs/heads/', '');
+            for (const name of ['medieval-medieval.png', 'persian-persian.png', 'medieval-classic.png', 'classic-classic.png', 'classic-royal_wood.png', 'jade-marble.png', 'royal_blue-baroque.png', 'royal_wood-classic.png', 'style-picker.png']) {
+              const path = `docs/previews/${name}`;
+              let sha;
+              try {
+                const current = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path,
+                  ref: context.ref
+                });
+                sha = current.data.sha;
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              await github.rest.repos.createOrUpdateFileContents({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path,
+                branch,
+                message: `Update ${name} render [skip ci]`,
+                content: fs.readFileSync(`build/preview/${name}`).toString('base64'),
+                ...(sha ? { sha } : {})
+              });
+            }
+
+  android-debug:
+    name: Build Android debug APK
+    needs: validate
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.4.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Configure Godot Android export
+        run: |
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.4.1.stable"
+          mkdir -p "$TEMPLATE_DIR" "$HOME/.config" build/android
+          cp -a /root/.local/share/godot/export_templates/4.4.1.stable/. "$TEMPLATE_DIR/"
+          cp -a /root/.config/godot "$HOME/.config/godot"
+          test -f "$TEMPLATE_DIR/android_debug.apk"
+          test -f /root/debug.keystore
+      - name: Install required Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+      - name: Import project resources and install Android template
+        run: |
+          godot --headless --editor --path . --quit-after 10
+          mkdir -p android/build
+          unzip -q "$HOME/.local/share/godot/export_templates/4.4.1.stable/android_source.zip" -d android/build
+          printf '4.4.1.stable\n' > android/.build_version
+          touch android/build/.gdignore
+          test -f android/build/build.gradle
+      - name: Read app version
+        id: appversion
+        shell: bash
+        run: |
+          version=$(sed -n 's/^version\/name="\(.*\)"$/\1/p' export_presets.cfg | head -1)
+          code=$(sed -n 's/^version\/code=\([0-9][0-9]*\)$/\1/p' export_presets.cfg | head -1)
+          if [ -z "$version" ] || [ -z "$code" ]; then
+            echo "::error title=Could not read version::export_presets.cfg has no version/name or version/code"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+      - name: Export APK
+        shell: bash
+        run: |
+          set +e
+          godot --headless --verbose --path . --export-debug "Android" build/android/chess-3d.apk 2>&1 | tee build/android/export.log
+          status=${PIPESTATUS[0]}
+          printf '## Godot Android export log\n\n```text\n' >> "$GITHUB_STEP_SUMMARY"
+          tail -120 build/android/export.log >> "$GITHUB_STEP_SUMMARY"
+          printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ]; then
+            encoded_log=$(base64 -w0 build/android/export.log | cut -c1-6000)
+            echo "::error title=Godot export log base64::$encoded_log"
+            tail -12 build/android/export.log | while IFS= read -r line; do
+              echo "::error title=Godot Android export::$line"
+            done
+          fi
+          exit "$status"
+      - name: Verify Android permissions
+        shell: bash
+        run: |
+          set -uo pipefail
+          AAPT="$(find /usr/lib/android-sdk/build-tools -type f -name aapt | sort -V | tail -1)"
+          if [ -z "$AAPT" ] || [ ! -x "$AAPT" ]; then
+            echo "::error title=aapt not found::no executable aapt under /usr/lib/android-sdk/build-tools"
+            exit 1
+          fi
+          "$AAPT" dump permissions build/android/chess-3d.apk | tee build/android/permissions.log
+          grep -q 'android.permission.VIBRATE' build/android/permissions.log || {
+            echo "::error title=Missing permission::android.permission.VIBRATE not in the APK"
+            exit 1
+          }
+          "$AAPT" dump badging build/android/chess-3d.apk | tee build/android/badging.log
+          want_code="${{ steps.appversion.outputs.code }}"
+          want_name="${{ steps.appversion.outputs.version }}"
+          got_code="$(grep -o "versionCode='[0-9]*'" build/android/badging.log | head -1 | grep -o '[0-9]*')"
+          got_name="$(grep -o "versionName='[^']*'" build/android/badging.log | head -1 | sed "s/versionName='//;s/'$//")"
+          echo "APK reports versionName='$got_name' versionCode='$got_code'"
+          if [ "$got_code" != "$want_code" ]; then
+            echo "::error title=APK versionCode mismatch::export_presets.cfg says $want_code, the APK says $got_code - the version bump did not reach the export"
+            exit 1
+          fi
+          if [ "$got_name" != "$want_name" ]; then
+            echo "::error title=APK versionName mismatch::export_presets.cfg says $want_name, the APK says $got_name"
+            exit 1
+          fi
+          printf '## APK identity\n\n| field | value |\n| --- | --- |\n| version name | `%s` |\n| version code | `%s` |\n\nInstall this build; **About** reports `%s`.\n' "$got_name" "$got_code" "$got_name" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess-3d-v${{ steps.appversion.outputs.version }}-code${{ steps.appversion.outputs.code }}-build-${{ github.run_number }}
+          path: build/android/chess-3d.apk
+          if-no-files-found: error
+          retention-days: 14
