@@ -27,9 +27,20 @@ standing on the same foot. Regenerating it needs `numpy`, `scikit-image`,
 - Local notes: `assets/models/medieval/README.md`
 
 The uploaded GLBs were 200–320k vertices each (56 MB in total) and all exactly
-1.0 unit tall. `tools/prepare_medieval_set.py` decimates each piece to 10 000
+1.0 unit tall. `tools/prepare_sculpt_set.py` decimates each piece to 10 000
 triangles, scales it onto this project's height ladder and writes the OBJ that
 the game actually loads, 1.8 MB for the set.
+
+## Persian chess piece meshes
+
+- Source: supplied by the project author (six GLB files, originally committed
+  under `assets/models/persian/candidate2/optimized/`)
+- License: author's own work, used by permission in this project
+- Local notes: `assets/models/persian/README.md`
+
+Recovered from an earlier branch during the 0.15.0 cleanup and converted with
+the same `tools/prepare_sculpt_set.py` as the medieval set. The six runtime
+OBJs total 1.6 MB and 60 000 triangles.
 
 ## Godot Engine
 

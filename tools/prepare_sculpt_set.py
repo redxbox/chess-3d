@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""Import the hand-made medieval piece set into assets/models/medieval/.
+"""Import a hand-made sculpted piece set into assets/models/<set>/.
 
 WHY THIS EXISTS
 ---------------
-Six GLB files were uploaded to the repository root by mistake - one per piece,
-each around 200-320k vertices and 10 MB, exported from a sculpture tool with no
-materials and no UVs. They cannot be used as they are: the whole set is ~56 MB,
-which is more than a mobile game can afford for its pieces, and a Godot OBJ/GLB
-import of half a million triangles per piece would stall startup on a phone.
+Two sets of six GLB files were supplied by the project author - "medieval" (the
+one uploaded to the repository root, one file per piece, 200-320k vertices and
+about 10 MB each) and "persian" (the older set recovered from the
+assets/models/persian/ folder of an earlier branch). Neither can be used as it
+is: 56 MB for the first set is more than a mobile game can afford for its
+pieces, and a Godot import of half a million triangles per piece would stall
+startup on a phone.
+
+Both sets arrive the same way: geometry only, no materials, no UVs, and every
+piece exactly 1.0 unit tall - so a pawn would stand as tall as a king.
 
 This script does the three conversions that turn them into a usable set:
 
@@ -37,7 +42,10 @@ DEPENDENCIES (build-time only; the generated OBJs are committed)
 ----------------------------------------------------------------
     pip install numpy trimesh fast-simplification
 
-Run:  python3 tools/prepare_medieval_set.py [source_dir] [output_dir]
+Run:  python3 tools/prepare_sculpt_set.py [source_dir] [output_dir]
+
+    python3 tools/prepare_sculpt_set.py /tmp/uploaded_glb   assets/models/medieval
+    python3 tools/prepare_sculpt_set.py /tmp/persian_glb    assets/models/persian
 """
 
 from __future__ import annotations
@@ -76,11 +84,21 @@ def load(path: str) -> tuple[np.ndarray, np.ndarray]:
 
 def prepare(kind: str, path: str) -> tuple[np.ndarray, np.ndarray]:
     vertices, faces = load(path)
+    # The two sets are not equally dense: the persian pieces arrive already
+    # decimated (6k-26k triangles) while the medieval ones arrive at 370k-650k.
+    # Only decimate downwards, never upwards, and never re-simplify a piece
+    # that is already under budget - it would only cost detail.
+    if len(faces) <= TARGET_TRIANGLES:
+        return _normalise(kind, vertices, faces)
     reduction = 1.0 - TARGET_TRIANGLES / float(len(faces))
     vertices, faces = simplify(vertices, faces, target_reduction=max(0.0, reduction))
     vertices = np.asarray(vertices, dtype=np.float64)
     faces = np.asarray(faces, dtype=np.int64)
+    return _normalise(kind, vertices, faces)
 
+
+def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Put a piece on the board's scale: target height, feet on y = 0, centred."""
     low = vertices.min(axis=0)
     high = vertices.max(axis=0)
     # Uniform scale, from the model's own height, so the carving keeps its
@@ -105,7 +123,7 @@ def write_obj(path: str, kind: str, vertices: np.ndarray, faces: np.ndarray) -> 
     # 45% to the file for data that is thrown away and recomputed at load.
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(f"# Medieval {kind}, decimated by tools/prepare_medieval_set.py\n")
-        handle.write("# Source: user-supplied GLB, see assets/models/medieval/README.md\n")
+        handle.write("# Source: user-supplied GLB, see assets/models/<set>/README.md\n")
         handle.write(f"o {kind}\n")
         for point in vertices:
             handle.write(f"v {point[0]:.5f} {point[1]:.5f} {point[2]:.5f}\n")

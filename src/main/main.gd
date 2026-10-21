@@ -25,8 +25,13 @@ const SOUND_STREAMS := {
 ## so its trim is limited to a pair of gold rules at the base and nothing else;
 ## bolting the Staunton crowns onto it would be two crowns on one head.
 ##
-## Both sets are OBJ with no UVs and no normals; _piece_mesh() projects and
-## smooths them, and tools/prepare_medieval_set.py is what put the second set on
+## PERSIAN is the earlier supplied set, recovered from the assets/models/persian
+## folder of the pre-audit branch: the same carving language with a different
+## crown on the king and a chiselled mitre on the bishop. Its pieces arrive
+## already decimated, so it is the cheapest of the three sets to draw.
+##
+## All three sets are OBJ with no UVs and no normals; _piece_mesh() projects and
+## smooths them, and tools/prepare_sculpt_set.py is what put the second set on
 ## this project's height ladder in the first place.
 const PIECE_MODELS_STAUNTON := {
 	"pawn": preload("res://assets/models/staunton/pawn.obj"),
@@ -35,6 +40,14 @@ const PIECE_MODELS_STAUNTON := {
 	"bishop": preload("res://assets/models/staunton/bishop.obj"),
 	"queen": preload("res://assets/models/staunton/queen.obj"),
 	"king": preload("res://assets/models/staunton/king.obj")
+}
+const PIECE_MODELS_PERSIAN := {
+	"pawn": preload("res://assets/models/persian/pawn.obj"),
+	"rook": preload("res://assets/models/persian/rook.obj"),
+	"knight": preload("res://assets/models/persian/knight.obj"),
+	"bishop": preload("res://assets/models/persian/bishop.obj"),
+	"queen": preload("res://assets/models/persian/queen.obj"),
+	"king": preload("res://assets/models/persian/king.obj")
 }
 const PIECE_MODELS_MEDIEVAL := {
 	"pawn": preload("res://assets/models/medieval/pawn.obj"),
@@ -50,7 +63,7 @@ const SQUARE_SIZE := 1.0
 ## the same value in application/config/version, and export_presets.cfg carries
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
-const APP_VERSION_FALLBACK := "0.15.0"
+const APP_VERSION_FALLBACK := "0.16.0"
 const APP_BUILD := "22.72"
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
@@ -70,7 +83,7 @@ const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q
 ## albedo is a shade off white, for the same reason.
 ## ---------------------------------------------------------------------------
 const BOARD_THEME_ORDER := ["classic", "royal_wood", "jade", "royal_blue"]
-const PIECE_THEME_ORDER := ["medieval", "classic", "royal_wood", "marble", "baroque"]
+const PIECE_THEME_ORDER := ["medieval", "persian", "classic", "royal_wood", "marble", "baroque"]
 ## What a fresh install wears. The hand-sculpted set is the one that reads best
 ## on a phone: a carved pawn is legible at the size a phone actually shows it,
 ## where a turned one is a silhouette.
@@ -178,6 +191,23 @@ const PIECE_THEMES := {
 		"trim_variant": "medieval",
 		"swatch_light": Color(0.87, 0.82, 0.71),
 		"swatch_dark": Color(0.305, 0.225, 0.165),
+	},
+	# The earlier sculpted set, painted as Persian faience is glazed: pale
+	# turquoise against deep lapis, with gold rules. The pale glaze is kept low
+	# enough (0.70) that it does not go chalk under the key light.
+	"persian": {
+		"label": "FAIENCE & LAPIS",
+		"model_set": "persian",
+		"light": Color(0.70, 0.795, 0.755),
+		"dark": Color(0.175, 0.215, 0.385),
+		"accent": Color(0.80, 0.64, 0.26),
+		"light_roughness": 0.20,
+		"dark_roughness": 0.30,
+		"accent_roughness": 0.46,
+		"accent_metallic": 0.30,
+		"trim_variant": "persian",
+		"swatch_light": Color(0.76, 0.85, 0.81),
+		"swatch_dark": Color(0.175, 0.215, 0.385),
 	},
 	"classic": {
 		"label": "ALABASTER & OBSIDIAN",
@@ -1278,7 +1308,10 @@ func _piece_set() -> String:
 
 
 func _piece_models() -> Dictionary:
-	return PIECE_MODELS_MEDIEVAL if _piece_set() == "medieval" else PIECE_MODELS_STAUNTON
+	match _piece_set():
+		"medieval": return PIECE_MODELS_MEDIEVAL
+		"persian": return PIECE_MODELS_PERSIAN
+	return PIECE_MODELS_STAUNTON
 
 
 ## How far round a piece has to be turned so that it faces the enemy - i.e. up
@@ -1291,7 +1324,8 @@ func _piece_models() -> Dictionary:
 ## need opposite yaws for the same result. Everything else about the facing is
 ## shared, which is why it is one function and not one per set.
 func _facing_yaw(is_white: bool) -> float:
-	var front_is_plus_z := _piece_set() == "medieval"
+	# Both sculpted sets face +Z; the Staunton bodies face -Z.
+	var front_is_plus_z := _piece_set() != "staunton"
 	if front_is_plus_z:
 		return 0.0 if is_white else PI
 	return PI if is_white else 0.0
@@ -1366,7 +1400,7 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
 	elif kind == "knight":
 		model.rotation.y = _knight_yaw(file, is_white)
-	elif _piece_set() == "medieval" and (kind == "king" or kind == "queen"):
+	elif _piece_set() != "staunton" and (kind == "king" or kind == "queen"):
 		model.rotation.y = _facing_yaw(is_white)
 	piece.add_child(model)
 	# The Staunton bodies are deliberately plain, so all the carving - tiered
@@ -1475,6 +1509,7 @@ const TRIM_STYLES := {
 	# The sculpted set brings its own foot, its own crowns and its own carving, so
 	# it gets no extra silhouette at all - only the two gold rules.
 	"medieval": {"foot_scale": 1.00, "extra_bands": false},
+	"persian": {"foot_scale": 1.00, "extra_bands": false},
 	"classic": {"foot_scale": 1.00, "extra_bands": false},
 	"royal_wood": {"foot_scale": 1.14, "extra_bands": false},
 	"marble": {"foot_scale": 1.00, "extra_bands": false},
@@ -1811,7 +1846,7 @@ func _ornate_profile(kind: String) -> Dictionary:
 	# The sculpted set is not a surface of revolution anywhere, so none of the
 	# lathe entries above apply to it: it takes the turned=False path, which is
 	# just the two gold rules let into the base.
-	if _piece_set() == "medieval":
+	if _piece_set() == "medieval" or _piece_set() == "persian":
 		profile.turned = false
 		profile.foot = 0.326
 	return profile
@@ -1830,7 +1865,7 @@ func _ornate_mesh(kind: String, body: Material, accent: Material, variant: Strin
 	# bodies. The sculpted set already has all three carved into its own mesh -
 	# the king is a robed figure with a crown and a staff - so adding this layer
 	# on top of it would put a second crown through the first.
-	if variant != "medieval":
+	if variant != "medieval" and variant != "persian":
 		_ornate_identity_parts(parts, kind)
 	var mesh := ArrayMesh.new()
 	for material_index in [ORNAMENT_BODY, ORNAMENT_ACCENT]:
@@ -1881,7 +1916,7 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 		# groove at 0.396 whereas the sculpted pieces want their rules lower down,
 		# at the same two heights the turned pieces use, so the two sets read as
 		# the same family of table equipment.
-		if variant == "medieval":
+		if variant == "medieval" or variant == "persian":
 			_flush_band_add(parts, _body_radius_at(kind, 0.108), Vector3(0, 0.108, 0), 0.012, 0.004)
 			_flush_band_add(parts, _body_radius_at(kind, 0.146), Vector3(0, 0.146, 0), 0.010, 0.004)
 			return parts
