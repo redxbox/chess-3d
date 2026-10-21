@@ -80,6 +80,13 @@ jobs:
           godot --headless --verbose --path . --export-release "Android Release AAB" build/android/chess-3d-beta.aab 2>&1 | sed -E 's/(password|pass):?[^ ]*/[REDACTED]/Ig' | tee build/android/release-export.log
           status=${PIPESTATUS[0]}
           exit "$status"
+      - name: Ensure python3
+        shell: bash
+        run: |
+          if ! command -v python3 >/dev/null; then
+            apt-get update && apt-get install -y --no-install-recommends python3
+            rm -rf /var/lib/apt/lists/*
+          fi
       - name: Verify and checksum bundle
         run: |
           test -s build/android/chess-3d-beta.aab

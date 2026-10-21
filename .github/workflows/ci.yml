@@ -25,6 +25,18 @@ jobs:
         uses: actions/checkout@v5
       - name: Import resources
         run: godot --headless --editor --quit-after 10
+      # The container image ships Godot and the Android toolchain but no Python.
+      # Both size checks below are Python (they parse OBJs and read the APK's
+      # zip directory), so it is installed once here rather than reimplemented
+      # in awk.
+      - name: Ensure python3
+        shell: bash
+        run: |
+          if ! command -v python3 >/dev/null; then
+            apt-get update && apt-get install -y --no-install-recommends python3
+            rm -rf /var/lib/apt/lists/*
+          fi
+
       # The package budget is enforced before anything is built. It measures the
       # part of the APK this repository decides - meshes, audio, scripts - and
       # warns about files under assets/ that Godot has no importer for, which is
@@ -226,6 +238,18 @@ jobs:
             exit 1
           fi
           printf '## APK identity\n\n| field | value |\n| --- | --- |\n| version name | `%s` |\n| version code | `%s` |\n\nInstall this build; **About** reports `%s`.\n' "$got_name" "$got_code" "$got_name" >> "$GITHUB_STEP_SUMMARY"
+      # The container image ships Godot and the Android toolchain but no Python.
+      # Both size checks below are Python (they parse OBJs and read the APK's
+      # zip directory), so it is installed once here rather than reimplemented
+      # in awk.
+      - name: Ensure python3
+        shell: bash
+        run: |
+          if ! command -v python3 >/dev/null; then
+            apt-get update && apt-get install -y --no-install-recommends python3
+            rm -rf /var/lib/apt/lists/*
+          fi
+
       # The APK's own file list, not a guess: this is the only place the real
       # number exists. The table goes into the job summary and the total into a
       # step annotation, which the API can read, so a size change is visible on
