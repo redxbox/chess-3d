@@ -138,10 +138,14 @@ def main() -> int:
     os.makedirs(output, exist_ok=True)
     for kind in KINDS:
         # A piece may arrive under a slightly different file name - the
-        # replacement king that was uploaded for the Persian set is kinge.glb -
-        # so both spellings are accepted rather than making the author rename
-        # their export.
-        candidates = [os.path.join(source, f"{kind}.glb"), os.path.join(source, f"{kind}e.glb")]
+        # replacement king uploaded for the Persian set is kinge.glb, and whole
+        # sets have arrived as king1.glb - so the three spellings are accepted
+        # rather than making the author rename their exports. "quin" is the
+        # author's spelling of queen and is listed with the queen.
+        names = [kind, f"{kind}e", f"{kind}1"]
+        if kind == "queen":
+            names.append("quin1")
+        candidates = [os.path.join(source, f"{name}.glb") for name in names]
         path = next((candidate for candidate in candidates if os.path.exists(candidate)), "")
         if path == "":
             print(f"missing {candidates[0]}", file=sys.stderr)

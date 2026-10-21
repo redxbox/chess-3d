@@ -52,7 +52,13 @@ BUDGET_BYTES = 4_600_000
 # Extensions Godot imports into something smaller or different. Anything else
 # under assets/ is copied verbatim or, if it has no importer, ignored - but the
 # projection below is deliberately pessimistic and counts it.
-IMPORTED = {".obj", ".wav", ".ogg", ".svg", ".tscn", ".tres", ".gd"}
+IMPORTED = {".obj", ".wav", ".ogg", ".svg", ".tscn", ".tres", ".gd", ".glb", ".gltf"}
+# glTF is *imported*, not ignored: Godot turns a .glb into a PackedScene with an
+# ArrayMesh in it, and the imported resource is in the package whether or not a
+# script ever loads it. The six-piece upload that arrived this way weighed 36 MB
+# as source and would have added roughly that to the APK. A .glb under assets/
+# is never a source file - sources belong in tools/sources/.
+SOURCE_FORMATS = {".glb", ".gltf", ".blend", ".fbx", ".zip"}
 # Extensions that are pure documentation and are never exported.
 IGNORED = {".md", ".txt"}
 
@@ -83,6 +89,12 @@ def collect():
         if extension == ".obj":
             size, vertices, triangles = mesh_bytes(path)
             note = f"{vertices} verts, {triangles} tris"
+        elif extension in SOURCE_FORMATS:
+            # Imported into a mesh and shipped with the package. Counted at 60%
+            # of the source file, which is what a decimated glTF export measured
+            # against its OBJ at the same triangle count.
+            size = int(size * 0.6)
+            note = "SOURCE EXPORT - importable, so it ships; move it to tools/sources/"
         elif extension not in IMPORTED:
             note = "SHIPPED AS-IS - no importer"
         rows.append({"path": path, "bytes": size, "note": note})
@@ -103,12 +115,16 @@ def main(argv):
     for row in sorted(rows, key=lambda item: -item["bytes"]):
         if verbose or row["bytes"] >= 100_000:
             print(f"  {row['bytes'] / 1024:8.1f} KB  {row['path']:<46s} {row['note']}")
-    shipped = [row for row in rows if "SHIPPED AS-IS" in row["note"]]
+    shipped = [row for row in rows if "SHIPPED AS-IS" in row["note"]
+               or "SOURCE EXPORT" in row["note"]]
     print(f"\n  packaged content estimate: {total / 1e6:.2f} MB "
           f"(budget {BUDGET_BYTES / 1e6:.2f} MB)")
     for row in shipped:
-        print(f"  WARNING: {row['path']} has no importer and will be copied verbatim "
+        print(f"  WARNING: {row['path']} - {row['note']} "
               f"({row['bytes'] / 1e6:.2f} MB)", file=sys.stderr)
+    if shipped:
+        print("  A raw export under assets/ reaches the package. Sources belong in "
+              "tools/sources/, which the export presets exclude.", file=sys.stderr)
     if total > BUDGET_BYTES:
         print(f"  OVER BUDGET by {(total - BUDGET_BYTES) / 1e6:.2f} MB", file=sys.stderr)
         return 1
