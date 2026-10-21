@@ -260,7 +260,7 @@ jobs:
           set -euo pipefail
           APK=build/android/chess-3d.apk
           total=$(stat -c %s "$APK")
-          python3 tools/apk_size_report.py "$APK" > build/android/size-report.md
+          python3 tools/apk_size_report.py "$APK" --annotate > build/android/size-report.md
           echo "::notice title=APK size::$total bytes"
           { printf '## APK size\n\n`%s` - %s\n\n' "$APK" "$(numfmt --to=iec "$total")"
             cat build/android/size-report.md; } >> "$GITHUB_STEP_SUMMARY"

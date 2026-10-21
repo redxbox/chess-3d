@@ -545,12 +545,12 @@ func _surface_map(kind: String) -> Texture2D:
 		return _surface_maps[kind]
 	var texture: Texture2D = null
 	match kind:
-		"marble": texture = _marble_map()
-		"marble_normal": texture = _normal_map(_marble_height())
-		"walnut": texture = _walnut_map()
-		"walnut_normal": texture = _normal_map(_walnut_height())
-		"rosewood": texture = _rosewood_map()
-		"rosewood_normal": texture = _normal_map(_rosewood_height())
+		"marble": texture = _surface_texture(SURFACE_MARBLE)
+		"marble_normal": texture = _normal_map(_surface_heights(SURFACE_MARBLE))
+		"walnut": texture = _surface_texture(SURFACE_WALNUT)
+		"walnut_normal": texture = _normal_map(_surface_heights(SURFACE_WALNUT))
+		"rosewood": texture = _surface_texture(SURFACE_ROSEWOOD)
+		"rosewood_normal": texture = _normal_map(_surface_heights(SURFACE_ROSEWOOD))
 	_surface_maps[kind] = texture
 	return texture
 
@@ -603,22 +603,37 @@ func _surface_field(fields: Array, u: float, v: float) -> float:
 	return broad.get_noise_2d(u, v) * 0.7 + fine.get_noise_2d(u, v) * 0.3
 
 
-func _marble_map() -> ImageTexture:
+## The three apron surfaces. They are the same noise, the same shade band and the
+## same tint arithmetic; only the seeds and the tint differ, so they are three
+## entries and two functions rather than three copies of eighty lines. Wood is
+## neutral and marble is a hair warm in red and cool in blue, which is the whole
+## of the difference the board materials see.
+const SURFACE_MARBLE := {"seed": 8123, "fine": 4409, "tint": Color(1.0, 0.99, 0.965)}
+const SURFACE_WALNUT := {"seed": 4471, "fine": 2107, "tint": Color(1.0, 1.0, 1.0)}
+const SURFACE_ROSEWOOD := {"seed": 9902, "fine": 5511, "tint": Color(1.0, 1.0, 1.0)}
+## The map is centred on 0.93 with a band five percent wide. The band is the six
+## percent the brief allows, and the centre is not arbitrary: the accepted
+## renders were measured with a marble map whose mean sat at 0.93, and at 0.975
+## the pale squares sat just far enough past the clip point that they came back
+## as flat #ffffff with no shading left on them anywhere.
+const SURFACE_SHADE_CENTRE := 0.93
+const SURFACE_SHADE_BAND := 0.025
+const SURFACE_SHADE_RANGE := Vector2(0.905, 0.955)
+
+
+## One apron albedo, from one surface description.
+func _surface_texture(surface: Dictionary) -> ImageTexture:
 	var size := _map_size()
-	var fields := _surface_fields(8123, 4409)
+	var fields := _surface_fields(surface.seed, surface.fine)
+	var tint: Color = surface.tint
 	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
 	for y in size:
 		for x in size:
 			var u := float(x) / float(size)
 			var v := float(y) / float(size)
-			# Centred on 0.93 with a band five percent wide. The band is the six
-			# percent the brief allows, and the centre is not arbitrary: the
-			# accepted renders were measured with a marble map whose mean sat at
-			# 0.93, and at 0.975 the pale squares sat just far enough past the
-			# clip point that they came back as flat #ffffff with no shading left
-			# on them anywhere.
-			var shade := clampf(0.93 + 0.025 * _surface_field(fields, u, v), 0.905, 0.955)
-			image.set_pixel(x, y, Color(shade, shade * 0.99, shade * 0.965, 1.0))
+			var shade := clampf(SURFACE_SHADE_CENTRE + SURFACE_SHADE_BAND * _surface_field(fields, u, v),
+				SURFACE_SHADE_RANGE.x, SURFACE_SHADE_RANGE.y)
+			image.set_pixel(x, y, Color(shade, shade, shade, 1.0) * tint)
 	# Image.create reserves the mip chain but does not fill it, and an unfilled
 	# chain uploads as black - so the far ranks, which are the squares that
 	# sample the higher levels, came back banded. Generating them here is what
@@ -627,81 +642,11 @@ func _marble_map() -> ImageTexture:
 	return ImageTexture.create_from_image(image)
 
 
-func _walnut_map() -> ImageTexture:
+## The height field for one surface, sampled from the same seeds as its albedo
+## so the veining and the relief it produces always agree.
+func _surface_heights(surface: Dictionary) -> PackedFloat32Array:
 	var size := _map_size()
-	var fields := _surface_fields(4471, 2107)
-	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
-	for y in size:
-		for x in size:
-			var u := float(x) / float(size)
-			var v := float(y) / float(size)
-			# Centred on 0.93 with a band five percent wide. The band is the six
-			# percent the brief allows, and the centre is not arbitrary: the
-			# accepted renders were measured with a marble map whose mean sat at
-			# 0.93, and at 0.975 the pale squares sat just far enough past the
-			# clip point that they came back as flat #ffffff with no shading left
-			# on them anywhere.
-			var shade := clampf(0.93 + 0.025 * _surface_field(fields, u, v), 0.905, 0.955)
-			image.set_pixel(x, y, Color(shade, shade, shade, 1.0))
-	# Image.create reserves the mip chain but does not fill it, and an unfilled
-	# chain uploads as black - so the far ranks, which are the squares that
-	# sample the higher levels, came back banded. Generating them here is what
-	# makes the linear-with-mipmaps filter the materials ask for actually work.
-	image.generate_mipmaps()
-	return ImageTexture.create_from_image(image)
-
-
-func _rosewood_map() -> ImageTexture:
-	var size := _map_size()
-	var fields := _surface_fields(9902, 5511)
-	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
-	for y in size:
-		for x in size:
-			var u := float(x) / float(size)
-			var v := float(y) / float(size)
-			# Centred on 0.93 with a band five percent wide. The band is the six
-			# percent the brief allows, and the centre is not arbitrary: the
-			# accepted renders were measured with a marble map whose mean sat at
-			# 0.93, and at 0.975 the pale squares sat just far enough past the
-			# clip point that they came back as flat #ffffff with no shading left
-			# on them anywhere.
-			var shade := clampf(0.93 + 0.025 * _surface_field(fields, u, v), 0.905, 0.955)
-			image.set_pixel(x, y, Color(shade, shade, shade, 1.0))
-	# Image.create reserves the mip chain but does not fill it, and an unfilled
-	# chain uploads as black - so the far ranks, which are the squares that
-	# sample the higher levels, came back banded. Generating them here is what
-	# makes the linear-with-mipmaps filter the materials ask for actually work.
-	image.generate_mipmaps()
-	return ImageTexture.create_from_image(image)
-
-
-func _marble_height() -> PackedFloat32Array:
-	var size := _map_size()
-	var fields := _surface_fields(8123, 4409)
-	var heights := PackedFloat32Array()
-	heights.resize(size * size)
-	for y in size:
-		for x in size:
-			heights[y * size + x] = _surface_field(fields,
-				float(x) / float(size), float(y) / float(size)) * 0.35
-	return heights
-
-
-func _walnut_height() -> PackedFloat32Array:
-	var size := _map_size()
-	var fields := _surface_fields(4471, 2107)
-	var heights := PackedFloat32Array()
-	heights.resize(size * size)
-	for y in size:
-		for x in size:
-			heights[y * size + x] = _surface_field(fields,
-				float(x) / float(size), float(y) / float(size)) * 0.35
-	return heights
-
-
-func _rosewood_height() -> PackedFloat32Array:
-	var size := _map_size()
-	var fields := _surface_fields(9902, 5511)
+	var fields := _surface_fields(surface.seed, surface.fine)
 	var heights := PackedFloat32Array()
 	heights.resize(size * size)
 	for y in size:

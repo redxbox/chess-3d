@@ -26,10 +26,11 @@ def describe(entry):
 
 
 def main(argv):
-    if len(argv) != 1:
-        print("usage: apk_size_report.py <apk-or-aab>", file=sys.stderr)
+    positional = [item for item in argv if not item.startswith("-")]
+    if len(positional) != 1:
+        print("usage: apk_size_report.py <apk-or-aab> [--annotate]", file=sys.stderr)
         return 2
-    path = argv[0]
+    path = positional[0]
     with zipfile.ZipFile(path) as package:
         infos = package.infolist()
         entries = sorted((describe(info) for info in infos), reverse=True)
@@ -44,6 +45,19 @@ def main(argv):
     print(f"| **uncompressed total** | | **{uncompressed / 1e6:.2f} MB** |")
     print(f"| **compressed payload** | | **{compressed / 1e6:.2f} MB** |")
     print(f"| **file on disk** | | **{on_disk / 1e6:.2f} MB** |")
+
+    # CI turns these into step annotations, which the API can read back - the
+    # job summary cannot be. The compression method of the engine library is the
+    # one number that says whether the preset option took effect.
+    if "--annotate" in argv[2:] or "-a" in argv[2:]:
+        for info in infos:
+            if info.filename.endswith((".so", ".pck")):
+                method = "STORED" if info.compress_type == zipfile.ZIP_STORED else "deflated"
+                # stderr, because CI redirects the table to a file and the log
+                # is what the workflow command has to reach.
+                print(f"::notice title=Native library::{info.filename} {method}: "
+                      f"{info.file_size / 1e6:.2f} MB uncompressed, "
+                      f"{info.compress_size / 1e6:.2f} MB in the package", file=sys.stderr)
 
     stored_libraries = [name for size, method, name in entries
                         if method == "STORED" and name.endswith(".so")]
