@@ -861,7 +861,7 @@ func _piece_mesh(kind: String) -> Mesh:
 	var plinth_tint := Color(1.0, 1.0, 1.0)
 	var plinth_top := -1.0
 	if _piece_set() != "staunton":
-		plinth_top = SET_PLINTH_FRACTION[kind] * highest
+		plinth_top = float(SET_PLINTH_FRACTION.get(kind, 0.11)) * highest
 		# A cool carved stone against the warm glazed figure above it. Not darker
 		# than this: at 0.60 the plinth read as a black puck and the white army
 		# looked like figures standing on holes.
@@ -2041,7 +2041,10 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 		# fold. It is 0.030 tall and stands 0.008 proud: five or six pixels, which
 		# is the point at which a gold band reads as gold.
 		var height := _set_height(kind)
-		var ribbon_y := SET_PLINTH_FRACTION[kind] * height * 0.92
+		# Explicit types on both: indexing a Dictionary yields Variant, and an
+		# inferred := from a Variant is a type the compiler refuses to guess.
+		var plinth_fraction: float = SET_PLINTH_FRACTION.get(kind, 0.11)
+		var ribbon_y: float = plinth_fraction * height * 0.92
 		_flush_band_add(parts, _set_ring_radius(kind, ribbon_y), Vector3(0, ribbon_y, 0), 0.030, 0.008)
 		# A second line only where the figure has a throat to wear it. The horse
 		# and the elephant have a back instead of a neck, and there the narrowest
