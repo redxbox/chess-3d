@@ -205,15 +205,19 @@ const PIECE_THEMES := {
 		# it and the figures are all robe.
 		"light": Color(0.775, 0.805, 0.735),
 		"dark": Color(0.115, 0.155, 0.325),
-		"accent": Color(0.83, 0.66, 0.27),
+		"accent": Color(0.86, 0.68, 0.26),
 		# Glazed stone: a tight lobe, so the folds of the robes carry a highlight
 		# along them instead of a flat wash. This is the finish the figures were
 		# modelled for, and it is what makes armour and cloth read as different
 		# materials even where the mesh is one surface.
 		"light_roughness": 0.17,
 		"dark_roughness": 0.21,
-		"accent_roughness": 0.40,
-		"accent_metallic": 0.35,
+		# The gold is the only colour break on a sculpted figure, so it is a real
+		# metal: rougher than a mirror so the ribbon keeps its facets, metallic
+		# enough (0.55) that it takes its colour from reflection rather than from
+		# its own albedo - which is what separates gold from yellow paint.
+		"accent_roughness": 0.30,
+		"accent_metallic": 0.55,
 		"trim_variant": "court",
 		"swatch_light": Color(0.84, 0.86, 0.79),
 		"swatch_dark": Color(0.115, 0.155, 0.325),
@@ -2029,12 +2033,25 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 		# a 96-bin read of a rounded mesh can have - sinks the ring slightly
 		# instead of leaving it hanging in the air. Sunk reads as inlay; floating
 		# reads as a mistake.
-		var belt_y := _set_narrowest_y(kind, 0.22, 0.46)
-		if belt_y > 0.0:
-			_flush_band_add(parts, _set_ring_radius(kind, belt_y) - 0.002, Vector3(0, belt_y, 0), 0.020, 0.008)
-		var collar_y := _set_narrowest_y(kind, 0.62, 0.88)
-		if collar_y > 0.0:
-			_flush_band_add(parts, _set_ring_radius(kind, collar_y) - 0.002, Vector3(0, collar_y, 0), 0.016, 0.007)
+		# One bold ribbon, not a set of hairlines. At the size these pieces are
+		# drawn - a figure about 200 pixels tall - a 2-pixel rule is a smudge no
+		# matter how well it is placed, so the metal on a sculpted piece is one
+		# deep ribbon round the top of the plinth, where the eye expects a band on
+		# a jewelled base and where the surface is a machined step rather than a
+		# fold. It is 0.030 tall and stands 0.008 proud: five or six pixels, which
+		# is the point at which a gold band reads as gold.
+		var height := _set_height(kind)
+		var ribbon_y := SET_PLINTH_FRACTION[kind] * height * 0.92
+		_flush_band_add(parts, _set_ring_radius(kind, ribbon_y), Vector3(0, ribbon_y, 0), 0.030, 0.008)
+		# A second line only where the figure has a throat to wear it. The horse
+		# and the elephant have a back instead of a neck, and there the narrowest
+		# point of the body is on one flank, not all the way round - so a ring
+		# built there hangs off the other side, which is exactly what a misplaced
+		# collar looks like.
+		if kind == "pawn" or kind == "queen" or kind == "king":
+			var collar_y := _set_narrowest_y(kind, 0.62, 0.88)
+			if collar_y > 0.0:
+				_flush_band_add(parts, _set_ring_radius(kind, collar_y), Vector3(0, collar_y, 0), 0.014, 0.006)
 		return parts
 	# Tiered foot. The lower collar is a fluted lathe rather than a smooth
 	# cylinder, and the fluting is shallow: 0.008 of amplitude over 16 grooves.
