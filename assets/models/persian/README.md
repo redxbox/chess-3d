@@ -25,7 +25,7 @@ Total: 1.8 MB for the six bodies.
 ## Regenerating
 
 ```sh
-python3 tools/prepare_sculpt_set.py /path/to/glb/folder assets/models/medieval
+python3 tools/prepare_sculpt_set.py /path/to/glb/folder assets/models/persian
 ```
 
 Requires `numpy trimesh fast-simplification` (build-time only; the OBJs are

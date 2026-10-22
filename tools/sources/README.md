@@ -12,7 +12,7 @@ sees one.
 | folder | what it holds | used by |
 | --- | --- | --- |
 | `persian/` | `kinge.glb`, the replacement Persian king | retired with the Persian set; kept for the record |
-| `figurines/` | `pown1` `rook1` `knight1` `bishop1` `quin1` `king1` `.glb` - a whole set of court figures | `assets/models/court/` |
+| `figurines/` | `pown1` `rook1` `knight1` `bishop1` `quin1` `king1` `.glb` - a whole set of court figures | `assets/models/bastani/` |
 
 ## Turning a folder of GLBs into a playable set
 

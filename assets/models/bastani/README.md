@@ -4,9 +4,9 @@ The third set, and the replacement for the old lathe-turned Persian one. It is
 named *bastani* - the set of the court - because every piece is a figure from a
 court rather than a turned piece.
 
-## Why the Persian set went
+## Why the lathe-turned set went
 
-The Persian set was the same carved-lathe family as the medieval set: same
+The set this replaced was the same carved-lathe family as the persian set: same
 plinths, same lathe silhouettes, same mitre on the bishop. Once both were on the
 board the only difference a player could see was colour, which made two of the
 three piece choices look like the same set twice. The style screen exists to
@@ -38,7 +38,7 @@ to 10 000 triangles, scale onto the same height ladder (pawn 0.91 up to king
 1.62), centre in X/Z, stand on y = 0 - and writes OBJ:
 
 ```sh
-python3 tools/prepare_sculpt_set.py tools/sources/figurines assets/models/court
+python3 tools/prepare_sculpt_set.py tools/sources/figurines assets/models/bastani
 ```
 
 The script accepts the author's file names (`pown1.glb`, `quin1.glb`, …) as they
@@ -54,14 +54,14 @@ are; nothing has to be renamed.
 
 10 000 triangles is not a compromise. The pieces are 1.6 units tall on a 1.0
 square, so at the closest the camera ever gets a king is about 300 screen pixels
-high: the faceting this shows at is the same faceting the medieval set has at
+high: the faceting this shows at is the same faceting the persian set has at
 the same count, and it is invisible on the board. The detail that has to survive
 - the spear, the shield's boss, the horse's jaw, the elephant's trunk, the
 crown, the sceptre - is all silhouette, and silhouette is what decimation keeps.
 
 ## Facing
 
-Every figure faces **+Z**, like the medieval set and unlike the turned set, so
+Every figure faces **+Z**, like the persian set and unlike the turned set, so
 `_facing_yaw()` needs no per-set case: it already turns each army's +Z-front
 bodies toward the enemy. Verified on the source exports: the guard's shield is
 on the -X side and his spear forward, the horse faces +Z, the elephant's trunk
