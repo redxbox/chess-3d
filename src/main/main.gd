@@ -913,140 +913,126 @@ func _piece_mesh(kind: String) -> Mesh:
 
 ## Builds the gold rule round a sculpted figure's plinth into `rule`.
 ##
-## The radius is measured, not assumed. The plinth is scalloped - its lobes and
-## valleys differ by a third on these meshes - so a circle that is right on a
-## lobe buries itself in the valleys and one right on a valley floats over the
-## lobes. Sampling the mesh in angular bins at the height of the band and taking
-## the second-largest radius in each bin gives a line that sits on the carving
-## the whole way round; smoothing the samples afterwards keeps the band from
-## turning into a polygon of the carving's noise.
+## This is a skirt, not a ring, and each of those words cost a render.
+##
+## A ring - one radius, swept round at one height - cannot sit on a carved base.
+## The plinth is scalloped, so a circle at the median radius is buried in the
+## lobes and a circle at the lobes floats over the valleys, and the plinth also
+## flares towards its foot, so any circle higher up the wall is hidden behind the
+## flare below it when the camera looks down at the board. Every attempt shows
+## the same thing: slivers of gold, then dashes, then a thin brown scribble.
+##
+## So the band is measured at every row of its own height: for each row, the
+## mesh's radius is sampled in angular bins and the largest radius in each bin is
+## used, and the rows are sewn together. The result is a surface that follows the
+## flare and the lobes both - a gilded skin over the top of the base rather than
+## a hoop hovering near it - and it is wide enough to read as metal rather than as
+## a painted line.
 ##
 ## Returns false when the plinth could not be measured at all, which is what
 ## happens on a mesh whose base is not where the profile says it is.
 func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_top: float, highest: float) -> bool:
 	const BINS := 96
-	# Where the ribbon goes: the wall of the plinth, not its shoulder. This is the
-	# correction that took three renders to see. A band at the top of the step is
-	# a vertical wall standing under a horizontal lip, and from a camera looking
-	# down at the board the lip hides it - the gold shows as scattered slivers no
-	# matter how thick the band is. Dropped 0.03 of the piece's height it sits on
-	# the open wall of the carving, where the camera can see it and where there is
-	# engraving behind it for it to read against.
-	var band_low := plinth_top - 0.036 * highest
-	var band_high := plinth_top - 0.002 * highest
-	# The window has to match the band it is measuring, and this is the whole
-	# trick: sample much wider and the measurement is dominated by the flare below,
-	# so the ribbon is built at a radius the plinth has already grown past and the
-	# carving swallows it.
-	var sample_low := band_low - 0.004 * highest
-	var sample_high := band_high + 0.004 * highest
-	# The ribbon stands slightly further out than the surface it was measured on,
-	# because the measurement is of vertex rows, not of the true surface between
-	# them.
-	const CLEARANCE := 0.004
-	var best := PackedFloat32Array()
-	var second := PackedFloat32Array()
-	var seen := PackedByteArray()
-	best.resize(BINS)
-	second.resize(BINS)
-	seen.resize(BINS)
+	const ROWS := 7
+	# The skirt covers the upper half of the plinth. Below that is the flare, which
+	# the camera sees the top of; above it is the figure.
+	var band_low := plinth_top * 0.42
+	var band_high := plinth_top * 0.96
+	var scaled := PackedFloat32Array()
+	scaled.resize(positions.size())
+	var angles := PackedFloat32Array()
+	angles.resize(positions.size())
 	for i in positions.size():
 		var vertex: Vector3 = positions[i]
-		if vertex.y < sample_low or vertex.y > sample_high:
-			continue
-		var radius := sqrt(vertex.x * vertex.x + vertex.z * vertex.z)
-		if radius < 0.02:
-			continue
-		var angle := atan2(vertex.z, vertex.x)
-		var bin := clampi(int(floor((angle + PI) / TAU * float(BINS))), 0, BINS - 1)
-		seen[bin] = 1
-		if radius > best[bin]:
-			second[bin] = best[bin]
-			best[bin] = radius
-		elif radius > second[bin]:
-			second[bin] = radius
+		scaled[i] = sqrt(vertex.x * vertex.x + vertex.z * vertex.z)
+		angles[i] = atan2(vertex.z, vertex.x)
+	var row_radius := PackedFloat32Array()
+	row_radius.resize(ROWS * BINS)
+	var row_seen := PackedByteArray()
+	row_seen.resize(ROWS * BINS)
+	for row in ROWS:
+		var height := band_low + (band_high - band_low) * float(row) / float(ROWS - 1)
+		var window := (band_high - band_low) / float(ROWS) * 0.9
+		for i in positions.size():
+			var offset := absf(positions[i].y - height)
+			if offset > window or scaled[i] < 0.02:
+				continue
+			var bin := clampi(int(floor((angles[i] + PI) / TAU * float(BINS))), 0, BINS - 1)
+			var slot := row * BINS + bin
+			row_seen[slot] = 1
+			# The largest radius in the bin: the lobes stick 0.01-0.016 past the
+			# median, and anything built inside them is swallowed by the carving.
+			row_radius[slot] = maxf(row_radius[slot], scaled[i])
 	var covered := 0
-	for bin in BINS:
-		covered += seen[bin]
-	if covered < BINS / 2:
+	for slot in row_radius.size():
+		covered += row_seen[slot]
+	if covered < ROWS * BINS / 2:
 		return false
-	# The largest radius in each bin, and this is the second correction the
-	# measurement needed. A high percentile looked safer - one stray vertex from a
-	# tail should not push a third of the ring into the air - but on a carved base
-	# the percentiles are the problem: the lobes stick 0.01-0.016 past the median,
-	# so a ring built at the second-largest radius is buried inside the carving
-	# and shows only as slivers between lobes. Sitting just outside the worst lobe
-	# in each direction is the only placement the carving cannot swallow.
-	var radii := PackedFloat32Array()
-	radii.resize(BINS)
-	for bin in BINS:
-		radii[bin] = best[bin] if best[bin] > 0.0 else second[bin]
-	# Fill any empty bin from its neighbour before smoothing, so the sweep has no
-	# zero-radius hole in it.
-	for bin in BINS:
-		if not seen[bin]:
-			radii[bin] = radii[(bin - 1 + BINS) % BINS]
-	# One pass only: enough to keep the band from being a polygon of the mesh's
-	# noise, not so much that it cuts across the lobes it is following.
-	for pass_index in 1:
-		var smoothed_radii := radii.duplicate()
+	# Fill the bins the mesh had no vertex rows in, from the row above or below,
+	# then smooth along the ring only - across rows the flare is real and must not
+	# be flattened out.
+	for row in ROWS:
 		for bin in BINS:
-			var prev := radii[(bin - 1 + BINS) % BINS]
-			var next := radii[(bin + 1) % BINS]
-			smoothed_radii[bin] = prev * 0.25 + radii[bin] * 0.5 + next * 0.25
-		radii = smoothed_radii
-	# Three rows, so the ribbon has a crown and reads as a raised band rather than
-	# as a painted line: the top and bottom rows sit back on the surface and the
-	# middle row stands a fraction proud.
-	# A crowned profile, four rows: a chamfer facing up, a proud face, a second
-	# face, and a chamfer facing down. The upward tilt on the top rows is not
-	# decoration - the key light in this scene comes from above and to the left,
-	# and a band whose normals point straight out sideways is lit by the fill only
-	# and renders as brown. That is the same trap the flat-annulus trim fell into
-	# two rounds ago, and a few pixels wide it is much less forgiving.
-	var band_span := band_high - band_low
-	var rows := [band_low, band_low + band_span * 0.30, band_high - band_span * 0.30, band_high]
-	var spreads := [0.994, 1.010, 1.010, 0.994]
-	var tilts := [1.15, 0.20, 0.20, -0.85]
+			var slot := row * BINS + bin
+			if not row_seen[slot]:
+				var above := (row - 1) * BINS + bin
+				var below := (row + 1) * BINS + bin
+				row_radius[slot] = row_radius[above] if row > 0 else row_radius[below]
+	for row in ROWS:
+		var samples := PackedFloat32Array()
+		samples.resize(BINS)
+		for bin in BINS:
+			samples[bin] = row_radius[row * BINS + bin]
+		for pass_index in 2:
+			var smoothed := samples.duplicate()
+			for bin in BINS:
+				smoothed[bin] = samples[(bin - 1 + BINS) % BINS] * 0.25 + samples[bin] * 0.5 + samples[(bin + 1) % BINS] * 0.25
+			samples = smoothed
+		for bin in BINS:
+			row_radius[row * BINS + bin] = samples[bin]
+	# A little clearance: the measurement is of vertex rows, and the surface
+	# between them can stand a touch further out than the rows do.
+	var clearance := 0.006 * highest
 	var segments := BINS
-	var row_count := rows.size()
-	var ring: Array[PackedVector3Array] = []
-	for row in row_count:
-		var points := PackedVector3Array()
-		points.resize(segments + 1)
-		for segment in segments + 1:
-			var bin := segment % BINS
-			var angle := -PI + TAU * float(segment) / float(segments)
-			var radius := float(radii[bin]) * float(spreads[row]) + CLEARANCE * highest
-			points[segment] = Vector3(cos(angle) * radius, float(rows[row]), sin(angle) * radius)
-		ring.append(points)
-	for row in row_count - 1:
+	for row in ROWS - 1:
+		var low_height := band_low + (band_high - band_low) * float(row) / float(ROWS - 1)
+		var high_height := band_low + (band_high - band_low) * float(row + 1) / float(ROWS - 1)
 		for segment in segments:
-			var angle := -PI + TAU * (float(segment) + 0.5) / float(segments)
-			var facing := Vector3(cos(angle), 0.0, sin(angle))
-			var a := ring[row][segment]
-			var b := ring[row][segment + 1]
-			var c := ring[row + 1][segment + 1]
-			var d := ring[row + 1][segment]
-			var normal_row := float(tilts[row])
-			var normal_next := float(tilts[row + 1])
-			rule.set_normal((facing + Vector3.UP * normal_row).normalized())
-			rule.set_uv(Vector2(float(segment) / float(segments) * 3.0, 0.0))
+			var angle0 := -PI + TAU * float(segment) / float(segments)
+			var angle1 := -PI + TAU * float(segment + 1) / float(segments)
+			var bin0 := segment
+			var bin1 := (segment + 1) % BINS
+			var r00 := row_radius[row * BINS + bin0] + clearance
+			var r01 := row_radius[row * BINS + bin1] + clearance
+			var r10 := row_radius[(row + 1) * BINS + bin0] + clearance
+			var r11 := row_radius[(row + 1) * BINS + bin1] + clearance
+			var a := Vector3(cos(angle0) * r00, low_height, sin(angle0) * r00)
+			var b := Vector3(cos(angle1) * r01, low_height, sin(angle1) * r01)
+			var c := Vector3(cos(angle1) * r11, high_height, sin(angle1) * r11)
+			var d := Vector3(cos(angle0) * r10, high_height, sin(angle0) * r10)
+			var facing := Vector3(cos((angle0 + angle1) * 0.5), 0.0, sin((angle0 + angle1) * 0.5))
+			# Tilted up a little: the key light comes from above and to the left,
+			# and a band lit only by the fill light renders brown rather than gold.
+			var normal := (facing + Vector3.UP * 0.30).normalized()
+			var uv0 := Vector2(float(segment) / float(segments) * 3.0, 0.0)
+			var uv1 := Vector2(float(segment + 1) / float(segments) * 3.0, 1.0)
+			rule.set_normal(normal)
+			rule.set_uv(uv0)
 			rule.add_vertex(a)
-			rule.set_normal((facing + Vector3.UP * normal_row).normalized())
-			rule.set_uv(Vector2(float(segment + 1) / float(segments) * 3.0, 0.0))
+			rule.set_normal(normal)
+			rule.set_uv(uv1)
 			rule.add_vertex(b)
-			rule.set_normal((facing + Vector3.UP * normal_next).normalized())
-			rule.set_uv(Vector2(float(segment + 1) / float(segments) * 3.0, 1.0))
+			rule.set_normal(normal)
+			rule.set_uv(Vector2(uv1.x, 0.0))
 			rule.add_vertex(c)
-			rule.set_normal((facing + Vector3.UP * normal_row).normalized())
-			rule.set_uv(Vector2(float(segment) / float(segments) * 3.0, 0.0))
+			rule.set_normal(normal)
+			rule.set_uv(uv0)
 			rule.add_vertex(a)
-			rule.set_normal((facing + Vector3.UP * normal_next).normalized())
-			rule.set_uv(Vector2(float(segment + 1) / float(segments) * 3.0, 1.0))
+			rule.set_normal(normal)
+			rule.set_uv(Vector2(uv1.x, 0.0))
 			rule.add_vertex(c)
-			rule.set_normal((facing + Vector3.UP * normal_next).normalized())
-			rule.set_uv(Vector2(float(segment) / float(segments) * 3.0, 1.0))
+			rule.set_normal(normal)
+			rule.set_uv(Vector2(uv0.x, 1.0))
 			rule.add_vertex(d)
 	return true
 
