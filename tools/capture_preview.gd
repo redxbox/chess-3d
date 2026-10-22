@@ -7,7 +7,7 @@ func _initialize() -> void:
 	# CI chooses board and pieces independently, exactly like the setup menu.
 	var piece_theme := OS.get_environment("CHESS_PIECE_THEME")
 	var board_theme := OS.get_environment("CHESS_BOARD_THEME")
-	if piece_theme == "": piece_theme = "medieval"
+	if piece_theme == "": piece_theme = "persian"
 	if board_theme == "": board_theme = "classic"
 	var output_name := OS.get_environment("CHESS_PREVIEW_NAME")
 	if output_name == "": output_name = "%s-%s.png" % [board_theme, piece_theme]

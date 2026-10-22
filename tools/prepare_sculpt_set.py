@@ -3,7 +3,7 @@
 
 WHY THIS EXISTS
 ---------------
-Two sets of six GLB files were supplied by the project author - "medieval" (the
+Two sets of six GLB files were supplied by the project author - "persian" (the
 one uploaded to the repository root, one file per piece, 200-320k vertices and
 about 10 MB each) and "persian" (the older set recovered from the
 assets/models/persian/ folder of an earlier branch). Neither can be used as it
@@ -44,7 +44,7 @@ DEPENDENCIES (build-time only; the generated OBJs are committed)
 
 Run:  python3 tools/prepare_sculpt_set.py [source_dir] [output_dir]
 
-    python3 tools/prepare_sculpt_set.py /tmp/uploaded_glb   assets/models/medieval
+    python3 tools/prepare_sculpt_set.py /tmp/uploaded_glb   assets/models/persian
     python3 tools/prepare_sculpt_set.py /tmp/persian_glb    assets/models/persian
 """
 
@@ -86,7 +86,7 @@ def load(path: str) -> tuple[np.ndarray, np.ndarray]:
 # rather than on its bounding box matters for anything holding a spear, a
 # standard or a raised arm: the arm pushes the box sideways, so a box-centred
 # piece stands off-centre on its square and its base rings are no longer
-# concentric with the foot. Three of the six court figures were off by 4-6% of
+# concentric with the foot. Three of the six bastani figures were off by 4-6% of
 # their width, which is visible on a 1.0-wide square.
 PLINTH_BAND = 0.05
 
@@ -102,7 +102,7 @@ def _plinth_centre(vertices: np.ndarray) -> tuple[float, float]:
 def prepare(kind: str, path: str) -> tuple[np.ndarray, np.ndarray]:
     vertices, faces = load(path)
     # The two sets are not equally dense: the persian pieces arrive already
-    # decimated (6k-26k triangles) while the medieval ones arrive at 370k-650k.
+    # decimated (6k-26k triangles) while the persian ones arrive at 370k-650k.
     # Only decimate downwards, never upwards, and never re-simplify a piece
     # that is already under budget - it would only cost detail.
     if len(faces) <= TARGET_TRIANGLES:
@@ -119,11 +119,11 @@ def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_pli
     low = vertices.min(axis=0)
     high = vertices.max(axis=0)
     # Uniform scale, from the model's own height, so the carving keeps its
-    # proportions. Height is the only thing normalised - the foot ends up
-    # between 0.31 and 0.43 across, which is wider than the Staunton set's 0.326
-    # and is exactly what makes this set look carved rather than turned. Two
-    # neighbouring squares are 1.0 apart, so even the widest pair (0.43 + 0.43)
-    # cannot touch.
+    # proportions. This is the height pass only: the footprints the models
+    # arrived with were 0.20 to 0.43 of a square, which reads as three
+    # different-sized sets on one board, so tools/normalise_set_scale.py applies
+    # a second, footprint pass that puts every piece on the classic set's foot
+    # radius. Run this script first and that one after it.
     scale = TARGET_HEIGHT[kind] / float(high[1] - low[1])
     vertices *= scale
     # Stand it on y = 0 and put its own centre over the square's centre. A
@@ -144,7 +144,7 @@ def write_obj(path: str, kind: str, vertices: np.ndarray, faces: np.ndarray) -> 
     # corner plus a cylindrical UV set. Writing normals here as well would add
     # 45% to the file for data that is thrown away and recomputed at load.
     with open(path, "w", encoding="utf-8") as handle:
-        handle.write(f"# Medieval {kind}, decimated by tools/prepare_medieval_set.py\n")
+        handle.write(f"# Persian {kind}, decimated by tools/prepare_sculpt_set.py\n")
         handle.write("# Source: user-supplied GLB, see assets/models/<set>/README.md\n")
         handle.write(f"o {kind}\n")
         for point in vertices:
@@ -156,7 +156,7 @@ def write_obj(path: str, kind: str, vertices: np.ndarray, faces: np.ndarray) -> 
 
 def main() -> int:
     source = sys.argv[1] if len(sys.argv) > 1 else "."
-    output = sys.argv[2] if len(sys.argv) > 2 else "assets/models/medieval"
+    output = sys.argv[2] if len(sys.argv) > 2 else "assets/models/persian"
     os.makedirs(output, exist_ok=True)
     for kind in KINDS:
         # A piece may arrive under a slightly different file name - the

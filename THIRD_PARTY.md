@@ -19,29 +19,29 @@ reproduces the measured silhouette of the set's own knight base (foot radius
 standing on the same foot. Regenerating it needs `numpy`, `scikit-image`,
 `fast-simplification` and `trimesh`, all build-time only.
 
-## Medieval chess piece meshes
+## Persian chess piece meshes
 
 - Source: supplied by the project author (six GLB files, one per piece)
 - License: author's own work, used by permission in this project; no
   third-party licence accompanies the source files
-- Local notes: `assets/models/medieval/README.md`
+- Local notes: `assets/models/persian/README.md`
 
 The uploaded GLBs were 200–320k vertices each (56 MB in total) and all exactly
 1.0 unit tall. `tools/prepare_sculpt_set.py` decimates each piece to 10 000
 triangles, scales it onto this project's height ladder and writes the OBJ that
 the game actually loads, 1.8 MB for the set.
 
-## Court chess piece meshes
+## Bastani chess piece meshes
 
 - Source: supplied by the project author (six GLB files, now kept in
   `tools/sources/figurines/`, which the Android export excludes)
 - License: author's own work, used by permission in this project
-- Local notes: `assets/models/court/README.md`
+- Local notes: `assets/models/bastani/README.md`
 
 Converted with the same `tools/prepare_sculpt_set.py` as the other sets:
 2.1 million source triangles decimated to 60 000, 36 MB of upload reduced to a
-1.75 MB set of six OBJs. The Persian set these replace was withdrawn because it
-was the medieval set in another colour; its raw export is still in
+1.75 MB set of six OBJs. The lathe-turned Persian set these replace was withdrawn because it
+was the persian set in another colour; its raw export is still in
 `tools/sources/persian/` for the record.
 
 ## Godot Engine

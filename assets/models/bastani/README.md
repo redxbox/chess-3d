@@ -1,6 +1,8 @@
-# Court set
+# Bastani set
 
-The third set, and the replacement for the old Persian one.
+The third set, and the replacement for the old lathe-turned Persian one. It is
+named *bastani* - the set of the court - because every piece is a figure from a
+court rather than a turned piece.
 
 ## Why the Persian set went
 

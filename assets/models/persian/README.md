@@ -1,6 +1,6 @@
-# Medieval chess set
+# Persian chess set
 
-Hand-sculpted set of six pieces, supplied by the project author as six GLB
+The second set. Hand-sculpted, six pieces, supplied by the project author as six GLB
 files (`pawn.glb` … `king.glb`, each ~200–320k vertices and ~10 MB).
 
 ## What is here
