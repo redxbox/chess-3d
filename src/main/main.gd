@@ -989,6 +989,9 @@ func _set_profile(kind: String) -> Dictionary:
 		return _mesh_cache[key]
 	var profile := PackedFloat32Array()
 	profile.resize(SET_PROFILE_STEPS)
+	# (height, radius) for every vertex, kept so a ring can be measured locally
+	# rather than from the binned maximum. See _set_ring_radius().
+	var points := PackedVector2Array()
 	var height := 0.0
 	var models := _piece_models()
 	var mesh: Mesh = models.get(kind)
@@ -998,9 +1001,11 @@ func _set_profile(kind: String) -> Dictionary:
 			height = maxf(height, point.y)
 		if height > 0.0001:
 			for point in positions:
+				var radius := Vector2(point.x, point.z).length()
 				var bin := int(clampf(point.y / height, 0.0, 0.999999) * float(SET_PROFILE_STEPS - 1))
-				profile[bin] = maxf(profile[bin], Vector2(point.x, point.z).length())
-	var described := {"profile": profile, "height": height}
+				profile[bin] = maxf(profile[bin], radius)
+				points.append(Vector2(point.y, radius))
+	var described := {"profile": profile, "height": height, "points": points}
 	_mesh_cache[key] = described
 	return described
 
@@ -1028,6 +1033,34 @@ func _set_radius_at(kind: String, y: float) -> float:
 	if i >= profile.size() - 1:
 		return profile[profile.size() - 1]
 	return lerpf(profile[i], profile[i + 1], scaled - float(i))
+
+
+## The radius to lay a ring at, measured locally instead of from the binned
+## maximum.
+##
+## The binned maximum is the widest vertex anywhere in a slab, and on a carved
+## base that is one rocky lobe while the surface between the lobes is a third
+## narrower. A circle built on the maximum therefore leaves the piece on every
+## side except the lobe it was measured on - which is what a hovering ring looks
+## like. This takes the 85th percentile of the vertices within a thin slab
+## around the height: on a base that is roughly round it is the base's radius,
+## and on the flanks of an irregular one it is the surface's radius nearly all
+## the way round, so the ring sits in the carving with its inner edge buried.
+func _set_ring_radius(kind: String, y: float) -> float:
+	var described := _set_profile(kind)
+	var points: PackedVector2Array = described.get("points", PackedVector2Array())
+	if points.is_empty():
+		return _set_radius_at(kind, y)
+	for window in [0.010, 0.018, 0.030, 0.050]:
+		var near := PackedFloat32Array()
+		for point in points:
+			if absf(point.x - y) <= window:
+				near.append(point.y)
+		if near.size() < 24:
+			continue
+		near.sort()
+		return near[int(float(near.size() - 1) * 0.85)]
+	return _set_radius_at(kind, y)
 
 
 ## The height where a sculpted piece is narrowest between two fractions of its
@@ -1998,10 +2031,10 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 		# reads as a mistake.
 		var belt_y := _set_narrowest_y(kind, 0.22, 0.46)
 		if belt_y > 0.0:
-			_flush_band_add(parts, _set_radius_at(kind, belt_y) - 0.002, Vector3(0, belt_y, 0), 0.020, 0.008)
+			_flush_band_add(parts, _set_ring_radius(kind, belt_y) - 0.002, Vector3(0, belt_y, 0), 0.020, 0.008)
 		var collar_y := _set_narrowest_y(kind, 0.62, 0.88)
 		if collar_y > 0.0:
-			_flush_band_add(parts, _set_radius_at(kind, collar_y) - 0.002, Vector3(0, collar_y, 0), 0.016, 0.007)
+			_flush_band_add(parts, _set_ring_radius(kind, collar_y) - 0.002, Vector3(0, collar_y, 0), 0.016, 0.007)
 		return parts
 	# Tiered foot. The lower collar is a fluted lathe rather than a smooth
 	# cylinder, and the fluting is shallow: 0.008 of amplitude over 16 grooves.
