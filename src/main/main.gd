@@ -858,7 +858,10 @@ func _piece_mesh(kind: String) -> Mesh:
 	var plinth_top := -1.0
 	if _piece_set() != "staunton":
 		plinth_top = SET_PLINTH_FRACTION[kind] * highest
-		plinth_tint = Color(0.60, 0.60, 0.63)
+		# A cool carved stone against the warm glazed figure above it. Not darker
+		# than this: at 0.60 the plinth read as a black puck and the white army
+		# looked like figures standing on holes.
+		plinth_tint = Color(0.80, 0.80, 0.86)
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in positions.size():
@@ -1972,25 +1975,33 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 		# Two rules on the plinth, the way a jewelled base is banded, then a
 		# third on the narrowest point between waist and shoulder - the neck of a
 		# figure, which is where a collar reads as worn rather than applied.
-		# The two rules sit on the plinth, at six and nine per cent of the piece's
-		# own height. As a fraction rather than in absolute units, because a pawn
-		# is 0.91 tall and a king 1.62 and their plinths are not the same size:
-		# absolute heights put the upper rule on the pawn's foot and halfway up
-		# the king's robe.
-		var height := _set_height(kind)
-		var lower_rule := 0.060 * height
-		var upper_rule := 0.092 * height
-		# These three bands are deliberately thicker and prouder than the turned
-		# set's hairlines. A sculpted figure is 0.30 across at the plinth and is
-		# about 200 pixels wide on the screen the game is played on, so the turned
-		# set's 0.012-by-0.004 rule lands as a one-pixel scribe mark and vanishes.
-		# At 0.022 by 0.007 the ring is four or five pixels and reads as the
-		# inlay it is meant to be, which is the whole reason it is there.
-		_flush_band_add(parts, _set_radius_at(kind, lower_rule), Vector3(0, lower_rule, 0), 0.022, 0.007)
-		_flush_band_add(parts, _set_radius_at(kind, upper_rule), Vector3(0, upper_rule, 0), 0.018, 0.006)
-		var collar_y := _set_narrowest_y(kind, 0.62, 0.86)
+		# Two rings per figure, both at a *waist* of its own silhouette: the neck
+		# between shoulders and head, and the waist between hips and chest. That
+		# is deliberate. A band laid at an arbitrary height sits on a surface
+		# that is leaning, so the ring either cuts into the piece on the uphill
+		# side or floats clear of it on the downhill side - which is exactly what
+		# the first attempt did, and it read as a bracelet hovering round the
+		# base. At a local minimum of the radius the surface is near-vertical all
+		# the way round the ring, so the inlay lands in the carving: a collar at
+		# the throat and a belt at the waist, the two places a figure is dressed
+		# rather than a place the geometry happens to allow.
+		#
+		# They are also thicker than the turned set's hairlines - 0.018 tall and
+		# 0.006 proud against 0.012 and 0.004 - because a sculpted figure is
+		# about 200 pixels wide on the screen the game is played on and a
+		# one-pixel gold line simply is not visible there.
+		# Two thousandths inside the measured radius, and therefore eight
+		# thousandths proud of it: the band's inner edge is always buried in the
+		# surface, so an error of a couple of thousandths in the profile - which
+		# a 96-bin read of a rounded mesh can have - sinks the ring slightly
+		# instead of leaving it hanging in the air. Sunk reads as inlay; floating
+		# reads as a mistake.
+		var belt_y := _set_narrowest_y(kind, 0.22, 0.46)
+		if belt_y > 0.0:
+			_flush_band_add(parts, _set_radius_at(kind, belt_y) - 0.002, Vector3(0, belt_y, 0), 0.020, 0.008)
+		var collar_y := _set_narrowest_y(kind, 0.62, 0.88)
 		if collar_y > 0.0:
-			_flush_band_add(parts, _set_radius_at(kind, collar_y) + 0.002, Vector3(0, collar_y, 0), 0.016, 0.005)
+			_flush_band_add(parts, _set_radius_at(kind, collar_y) - 0.002, Vector3(0, collar_y, 0), 0.016, 0.007)
 		return parts
 	# Tiered foot. The lower collar is a fluted lathe rather than a smooth
 	# cylinder, and the fluting is shallow: 0.008 of amplitude over 16 grooves.
