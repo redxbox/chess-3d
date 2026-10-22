@@ -933,11 +933,15 @@ func _piece_mesh(kind: String) -> Mesh:
 ## happens on a mesh whose base is not where the profile says it is.
 func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_top: float, highest: float) -> bool:
 	const BINS := 96
-	const ROWS := 7
+	const ROWS := 8
 	# The skirt covers the upper half of the plinth. Below that is the flare, which
 	# the camera sees the top of; above it is the figure.
-	var band_low := plinth_top * 0.42
-	var band_high := plinth_top * 0.96
+	# Down on the body of the base rather than up under the figure: the figures
+	# stand in draped cloth and hang tails over the top of their plinths, so a band
+	# that reaches the shoulder is fighting the sculpture for the same pixels. The
+	# lower two-thirds of the base is clean stone in every one of the six meshes.
+	var band_low := plinth_top * 0.24
+	var band_high := plinth_top * 0.72
 	var scaled := PackedFloat32Array()
 	scaled.resize(positions.size())
 	var angles := PackedFloat32Array()
@@ -992,7 +996,7 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 			row_radius[row * BINS + bin] = samples[bin]
 	# A little clearance: the measurement is of vertex rows, and the surface
 	# between them can stand a touch further out than the rows do.
-	var clearance := 0.006 * highest
+	var clearance := 0.010 * highest
 	var segments := BINS
 	for row in ROWS - 1:
 		var low_height := band_low + (band_high - band_low) * float(row) / float(ROWS - 1)
