@@ -263,10 +263,6 @@ var _board_light_material: StandardMaterial3D
 var _board_dark_material: StandardMaterial3D
 var _piece_ivory_material: Material
 var _piece_obsidian_material: Material
-## Gold for the rule round a sculpted figure's foot. It is the same metal on both
-## armies - that is the point of it - so one shared material serves all 32 pieces,
-## which is also what keeps the extra surface from costing an extra material each.
-var _gold_rule_material: Material
 var _piece_gold_material: StandardMaterial3D
 var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
@@ -882,8 +878,8 @@ func _piece_mesh(kind: String) -> Mesh:
 	var gold_high := 0.0
 	if _piece_set() != "staunton":
 		var plinth_top: float = float(SET_PLINTH_FRACTION.get(kind, 0.11)) * highest
-		gold_low = plinth_top - 0.004 * highest
-		gold_high = plinth_top + 0.022 * highest
+		gold_low = plinth_top - 0.006 * highest
+		gold_high = plinth_top + 0.026 * highest
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rule := SurfaceTool.new()
@@ -1487,7 +1483,7 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	if model.mesh != null and model.mesh.get_surface_count() > 1:
 		model.set_surface_override_material(0, body)
 		for surface in range(1, model.mesh.get_surface_count()):
-			model.set_surface_override_material(surface, _gold_rule())
+			model.set_surface_override_material(surface, accent)
 	else:
 		model.material_override = body
 	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
@@ -4002,16 +3998,6 @@ func _new_game() -> void:
 	_update_move_history()
 	_update_captured_pieces()
 	_save_autosave()
-
-
-## The gold a sculpted figure's foot is banded with. Warm rather than yellow, and
-## only moderately rough: at this size the rule is a few pixels wide, so it lives
-## or dies on whether it catches a highlight, and a mirror finish loses the form
-## of the band to a single white speck.
-func _gold_rule() -> Material:
-	if _gold_rule_material == null:
-		_gold_rule_material = _luxury_piece_material(Color(0.86, 0.68, 0.28), 0.26, 0.9)
-	return _gold_rule_material
 
 
 func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false, sheen := 0.30, figure: Texture2D = null, normal: Texture2D = null, bump_scale := 0.7, clearcoat := 0.40, clearcoat_roughness := 0.20, tinted := false) -> StandardMaterial3D:
