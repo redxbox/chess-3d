@@ -1003,7 +1003,7 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 	clearance_profile.resize(ROWS)
 	for row in ROWS:
 		var t := float(row) / float(ROWS - 1)
-		clearance_profile[row] = (-0.006 + 0.018 * sin(PI * t)) * highest
+		clearance_profile[row] = (-0.010 + 0.026 * sin(PI * t)) * highest
 	var segments := BINS
 	for row in ROWS - 1:
 		var low_height := band_low + (band_high - band_low) * float(row) / float(ROWS - 1)
