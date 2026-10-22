@@ -904,6 +904,7 @@ func _piece_mesh(kind: String) -> Mesh:
 	# a clean edge in the geometry rather than a colour gradient across it. Its
 	# vertices are emitted unindexed: it is a few hundred triangles, and welding
 	# them would buy nothing.
+	var has_rule := false
 	var tri_count := indices.size() / 3
 	for t in tri_count:
 		var a := indices[t * 3]
@@ -911,6 +912,7 @@ func _piece_mesh(kind: String) -> Mesh:
 		var c := indices[t * 3 + 2]
 		var centre_y := (positions[a].y + positions[b].y + positions[c].y) / 3.0
 		var is_rule := gold_high > 0.0 and centre_y >= gold_low and centre_y <= gold_high
+		has_rule = has_rule or is_rule
 		if is_rule:
 			for index in [a, b, c]:
 				var vertex: Vector3 = positions[index]
@@ -931,7 +933,7 @@ func _piece_mesh(kind: String) -> Mesh:
 	# out to flat white, and without tangents the carve map cannot be applied.
 	tool.generate_tangents()
 	var mesh := tool.commit()
-	if rule.get_vertex_count() > 0:
+	if has_rule:
 		rule.generate_tangents()
 		mesh = rule.commit(mesh)
 	_mesh_cache[cache_key] = mesh
@@ -1482,7 +1484,7 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	# foot - and material_override would bury that surface under the body colour.
 	# Where there are two surfaces the materials are set per surface instead,
 	# which is per instance and so still lets the two armies share one mesh.
-	if model.mesh.get_surface_count() > 1:
+	if model.mesh != null and model.mesh.get_surface_count() > 1:
 		model.set_surface_override_material(0, body)
 		for surface in range(1, model.mesh.get_surface_count()):
 			model.set_surface_override_material(surface, _gold_rule())
