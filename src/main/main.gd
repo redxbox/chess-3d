@@ -263,6 +263,10 @@ var _board_light_material: StandardMaterial3D
 var _board_dark_material: StandardMaterial3D
 var _piece_ivory_material: Material
 var _piece_obsidian_material: Material
+## Gold for the rule round a sculpted figure's foot. It is the same metal on both
+## armies - that is the point of it - so one shared material serves all 32 pieces,
+## which is also what keeps the extra surface from costing an extra material each.
+var _gold_rule_material: Material
 var _piece_gold_material: StandardMaterial3D
 var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
@@ -862,41 +866,32 @@ func _piece_mesh(kind: String) -> Mesh:
 	# have meant splitting the mesh and paying a draw call for a tone change.
 	# The material reads the colour as an albedo multiplier (white = untouched),
 	# so the turned set, whose meshes carry no colour array at all, is unaffected.
-	var plinth_tint := Color(1.0, 1.0, 1.0)
-	# The gold rule is a multiplier on the body albedo, not a material of its own,
-	# so it is given values above 1 - and high enough that the *dark* army's line
-	# still reads, which is the hard half. The pale albedo is about 0.78, so
-	# 3.2 / 2.2 / 0.75 lands it at 2.5 / 1.7 / 0.55: clipped in the red channel,
-	# which on a narrow band is exactly what polished gold does. The lapis albedo
-	# is about 0.15, so the same multiplier gives 0.48 / 0.34 / 0.24 - a bronze
-	# rule on blue stone, which is what gold looks like in shadow.
-	var gold_tint := Color(4.2, 2.9, 1.0)
-	var gold_top := -1.0
-	var plinth_top := -1.0
+	# The gold rule round the foot of a sculpted figure. It is cut out of the
+	# body's own triangles - everything whose centre lies in a thin slab just
+	# above the plinth - and given a second surface with a real metal material.
+	#
+	# The first version of this tinted those vertices with an albedo multiplier
+	# above 1. That works on the pale army and fails on the lapis one, and it
+	# cannot be made to work: one multiplier serves an albedo of 0.78 and one of
+	# 0.19, so whatever is gold on one army is a dull grey-brown line on the
+	# other, and pushing the multiplier high enough for the dark army clips the
+	# pale one to white. Real gold is a material, not a brightness, so it is a
+	# material. One extra surface per figure: 32 extra draw calls for the set,
+	# on about 800 triangles each, which is nothing next to the sculpture.
+	var gold_low := 0.0
+	var gold_high := 0.0
 	if _piece_set() != "staunton":
-		plinth_top = float(SET_PLINTH_FRACTION.get(kind, 0.11)) * highest
-		# The plinth is left at the piece's own colour. A darker stone base was
-		# tried and it cannot work here: the mesh is shared between the two
-		# armies, so one multiplier has to serve an albedo of 0.78 and an albedo
-		# of 0.16, and a value that reads as grey stone on the pale set reads as
-		# nothing at all on the dark one. The break in colour comes from the gold
-		# rule above it, which is the one thing that can be bright on both.
-		# A narrow rule, a hair under one per cent of the piece's height: at the
-		# size a figure is drawn that is about four pixels, which is a line of
-		# inlay. Twice this width reads as a stripe of paint instead.
-		gold_top = plinth_top + 0.020 * highest
+		var plinth_top: float = float(SET_PLINTH_FRACTION.get(kind, 0.11)) * highest
+		gold_low = plinth_top - 0.004 * highest
+		gold_high = plinth_top + 0.022 * highest
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rule := SurfaceTool.new()
+	rule.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in positions.size():
 		var vertex: Vector3 = positions[i]
 		var angle := atan2(vertex.z, vertex.x)
-		if plinth_top > 0.0:
-			if vertex.y >= plinth_top and vertex.y < gold_top:
-				tool.set_color(gold_tint)
-			elif vertex.y < plinth_top:
-				tool.set_color(plinth_tint)
-			else:
-				tool.set_color(Color(1.0, 1.0, 1.0))
+		tool.set_color(Color(1.0, 1.0, 1.0))
 		# Two wraps around the piece keeps the carving fine enough to read as
 		# detail rather than as one big smear.
 		if has_normals:
@@ -905,14 +900,40 @@ func _piece_mesh(kind: String) -> Mesh:
 			tool.set_normal(smoothed[i])
 		tool.set_uv(Vector2(angle / TAU + 0.5, (vertex.y - lowest) / span) * 2.0)
 		tool.add_vertex(vertex)
-	for index in indices:
-		tool.add_index(index)
+	# Triangles are assigned whole, by the height of their centre, so the rule has
+	# a clean edge in the geometry rather than a colour gradient across it. Its
+	# vertices are emitted unindexed: it is a few hundred triangles, and welding
+	# them would buy nothing.
+	var tri_count := indices.size() / 3
+	for t in tri_count:
+		var a := indices[t * 3]
+		var b := indices[t * 3 + 1]
+		var c := indices[t * 3 + 2]
+		var centre_y := (positions[a].y + positions[b].y + positions[c].y) / 3.0
+		var is_rule := gold_high > 0.0 and centre_y >= gold_low and centre_y <= gold_high
+		if is_rule:
+			for index in [a, b, c]:
+				var vertex: Vector3 = positions[index]
+				var angle := atan2(vertex.z, vertex.x)
+				if has_normals:
+					rule.set_normal(source_normals[index])
+				else:
+					rule.set_normal(smoothed[index])
+				rule.set_uv(Vector2(angle / TAU + 0.5, (vertex.y - lowest) / span) * 2.0)
+				rule.add_vertex(vertex)
+		else:
+			tool.add_index(a)
+			tool.add_index(b)
+			tool.add_index(c)
 	# The Staunton bodies carry neither vt nor vn records, so they arrive with no
 	# UV and no normal attribute. Both are produced here: without them the
 	# renderer samples undefined coordinates, which is what used to blow the ivory
 	# out to flat white, and without tangents the carve map cannot be applied.
 	tool.generate_tangents()
 	var mesh := tool.commit()
+	if rule.get_vertex_count() > 0:
+		rule.generate_tangents()
+		mesh = rule.commit(mesh)
 	_mesh_cache[cache_key] = mesh
 	return mesh
 
@@ -1427,6 +1448,10 @@ func _apply_piece_materials(piece: Node3D, body: Material) -> void:
 			continue
 		if mesh_instance.name == "OrnateTrim":
 			continue
+		# A mesh with more than one surface has already been given a material per
+		# surface; overriding it here would paint the gold rule out.
+		if mesh_instance.mesh != null and mesh_instance.mesh.get_surface_count() > 1:
+			continue
 		if mesh_instance.material_override == null:
 			mesh_instance.material_override = body
 
@@ -1453,7 +1478,16 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	var model := MeshInstance3D.new()
 	model.name = "SculptedModel"
 	model.mesh = _piece_mesh(kind)
-	model.material_override = body
+	# A sculpted body can carry a second surface - the gold rule cut out of its
+	# foot - and material_override would bury that surface under the body colour.
+	# Where there are two surfaces the materials are set per surface instead,
+	# which is per instance and so still lets the two armies share one mesh.
+	if model.mesh.get_surface_count() > 1:
+		model.set_surface_override_material(0, body)
+		for surface in range(1, model.mesh.get_surface_count()):
+			model.set_surface_override_material(surface, _gold_rule())
+	else:
+		model.material_override = body
 	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	model.rotation.y = _piece_yaw(kind, file, is_white)
 	piece.add_child(model)
@@ -3966,6 +4000,16 @@ func _new_game() -> void:
 	_update_move_history()
 	_update_captured_pieces()
 	_save_autosave()
+
+
+## The gold a sculpted figure's foot is banded with. Warm rather than yellow, and
+## only moderately rough: at this size the rule is a few pixels wide, so it lives
+## or dies on whether it catches a highlight, and a mirror finish loses the form
+## of the band to a single white speck.
+func _gold_rule() -> Material:
+	if _gold_rule_material == null:
+		_gold_rule_material = _luxury_piece_material(Color(0.86, 0.68, 0.28), 0.26, 0.9)
+	return _gold_rule_material
 
 
 func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false, sheen := 0.30, figure: Texture2D = null, normal: Texture2D = null, bump_scale := 0.7, clearcoat := 0.40, clearcoat_roughness := 0.20, tinted := false) -> StandardMaterial3D:
