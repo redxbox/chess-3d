@@ -940,8 +940,8 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 	# stand in draped cloth and hang tails over the top of their plinths, so a band
 	# that reaches the shoulder is fighting the sculpture for the same pixels. The
 	# lower two-thirds of the base is clean stone in every one of the six meshes.
-	var band_low := plinth_top * 0.24
-	var band_high := plinth_top * 0.72
+	var band_low := plinth_top * 0.26
+	var band_high := plinth_top * 0.60
 	var scaled := PackedFloat32Array()
 	scaled.resize(positions.size())
 	var angles := PackedFloat32Array()
@@ -1003,7 +1003,7 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 	clearance_profile.resize(ROWS)
 	for row in ROWS:
 		var t := float(row) / float(ROWS - 1)
-		clearance_profile[row] = (-0.010 + 0.026 * sin(PI * t)) * highest
+		clearance_profile[row] = (-0.008 + 0.020 * sin(PI * t)) * highest
 	var segments := BINS
 	for row in ROWS - 1:
 		var low_height := band_low + (band_high - band_low) * float(row) / float(ROWS - 1)
