@@ -195,18 +195,28 @@ const PIECE_THEMES := {
 	# of the colours as well as of the carving. Celadon is desaturated, not mint;
 	# a mint piece reads as plastic the moment the key light hits it.
 	"court": {
-		"label": "CELADON & NEPHRITE",
+		"label": "JADE & LAPIS",
 		"model_set": "court",
-		"light": Color(0.655, 0.775, 0.705),
-		"dark": Color(0.125, 0.235, 0.255),
-		"accent": Color(0.80, 0.64, 0.26),
-		"light_roughness": 0.20,
-		"dark_roughness": 0.28,
-		"accent_roughness": 0.46,
-		"accent_metallic": 0.30,
+		# The two armies are told apart by hue and by value at once. The pale set
+		# is a warm carved-jade ivory - not the celadon it started as, which read
+		# as the same colour as the black set's highlights once the key light hit
+		# it - and the dark set is lapis: a blue-violet stone, near-black in the
+		# folds but never black, because a robe with no albedo has no shading on
+		# it and the figures are all robe.
+		"light": Color(0.775, 0.805, 0.735),
+		"dark": Color(0.115, 0.155, 0.325),
+		"accent": Color(0.83, 0.66, 0.27),
+		# Glazed stone: a tight lobe, so the folds of the robes carry a highlight
+		# along them instead of a flat wash. This is the finish the figures were
+		# modelled for, and it is what makes armour and cloth read as different
+		# materials even where the mesh is one surface.
+		"light_roughness": 0.17,
+		"dark_roughness": 0.21,
+		"accent_roughness": 0.40,
+		"accent_metallic": 0.35,
 		"trim_variant": "court",
-		"swatch_light": Color(0.72, 0.84, 0.77),
-		"swatch_dark": Color(0.125, 0.235, 0.255),
+		"swatch_light": Color(0.84, 0.86, 0.79),
+		"swatch_dark": Color(0.115, 0.155, 0.325),
 	},
 	"classic": {
 		"label": "ALABASTER & OBSIDIAN",
@@ -712,7 +722,7 @@ func _setup_piece_materials() -> void:
 	# it climbing to 1.0 and clipping to flat white under ACES - and a clipped
 	# surface has no shading and no shadow gradient left anywhere on it to show
 	# the carving. Pure white is never a white-piece albedo.
-	_piece_ivory_material = _luxury_piece_material(body_light, palette.light_roughness, 0.05, false, false, 0.06, null, carve, 0.25)
+	_piece_ivory_material = _luxury_piece_material(body_light, palette.light_roughness, 0.05, false, false, 0.06, null, carve, 0.25, 0.40, 0.20, true)
 	# Black pieces: never pure black. A satin body with a real clearcoat lobe is
 	# what gives the camera-facing side of a dark piece a highlight, so it reads
 	# as a solid object beside the white set instead of a silhouette. The
@@ -722,7 +732,7 @@ func _setup_piece_materials() -> void:
 	# the sky reflection and the rim light's grazing lobe rode on top of the
 	# diffuse and the crown, the collars and the coronet bands all clipped to
 	# white rings wherever the light caught them.
-	_piece_obsidian_material = _luxury_piece_material(body_dark, palette.dark_roughness, 0.12, false, false, 0.35, null, carve, 0.25, 0.40, 0.20)
+	_piece_obsidian_material = _luxury_piece_material(body_dark, palette.dark_roughness, 0.12, false, false, 0.35, null, carve, 0.25, 0.40, 0.20, true)
 	# The trim has to be readable on the side of the piece the camera actually
 	# sees, and that decides its metallicity. The key light sits at yaw -32,
 	# i.e. it arrives from -X, so every face pointing at the camera (+X) gets
@@ -836,11 +846,26 @@ func _piece_mesh(kind: String) -> Mesh:
 	var smoothed: PackedVector3Array = PackedVector3Array()
 	if not has_normals:
 		smoothed = _smoothed_normals(positions, indices)
+	# A tenth of the piece's height is its plinth. That band is darkened here,
+	# per vertex, rather than modelled as a second material and a second draw
+	# call: the plinths are engraved stone and the figures on them are glazed
+	# figures, and one value apart is enough to say so - it is the shading of the
+	# carving above it that has to stay readable, and a second material would
+	# have meant splitting the mesh and paying a draw call for a tone change.
+	# The material reads the colour as an albedo multiplier (white = untouched),
+	# so the turned set, whose meshes carry no colour array at all, is unaffected.
+	var plinth_tint := Color(1.0, 1.0, 1.0)
+	var plinth_top := -1.0
+	if _piece_set() != "staunton":
+		plinth_top = SET_PLINTH_FRACTION[kind] * highest
+		plinth_tint = Color(0.60, 0.60, 0.63)
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in positions.size():
 		var vertex: Vector3 = positions[i]
 		var angle := atan2(vertex.z, vertex.x)
+		if plinth_top > 0.0:
+			tool.set_color(plinth_tint if vertex.y < plinth_top else Color(1.0, 1.0, 1.0))
 		# Two wraps around the piece keeps the carving fine enough to read as
 		# detail rather than as one big smear.
 		if has_normals:
@@ -860,6 +885,21 @@ func _piece_mesh(kind: String) -> Mesh:
 	_mesh_cache[cache_key] = mesh
 	return mesh
 
+
+## Where the plinth ends, as a fraction of each piece's own height. Read off the
+## radius profile of the shipped meshes: the base flares to 0.38 on the king and
+## steps in to 0.26 just above the engraving, and the same step is at 0.10 of the
+## height on the figures that stand rather than sit. One number per kind rather
+## than one for the set, because a rook's plinth is proportionally taller than a
+## queen's.
+const SET_PLINTH_FRACTION := {
+	"pawn": 0.105,
+	"rook": 0.150,
+	"knight": 0.135,
+	"bishop": 0.125,
+	"queen": 0.110,
+	"king": 0.105,
+}
 
 ## The silhouette the Staunton bodies ship with, sampled once per kind and
 ## cached. The ornament lathe follows this instead of an invented curve, so the
@@ -925,6 +965,90 @@ func _body_radius_at(kind: String, y: float) -> float:
 	if i >= radii.size() - 1:
 		return radii[radii.size() - 1]
 	return lerpf(radii[i], radii[i + 1], scaled - float(i))
+
+
+## Radius of a *sculpted* piece at a height, taken from the mesh itself.
+##
+## The turned sets' silhouette is a table of numbers (_body_profile), so every
+## band and collar can ask for the radius analytically. A sculpted piece has no
+## such table: a guard is 0.40 wide at the plinth and 0.16 at the neck, a
+## queen's robe flares out where the king's does not, and the two are different
+## shapes at the same height. Asking the Staunton table about them - which is
+## what the trim used to do - put every gold rule a centimetre off the surface,
+## floating round the piece like a dropped bracelet. So the radius is measured
+## from the vertices once per set and kind and cached as a 96-bin profile.
+const SET_PROFILE_STEPS := 96
+
+
+func _set_profile(kind: String) -> Dictionary:
+	var key := "setprofile:%s:%s" % [_piece_set(), kind]
+	if _mesh_cache.has(key):
+		return _mesh_cache[key]
+	var profile := PackedFloat32Array()
+	profile.resize(SET_PROFILE_STEPS)
+	var height := 0.0
+	var models := _piece_models()
+	var mesh: Mesh = models.get(kind)
+	if mesh != null and mesh.get_surface_count() > 0:
+		var positions: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		for point in positions:
+			height = maxf(height, point.y)
+		if height > 0.0001:
+			for point in positions:
+				var bin := int(clampf(point.y / height, 0.0, 0.999999) * float(SET_PROFILE_STEPS - 1))
+				profile[bin] = maxf(profile[bin], Vector2(point.x, point.z).length())
+	var described := {"profile": profile, "height": height}
+	_mesh_cache[key] = described
+	return described
+
+
+## How tall the current set's piece of this kind is, in board units.
+func _set_height(kind: String) -> float:
+	if _piece_set() == "staunton":
+		var profile: Dictionary = _body_profile(kind)
+		return float(profile.lowest) + float(profile.span)
+	var described := _set_profile(kind)
+	return float(described.height)
+
+
+## The radius of the current set's body at a height, in board units.
+func _set_radius_at(kind: String, y: float) -> float:
+	if _piece_set() == "staunton":
+		return _body_radius_at(kind, y)
+	var described := _set_profile(kind)
+	var profile: PackedFloat32Array = described.profile
+	var height: float = described.height
+	if height <= 0.0001:
+		return 0.0
+	var scaled: float = clampf(y / height, 0.0, 1.0) * float(profile.size() - 1)
+	var i := int(floorf(scaled))
+	if i >= profile.size() - 1:
+		return profile[profile.size() - 1]
+	return lerpf(profile[i], profile[i + 1], scaled - float(i))
+
+
+## The height where a sculpted piece is narrowest between two fractions of its
+## own height. That is the neck of a figure and the waist of a turned body, and
+## it is where a collar or a ring of inlay belongs, so it is worth finding
+## rather than hard-coding a number that is right for the king and wrong for
+## the pawn.
+func _set_narrowest_y(kind: String, low_fraction: float, high_fraction: float) -> float:
+	var described := _set_profile(kind)
+	var profile: PackedFloat32Array = described.profile
+	var height: float = described.height
+	if height <= 0.0001:
+		return 0.0
+	var low := int(low_fraction * float(profile.size() - 1))
+	var high := int(high_fraction * float(profile.size() - 1))
+	var best := -1
+	for i in range(low, high + 1):
+		if profile[i] <= 0.0:
+			continue
+		if best < 0 or profile[i] < profile[best]:
+			best = i
+	if best < 0:
+		return 0.0
+	return float(best) / float(profile.size() - 1) * height
 
 
 ## d(radius)/d(height) of the shipped silhouette, differenced numerically so the
@@ -1248,13 +1372,28 @@ func _facing_yaw(is_white: bool) -> float:
 	return 0.0 if is_white else PI
 
 
-## Which way a knight's horse head points: at the enemy, like every other piece.
+## How far to turn one piece so that it faces the enemy.
 ##
-## See _facing_yaw() for the reasoning and for why the two body sets need
-## opposite yaws. The quarter turns (+-90 degrees) were rejected outright - nose
-## on into the board's flank is not how a set is arranged.
-func _knight_yaw(_file: int, is_white: bool) -> float:
-	return _facing_yaw(is_white)
+## Which kinds have a front at all is a property of the set, and getting that
+## wrong is visible immediately:
+##
+##  * The turned Staunton bodies are bodies of revolution. Only the bishop has a
+##    side at all - its mitre slit is cut on one face - so only the bishop is
+##    turned, by a quarter turn, which is what squares the slit to the camera.
+##  * Both sculpted sets are full figures. The pawn is a guard with a shield on
+##    one arm and a spear in the other hand, the bishop is an elephant, the
+##    knight is a rearing horse, and the king and queen hold a sceptre and a
+##    cup in front of them. Every one of those has a front, so every one of
+##    them gets the per-army facing yaw. Leaving the pawn out - which is what
+##    happened when only the king and queen were listed - left a rank of guards
+##    staring at their own player while the rest of the army faced the enemy.
+func _piece_yaw(kind: String, _file: int, is_white: bool) -> float:
+	if _piece_set() == "staunton":
+		return PI * 0.25 if (kind == "bishop" and is_white) else (PI * 1.25 if kind == "bishop" else 0.0)
+	match kind:
+		"pawn", "knight", "bishop", "king", "queen":
+			return _facing_yaw(is_white)
+	return 0.0
 
 
 ## Which carved variant the current piece theme asks for. Kept in one place so
@@ -1308,17 +1447,7 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	model.mesh = _piece_mesh(kind)
 	model.material_override = body
 	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	# Which kinds have a front at all differs by set: the turned Staunton bodies
-	# are symmetric except the bishop, whose mitre slit is cut on one side, while
-	# the sculpted set has a knight that is entirely a profile and a king and
-	# queen holding a staff and an orb in front of them. Those four are turned to
-	# face the enemy; everything else is radially symmetric and needs nothing.
-	if kind == "bishop":
-		model.rotation.y = PI * 0.25 if is_white else PI * 1.25
-	elif kind == "knight":
-		model.rotation.y = _knight_yaw(file, is_white)
-	elif _piece_set() != "staunton" and (kind == "king" or kind == "queen"):
-		model.rotation.y = _facing_yaw(is_white)
+	model.rotation.y = _piece_yaw(kind, file, is_white)
 	piece.add_child(model)
 	# The Staunton bodies are deliberately plain, so all the carving - tiered
 	# foot, filigree, fluting, collars and the crowns - lives in this one merged
@@ -1827,13 +1956,28 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	# it sits flush instead of being buried in the wood.
 	if not turned:
 		# Both sculpted sets are turned=False: their feet are carved into the body
-		# rather than lathed, so the only metal they get is a pair of gold rules
-		# let into the plinth, at the same two heights the turned pieces use.
-		# The radius comes from the body mesh at each height, so the rules follow
-		# a wide engraved plinth and a narrow waist alike instead of floating off
-		# one and sinking into the other.
-		_flush_band_add(parts, _body_radius_at(kind, 0.108), Vector3(0, 0.108, 0), 0.012, 0.004)
-		_flush_band_add(parts, _body_radius_at(kind, 0.146), Vector3(0, 0.146, 0), 0.010, 0.004)
+		# rather than lathed, so the metal they get is a set of gold rules let
+		# into the surface rather than a lathed foot. Every radius below is
+		# measured from the piece's own mesh (see _set_radius_at), which is what
+		# keeps them in the carving: the same two heights land on the plinth rim
+		# of a guard and on the flared hem of a queen, and both sit flush.
+		#
+		# Two rules on the plinth, the way a jewelled base is banded, then a
+		# third on the narrowest point between waist and shoulder - the neck of a
+		# figure, which is where a collar reads as worn rather than applied.
+		# The two rules sit on the plinth, at six and nine per cent of the piece's
+		# own height. As a fraction rather than in absolute units, because a pawn
+		# is 0.91 tall and a king 1.62 and their plinths are not the same size:
+		# absolute heights put the upper rule on the pawn's foot and halfway up
+		# the king's robe.
+		var height := _set_height(kind)
+		var lower_rule := 0.060 * height
+		var upper_rule := 0.092 * height
+		_flush_band_add(parts, _set_radius_at(kind, lower_rule), Vector3(0, lower_rule, 0), 0.012, 0.004)
+		_flush_band_add(parts, _set_radius_at(kind, upper_rule), Vector3(0, upper_rule, 0), 0.010, 0.004)
+		var collar_y := _set_narrowest_y(kind, 0.62, 0.86)
+		if collar_y > 0.0:
+			_flush_band_add(parts, _set_radius_at(kind, collar_y) + 0.002, Vector3(0, collar_y, 0), 0.009, 0.003)
 		return parts
 	# Tiered foot. The lower collar is a fluted lathe rather than a smooth
 	# cylinder, and the fluting is shallow: 0.008 of amplitude over 16 grooves.
@@ -3789,9 +3933,13 @@ func _new_game() -> void:
 	_save_autosave()
 
 
-func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false, sheen := 0.30, figure: Texture2D = null, normal: Texture2D = null, bump_scale := 0.7, clearcoat := 0.40, clearcoat_roughness := 0.20) -> StandardMaterial3D:
+func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false, sheen := 0.30, figure: Texture2D = null, normal: Texture2D = null, bump_scale := 0.7, clearcoat := 0.40, clearcoat_roughness := 0.20, tinted := false) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
+	# The sculpted bodies bake their plinth a shade darker into vertex colour
+	# (see _piece_mesh). Only the body materials read it - a mesh without a
+	# colour array multiplies by white, so the turned set is untouched.
+	material.vertex_color_use_as_albedo = tinted
 	material.roughness = roughness
 	material.metallic = metallic
 	material.metallic_specular = sheen
