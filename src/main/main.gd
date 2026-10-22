@@ -859,6 +859,14 @@ func _piece_mesh(kind: String) -> Mesh:
 	# The material reads the colour as an albedo multiplier (white = untouched),
 	# so the turned set, whose meshes carry no colour array at all, is unaffected.
 	var plinth_tint := Color(1.0, 1.0, 1.0)
+	# The gold rule is a multiplier on the body albedo, not a material of its own,
+	# so it is given values above 1: the pale army's albedo is about 0.78 and the
+	# dark army's about 0.15, and the same stripe has to come out gold on both.
+	# 2.4 / 1.5 / 0.35 lands the pale set at 1.9 / 1.2 / 0.27 - a soft clipped
+	# band of warm metal - and the dark set at 0.36 / 0.23 / 0.05, which is a
+	# bronze line on lapis. It is one line of colour, not a second material.
+	var gold_tint := Color(2.4, 1.5, 0.35)
+	var gold_top := -1.0
 	var plinth_top := -1.0
 	if _piece_set() != "staunton":
 		plinth_top = float(SET_PLINTH_FRACTION.get(kind, 0.11)) * highest
@@ -866,13 +874,19 @@ func _piece_mesh(kind: String) -> Mesh:
 		# than this: at 0.60 the plinth read as a black puck and the white army
 		# looked like figures standing on holes.
 		plinth_tint = Color(0.80, 0.80, 0.86)
+		gold_top = plinth_top + 0.020 * highest
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in positions.size():
 		var vertex: Vector3 = positions[i]
 		var angle := atan2(vertex.z, vertex.x)
 		if plinth_top > 0.0:
-			tool.set_color(plinth_tint if vertex.y < plinth_top else Color(1.0, 1.0, 1.0))
+			if vertex.y >= plinth_top and vertex.y < gold_top:
+				tool.set_color(gold_tint)
+			elif vertex.y < plinth_top:
+				tool.set_color(plinth_tint)
+			else:
+				tool.set_color(Color(1.0, 1.0, 1.0))
 		# Two wraps around the piece keeps the carving fine enough to read as
 		# detail rather than as one big smear.
 		if has_normals:
@@ -993,9 +1007,6 @@ func _set_profile(kind: String) -> Dictionary:
 		return _mesh_cache[key]
 	var profile := PackedFloat32Array()
 	profile.resize(SET_PROFILE_STEPS)
-	# (height, radius) for every vertex, kept so a ring can be measured locally
-	# rather than from the binned maximum. See _set_ring_radius().
-	var points := PackedVector2Array()
 	var height := 0.0
 	var models := _piece_models()
 	var mesh: Mesh = models.get(kind)
@@ -1008,8 +1019,7 @@ func _set_profile(kind: String) -> Dictionary:
 				var radius := Vector2(point.x, point.z).length()
 				var bin := int(clampf(point.y / height, 0.0, 0.999999) * float(SET_PROFILE_STEPS - 1))
 				profile[bin] = maxf(profile[bin], radius)
-				points.append(Vector2(point.y, radius))
-	var described := {"profile": profile, "height": height, "points": points}
+	var described := {"profile": profile, "height": height}
 	_mesh_cache[key] = described
 	return described
 
@@ -1037,58 +1047,6 @@ func _set_radius_at(kind: String, y: float) -> float:
 	if i >= profile.size() - 1:
 		return profile[profile.size() - 1]
 	return lerpf(profile[i], profile[i + 1], scaled - float(i))
-
-
-## The radius to lay a ring at, measured locally instead of from the binned
-## maximum.
-##
-## The binned maximum is the widest vertex anywhere in a slab, and on a carved
-## base that is one rocky lobe while the surface between the lobes is a third
-## narrower. A circle built on the maximum therefore leaves the piece on every
-## side except the lobe it was measured on - which is what a hovering ring looks
-## like. This takes the 85th percentile of the vertices within a thin slab
-## around the height: on a base that is roughly round it is the base's radius,
-## and on the flanks of an irregular one it is the surface's radius nearly all
-## the way round, so the ring sits in the carving with its inner edge buried.
-func _set_ring_radius(kind: String, y: float) -> float:
-	var described := _set_profile(kind)
-	var points: PackedVector2Array = described.get("points", PackedVector2Array())
-	if points.is_empty():
-		return _set_radius_at(kind, y)
-	for window in [0.010, 0.018, 0.030, 0.050]:
-		var near := PackedFloat32Array()
-		for point in points:
-			if absf(point.x - y) <= window:
-				near.append(point.y)
-		if near.size() < 24:
-			continue
-		near.sort()
-		return near[int(float(near.size() - 1) * 0.85)]
-	return _set_radius_at(kind, y)
-
-
-## The height where a sculpted piece is narrowest between two fractions of its
-## own height. That is the neck of a figure and the waist of a turned body, and
-## it is where a collar or a ring of inlay belongs, so it is worth finding
-## rather than hard-coding a number that is right for the king and wrong for
-## the pawn.
-func _set_narrowest_y(kind: String, low_fraction: float, high_fraction: float) -> float:
-	var described := _set_profile(kind)
-	var profile: PackedFloat32Array = described.profile
-	var height: float = described.height
-	if height <= 0.0001:
-		return 0.0
-	var low := int(low_fraction * float(profile.size() - 1))
-	var high := int(high_fraction * float(profile.size() - 1))
-	var best := -1
-	for i in range(low, high + 1):
-		if profile[i] <= 0.0:
-			continue
-		if best < 0 or profile[i] < profile[best]:
-			best = i
-	if best < 0:
-		return 0.0
-	return float(best) / float(profile.size() - 1) * height
 
 
 ## d(radius)/d(height) of the shipped silhouette, differenced numerically so the
@@ -2033,28 +1991,18 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 		# a 96-bin read of a rounded mesh can have - sinks the ring slightly
 		# instead of leaving it hanging in the air. Sunk reads as inlay; floating
 		# reads as a mistake.
-		# One bold ribbon, not a set of hairlines. At the size these pieces are
-		# drawn - a figure about 200 pixels tall - a 2-pixel rule is a smudge no
-		# matter how well it is placed, so the metal on a sculpted piece is one
-		# deep ribbon round the top of the plinth, where the eye expects a band on
-		# a jewelled base and where the surface is a machined step rather than a
-		# fold. It is 0.030 tall and stands 0.008 proud: five or six pixels, which
-		# is the point at which a gold band reads as gold.
-		var height := _set_height(kind)
-		# Explicit types on both: indexing a Dictionary yields Variant, and an
-		# inferred := from a Variant is a type the compiler refuses to guess.
-		var plinth_fraction: float = SET_PLINTH_FRACTION.get(kind, 0.11)
-		var ribbon_y: float = plinth_fraction * height * 0.92
-		_flush_band_add(parts, _set_ring_radius(kind, ribbon_y), Vector3(0, ribbon_y, 0), 0.030, 0.008)
-		# A second line only where the figure has a throat to wear it. The horse
-		# and the elephant have a back instead of a neck, and there the narrowest
-		# point of the body is on one flank, not all the way round - so a ring
-		# built there hangs off the other side, which is exactly what a misplaced
-		# collar looks like.
-		if kind == "pawn" or kind == "queen" or kind == "king":
-			var collar_y := _set_narrowest_y(kind, 0.62, 0.88)
-			if collar_y > 0.0:
-				_flush_band_add(parts, _set_ring_radius(kind, collar_y), Vector3(0, collar_y, 0), 0.014, 0.006)
+		# No lathe bands on a sculpted piece, and this is a conclusion rather than
+		# an omission. A band here is a circle of revolution, and a sculpted plinth
+		# is not round: it is scalloped, with lobes that reach 0.19 and valleys at
+		# 0.14. There is no circle that follows that surface - measured from the
+		# lobes it floats over every valley, measured from the valleys it buries
+		# itself in every lobe, and the first attempts did both, which looked like
+		# bangles hanging round the pieces.
+		#
+		# The metal on the sculpted sets is drawn into the mesh instead: a band of
+		# the surface's own vertices is tinted gold in _piece_mesh(). That follows
+		# every lobe and every fold, cannot float, cannot z-fight, and costs no
+		# triangles at all - which is the only way to put a rule on a carving.
 		return parts
 	# Tiered foot. The lower collar is a fluted lathe rather than a smooth
 	# cylinder, and the fluting is shallow: 0.008 of amplitude over 16 grooves.
