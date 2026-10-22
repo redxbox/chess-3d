@@ -925,8 +925,16 @@ func _piece_mesh(kind: String) -> Mesh:
 ## happens on a mesh whose base is not where the profile says it is.
 func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_top: float, highest: float) -> bool:
 	const BINS := 96
-	var sample_low := plinth_top - 0.010 * highest
-	var sample_high := plinth_top + 0.045 * highest
+	# The window has to match the band it is measuring, and this is the whole
+	# trick: sample much wider and the measurement is dominated by the flare below
+	# the step, so the ribbon is built at a radius the plinth has already grown
+	# past and the carving swallows it, leaving slivers of gold showing through.
+	var sample_low := plinth_top + 0.001 * highest
+	var sample_high := plinth_top + 0.026 * highest
+	# The ribbon stands slightly further out than the surface it was measured on,
+	# because the measurement is of vertex rows, not of the true surface between
+	# them.
+	const CLEARANCE := 0.006
 	var best := PackedFloat32Array()
 	var second := PackedFloat32Array()
 	var seen := PackedByteArray()
@@ -974,11 +982,11 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 	# Three rows, so the ribbon has a crown and reads as a raised band rather than
 	# as a painted line: the top and bottom rows sit back on the surface and the
 	# middle row stands a fraction proud.
-	var band_low := plinth_top + 0.002 * highest
-	var band_high := plinth_top + 0.024 * highest
+	var band_low := plinth_top + 0.003 * highest
+	var band_high := plinth_top + 0.023 * highest
 	var band_mid := (band_low + band_high) * 0.5
 	var rows := [band_low, band_mid, band_high]
-	var spreads := [0.988, 1.010, 0.988]
+	var spreads := [0.996, 1.012, 0.996]
 	var tilts := [0.55, 0.0, -0.55]
 	var segments := BINS
 	var ring: Array[PackedVector3Array] = []
@@ -988,7 +996,7 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 		for segment in segments + 1:
 			var bin := segment % BINS
 			var angle := -PI + TAU * float(segment) / float(segments)
-			var radius := float(radii[bin]) * float(spreads[row])
+			var radius := float(radii[bin]) * float(spreads[row]) + CLEARANCE * highest
 			points[segment] = Vector3(cos(angle) * radius, float(rows[row]), sin(angle) * radius)
 		ring.append(points)
 	for row in 2:
