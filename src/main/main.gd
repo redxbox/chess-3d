@@ -860,12 +860,13 @@ func _piece_mesh(kind: String) -> Mesh:
 	# so the turned set, whose meshes carry no colour array at all, is unaffected.
 	var plinth_tint := Color(1.0, 1.0, 1.0)
 	# The gold rule is a multiplier on the body albedo, not a material of its own,
-	# so it is given values above 1: the pale army's albedo is about 0.78 and the
-	# dark army's about 0.15, and the same stripe has to come out gold on both.
-	# 2.4 / 1.5 / 0.35 lands the pale set at 1.9 / 1.2 / 0.27 - a soft clipped
-	# band of warm metal - and the dark set at 0.36 / 0.23 / 0.05, which is a
-	# bronze line on lapis. It is one line of colour, not a second material.
-	var gold_tint := Color(2.4, 1.5, 0.35)
+	# so it is given values above 1 - and high enough that the *dark* army's line
+	# still reads, which is the hard half. The pale albedo is about 0.78, so
+	# 3.2 / 2.2 / 0.75 lands it at 2.5 / 1.7 / 0.55: clipped in the red channel,
+	# which on a narrow band is exactly what polished gold does. The lapis albedo
+	# is about 0.15, so the same multiplier gives 0.48 / 0.34 / 0.24 - a bronze
+	# rule on blue stone, which is what gold looks like in shadow.
+	var gold_tint := Color(3.2, 2.2, 0.75)
 	var gold_top := -1.0
 	var plinth_top := -1.0
 	if _piece_set() != "staunton":
@@ -873,8 +874,11 @@ func _piece_mesh(kind: String) -> Mesh:
 		# A cool carved stone against the warm glazed figure above it. Not darker
 		# than this: at 0.60 the plinth read as a black puck and the white army
 		# looked like figures standing on holes.
-		plinth_tint = Color(0.80, 0.80, 0.86)
-		gold_top = plinth_top + 0.020 * highest
+		plinth_tint = Color(0.74, 0.75, 0.82)
+		# A narrow rule, a hair under one per cent of the piece's height: at the
+		# size a figure is drawn that is about four pixels, which is a line of
+		# inlay. Twice this width reads as a stripe of paint instead.
+		gold_top = plinth_top + 0.014 * highest
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in positions.size():
