@@ -933,7 +933,7 @@ func _piece_mesh(kind: String) -> Mesh:
 ## happens on a mesh whose base is not where the profile says it is.
 func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_top: float, highest: float) -> bool:
 	const BINS := 96
-	const ROWS := 8
+	const ROWS := 10
 	# The skirt covers the upper half of the plinth. Below that is the flare, which
 	# the camera sees the top of; above it is the figure.
 	# Down on the body of the base rather than up under the figure: the figures
@@ -994,9 +994,16 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 			samples = smoothed
 		for bin in BINS:
 			row_radius[row * BINS + bin] = samples[bin]
-	# A little clearance: the measurement is of vertex rows, and the surface
-	# between them can stand a touch further out than the rows do.
-	var clearance := 0.010 * highest
+	# The band's relief, and the shape of it is what stops the ragged edge: the
+	# middle rows stand proud of the stone and the first and last rows sink into
+	# it. A skirt whose rim is exposed has a torn edge where it crosses the
+	# carving; a skirt whose rim is buried in the stone has whatever edge the
+	# carving gives it, which is what an inlaid band looks like.
+	var clearance_profile := PackedFloat32Array()
+	clearance_profile.resize(ROWS)
+	for row in ROWS:
+		var t := float(row) / float(ROWS - 1)
+		clearance_profile[row] = (-0.006 + 0.018 * sin(PI * t)) * highest
 	var segments := BINS
 	for row in ROWS - 1:
 		var low_height := band_low + (band_high - band_low) * float(row) / float(ROWS - 1)
@@ -1006,10 +1013,10 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 			var angle1 := -PI + TAU * float(segment + 1) / float(segments)
 			var bin0 := segment
 			var bin1 := (segment + 1) % BINS
-			var r00 := row_radius[row * BINS + bin0] + clearance
-			var r01 := row_radius[row * BINS + bin1] + clearance
-			var r10 := row_radius[(row + 1) * BINS + bin0] + clearance
-			var r11 := row_radius[(row + 1) * BINS + bin1] + clearance
+			var r00 := row_radius[row * BINS + bin0] + clearance_profile[row]
+			var r01 := row_radius[row * BINS + bin1] + clearance_profile[row]
+			var r10 := row_radius[(row + 1) * BINS + bin0] + clearance_profile[row + 1]
+			var r11 := row_radius[(row + 1) * BINS + bin1] + clearance_profile[row + 1]
 			var a := Vector3(cos(angle0) * r00, low_height, sin(angle0) * r00)
 			var b := Vector3(cos(angle1) * r01, low_height, sin(angle1) * r01)
 			var c := Vector3(cos(angle1) * r11, high_height, sin(angle1) * r11)
