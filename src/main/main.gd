@@ -860,42 +860,30 @@ func _piece_mesh(kind: String) -> Mesh:
 	var smoothed: PackedVector3Array = PackedVector3Array()
 	if not has_normals:
 		smoothed = _smoothed_normals(positions, indices)
-	# A tenth of the piece's height is its plinth. That band is darkened here,
-	# per vertex, rather than modelled as a second material and a second draw
-	# call: the plinths are engraved stone and the figures on them are glazed
-	# figures, and one value apart is enough to say so - it is the shading of the
-	# carving above it that has to stay readable, and a second material would
-	# have meant splitting the mesh and paying a draw call for a tone change.
-	# The material reads the colour as an albedo multiplier (white = untouched),
-	# so the turned set, whose meshes carry no colour array at all, is unaffected.
-	# The gold rule round the foot of a sculpted figure. It is cut out of the
-	# body's own triangles - everything whose centre lies in a thin slab just
-	# above the plinth - and given a second surface with a real metal material.
+	# The gold rule round the foot of a sculpted figure, built as a real ring with
+	# its own surface and material.
 	#
-	# The first version of this tinted those vertices with an albedo multiplier
-	# above 1. That works on the pale army and fails on the lapis one, and it
-	# cannot be made to work: one multiplier serves an albedo of 0.78 and one of
-	# 0.19, so whatever is gold on one army is a dull grey-brown line on the
-	# other, and pushing the multiplier high enough for the dark army clips the
-	# pale one to white. Real gold is a material, not a brightness, so it is a
-	# material. One extra surface per figure: 32 extra draw calls for the set,
-	# on about 800 triangles each, which is nothing next to the sculpture.
-	var gold_low := 0.0
-	var gold_high := 0.0
-	if _piece_set() != "staunton":
-		var plinth_top: float = float(SET_PLINTH_FRACTION.get(kind, 0.11)) * highest
-		# A thin rule on the outer wall of the step, not a cap over it. Both
-		# bounds matter: the slab is narrow so that at the size a figure is drawn
-		# the rule is three or four pixels and reads as inlay rather than as a
-		# poured band, and triangles that face up are excluded in the loop below,
-		# because a gold top surface on a stepped plinth is what made the first
-		# good version look melted.
-		gold_low = plinth_top - 0.004 * highest
-		gold_high = plinth_top + 0.021 * highest
+	# Two earlier versions of this are worth recording, because both failed for
+	# structural reasons rather than for want of tuning. Tinting the vertices with
+	# an albedo multiplier cannot work: one multiplier has to serve a pale albedo
+	# and a lapis one, so the gold on one army is a grey line on the other and
+	# bright enough for the dark army it clips the pale one to white. Cutting the
+	# rule out of the body's own triangles at a fixed height cannot work either:
+	# a carved plinth has no constant radius, so the slab catches the shoulders
+	# where the mesh happens to have vertex rows and breaks into dashes.
+	#
+	# What works is to measure the plinth: sample its radius in angular bins at
+	# the height of the rule, take a high percentile rather than the maximum, and
+	# then sweep a ribbon round those measured radii. The ribbon follows the
+	# lobes, cannot break, cannot float, and is the same gold on both armies.
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rule := SurfaceTool.new()
 	rule.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var has_rule := false
+	if _piece_set() != "staunton" and positions.size() > 0:
+		var plinth_top: float = float(SET_PLINTH_FRACTION.get(kind, 0.11)) * highest
+		has_rule = _add_gold_ribbon(rule, positions, plinth_top, highest)
 	for i in positions.size():
 		var vertex: Vector3 = positions[i]
 		var angle := atan2(vertex.z, vertex.x)
@@ -908,39 +896,8 @@ func _piece_mesh(kind: String) -> Mesh:
 			tool.set_normal(smoothed[i])
 		tool.set_uv(Vector2(angle / TAU + 0.5, (vertex.y - lowest) / span) * 2.0)
 		tool.add_vertex(vertex)
-	# Triangles are assigned whole, by the height of their centre, so the rule has
-	# a clean edge in the geometry rather than a colour gradient across it. Its
-	# vertices are emitted unindexed: it is a few hundred triangles, and welding
-	# them would buy nothing.
-	var has_rule := false
-	var tri_count := indices.size() / 3
-	for t in tri_count:
-		var a := indices[t * 3]
-		var b := indices[t * 3 + 1]
-		var c := indices[t * 3 + 2]
-		var centre_y := (positions[a].y + positions[b].y + positions[c].y) / 3.0
-		var normal_y := 0.0
-		if has_normals:
-			normal_y = (source_normals[a].y + source_normals[b].y + source_normals[c].y) / 3.0
-		else:
-			normal_y = (smoothed[a].y + smoothed[b].y + smoothed[c].y) / 3.0
-		var is_rule := gold_high > 0.0 and centre_y >= gold_low and centre_y <= gold_high \
-			and absf(normal_y) < 0.55
-		has_rule = has_rule or is_rule
-		if is_rule:
-			for index in [a, b, c]:
-				var vertex: Vector3 = positions[index]
-				var angle := atan2(vertex.z, vertex.x)
-				if has_normals:
-					rule.set_normal(source_normals[index])
-				else:
-					rule.set_normal(smoothed[index])
-				rule.set_uv(Vector2(angle / TAU + 0.5, (vertex.y - lowest) / span) * 2.0)
-				rule.add_vertex(vertex)
-		else:
-			tool.add_index(a)
-			tool.add_index(b)
-			tool.add_index(c)
+	for index in indices:
+		tool.add_index(index)
 	# The Staunton bodies carry neither vt nor vn records, so they arrive with no
 	# UV and no normal attribute. Both are produced here: without them the
 	# renderer samples undefined coordinates, which is what used to blow the ivory
@@ -952,6 +909,117 @@ func _piece_mesh(kind: String) -> Mesh:
 		mesh = rule.commit(mesh)
 	_mesh_cache[cache_key] = mesh
 	return mesh
+
+
+## Builds the gold rule round a sculpted figure's plinth into `rule`.
+##
+## The radius is measured, not assumed. The plinth is scalloped - its lobes and
+## valleys differ by a third on these meshes - so a circle that is right on a
+## lobe buries itself in the valleys and one right on a valley floats over the
+## lobes. Sampling the mesh in angular bins at the height of the band and taking
+## the second-largest radius in each bin gives a line that sits on the carving
+## the whole way round; smoothing the samples afterwards keeps the band from
+## turning into a polygon of the carving's noise.
+##
+## Returns false when the plinth could not be measured at all, which is what
+## happens on a mesh whose base is not where the profile says it is.
+func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_top: float, highest: float) -> bool:
+	const BINS := 96
+	var sample_low := plinth_top - 0.010 * highest
+	var sample_high := plinth_top + 0.045 * highest
+	var best := PackedFloat32Array()
+	var second := PackedFloat32Array()
+	var seen := PackedByteArray()
+	best.resize(BINS)
+	second.resize(BINS)
+	seen.resize(BINS)
+	for i in positions.size():
+		var vertex: Vector3 = positions[i]
+		if vertex.y < sample_low or vertex.y > sample_high:
+			continue
+		var radius := sqrt(vertex.x * vertex.x + vertex.z * vertex.z)
+		if radius < 0.02:
+			continue
+		var angle := atan2(vertex.z, vertex.x)
+		var bin := clampi(int(floor((angle + PI) / TAU * float(BINS))), 0, BINS - 1)
+		seen[bin] = 1
+		if radius > best[bin]:
+			second[bin] = best[bin]
+			best[bin] = radius
+		elif radius > second[bin]:
+			second[bin] = radius
+	var covered := 0
+	for bin in BINS:
+		covered += seen[bin]
+	if covered < BINS / 2:
+		return false
+	# A high percentile rather than the maximum: one stray vertex from a spear or
+	# a tail must not push a third of the ring out into the air.
+	var radii := PackedFloat32Array()
+	radii.resize(BINS)
+	for bin in BINS:
+		radii[bin] = second[bin] if seen[bin] == 1 and second[bin] > 0.0 else best[bin]
+	# Fill any empty bin from its neighbour before smoothing, so the sweep has no
+	# zero-radius hole in it.
+	for bin in BINS:
+		if not seen[bin]:
+			radii[bin] = radii[(bin - 1 + BINS) % BINS]
+	for pass_index in 3:
+		var smoothed_radii := radii.duplicate()
+		for bin in BINS:
+			var prev := radii[(bin - 1 + BINS) % BINS]
+			var next := radii[(bin + 1) % BINS]
+			smoothed_radii[bin] = prev * 0.25 + radii[bin] * 0.5 + next * 0.25
+		radii = smoothed_radii
+	# Three rows, so the ribbon has a crown and reads as a raised band rather than
+	# as a painted line: the top and bottom rows sit back on the surface and the
+	# middle row stands a fraction proud.
+	var band_low := plinth_top + 0.002 * highest
+	var band_high := plinth_top + 0.024 * highest
+	var band_mid := (band_low + band_high) * 0.5
+	var rows := [band_low, band_mid, band_high]
+	var spreads := [0.988, 1.010, 0.988]
+	var tilts := [0.55, 0.0, -0.55]
+	var segments := BINS
+	var ring: Array[PackedVector3Array] = []
+	for row in 3:
+		var points := PackedVector3Array()
+		points.resize(segments + 1)
+		for segment in segments + 1:
+			var bin := segment % BINS
+			var angle := -PI + TAU * float(segment) / float(segments)
+			var radius := float(radii[bin]) * float(spreads[row])
+			points[segment] = Vector3(cos(angle) * radius, float(rows[row]), sin(angle) * radius)
+		ring.append(points)
+	for row in 2:
+		for segment in segments:
+			var angle := -PI + TAU * (float(segment) + 0.5) / float(segments)
+			var facing := Vector3(cos(angle), 0.0, sin(angle))
+			var a := ring[row][segment]
+			var b := ring[row][segment + 1]
+			var c := ring[row + 1][segment + 1]
+			var d := ring[row + 1][segment]
+			var normal_row := float(tilts[row])
+			var normal_next := float(tilts[row + 1])
+			rule.set_normal((facing + Vector3.UP * normal_row).normalized())
+			rule.set_uv(Vector2(float(segment) / float(segments) * 3.0, 0.0))
+			rule.add_vertex(a)
+			rule.set_normal((facing + Vector3.UP * normal_row).normalized())
+			rule.set_uv(Vector2(float(segment + 1) / float(segments) * 3.0, 0.0))
+			rule.add_vertex(b)
+			rule.set_normal((facing + Vector3.UP * normal_next).normalized())
+			rule.set_uv(Vector2(float(segment + 1) / float(segments) * 3.0, 1.0))
+			rule.add_vertex(c)
+			rule.set_normal((facing + Vector3.UP * normal_row).normalized())
+			rule.set_uv(Vector2(float(segment) / float(segments) * 3.0, 0.0))
+			rule.add_vertex(a)
+			rule.set_normal((facing + Vector3.UP * normal_next).normalized())
+			rule.set_uv(Vector2(float(segment + 1) / float(segments) * 3.0, 1.0))
+			rule.add_vertex(c)
+			rule.set_normal((facing + Vector3.UP * normal_next).normalized())
+			rule.set_uv(Vector2(float(segment) / float(segments) * 3.0, 1.0))
+			rule.add_vertex(d)
+	return true
 
 
 ## Where the plinth ends, as a fraction of each piece's own height. Read off the
