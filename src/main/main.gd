@@ -932,7 +932,7 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 	# matter how thick the band is. Dropped 0.03 of the piece's height it sits on
 	# the open wall of the carving, where the camera can see it and where there is
 	# engraving behind it for it to read against.
-	var band_low := plinth_top - 0.030 * highest
+	var band_low := plinth_top - 0.036 * highest
 	var band_high := plinth_top - 0.002 * highest
 	# The window has to match the band it is measuring, and this is the whole
 	# trick: sample much wider and the measurement is dominated by the flare below,
@@ -4123,7 +4123,13 @@ func _new_game() -> void:
 ## that is a gilded line that reads at any size.
 func _gold_rule() -> Material:
 	if _gold_rule_material == null:
-		_gold_rule_material = _luxury_piece_material(Color(0.96, 0.77, 0.33), 0.38, 0.15)
+		var gold := _luxury_piece_material(Color(0.96, 0.77, 0.33), 0.38, 0.15)
+		# The ribbon is a swept strip, and a strip that follows a scalloped plinth
+		# does not keep one winding all the way round. Culling would then punch
+		# holes in it - which is exactly what the dashes in the renders were.
+		# Lighting does not depend on this: the ribbon carries its own normals.
+		gold.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_gold_rule_material = gold
 	return _gold_rule_material
 
 
