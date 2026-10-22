@@ -101,7 +101,7 @@ jobs:
           # and the diagonal proves all six are wired up in three renders.
           # royal_wood-classic is kept as the fourth because the published
           # showcase image is that pairing - the turned set on the wood board.
-          for pair in classic-classic royal_wood-persian royal_blue-medieval royal_wood-classic; do
+          for pair in classic-classic royal_wood-court royal_blue-medieval royal_wood-classic; do
             board="${pair%%-*}"
             pieces="${pair#*-}"
             name="${pair}.png"
@@ -136,7 +136,7 @@ jobs:
           script: |
             const fs = require('fs');
             const branch = context.ref.replace('refs/heads/', '');
-            for (const name of ['classic-classic.png', 'royal_wood-persian.png', 'royal_blue-medieval.png', 'royal_wood-classic.png', 'style-picker.png']) {
+            for (const name of ['classic-classic.png', 'royal_wood-court.png', 'royal_blue-medieval.png', 'royal_wood-classic.png', 'style-picker.png']) {
               const path = `docs/previews/${name}`;
               let sha;
               try {

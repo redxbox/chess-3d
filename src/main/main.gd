@@ -30,10 +30,13 @@ const SOUND_STREAMS := {
 ## so its trim is limited to a pair of gold rules at the base and nothing else;
 ## bolting the Staunton crowns onto it would be two crowns on one head.
 ##
-## PERSIAN is the earlier supplied set, recovered from the assets/models/persian
-## folder of the pre-audit branch: the same carving language with a different
-## crown on the king and a chiselled mitre on the bishop. Its pieces arrive
-## already decimated, so it is the cheapest of the three sets to draw.
+## COURT is a set of court figures rather than turned pieces: a guard with a
+## spear and a shield for the pawn, a rearing horse for the knight, an elephant
+## for the bishop, a crowned noblewoman for the queen and a robed king holding a
+## sceptre, all standing on engraved plinths. It replaces the old Persian set,
+## which was the same carved-lathe family as MEDIEVAL and differed only in
+## colour - three sets of which two were the same silhouette is exactly the
+## repetition the style screen was trimmed to avoid.
 ##
 ## All three sets are OBJ with no UVs and no normals; _piece_mesh() projects and
 ## smooths them, and tools/prepare_sculpt_set.py is what put the second set on
@@ -55,13 +58,13 @@ const PIECE_MODEL_PATHS := {
 		"queen": "res://assets/models/staunton/queen.obj",
 		"king": "res://assets/models/staunton/king.obj"
 	},
-	"persian": {
-		"pawn": "res://assets/models/persian/pawn.obj",
-		"rook": "res://assets/models/persian/rook.obj",
-		"knight": "res://assets/models/persian/knight.obj",
-		"bishop": "res://assets/models/persian/bishop.obj",
-		"queen": "res://assets/models/persian/queen.obj",
-		"king": "res://assets/models/persian/king.obj"
+	"court": {
+		"pawn": "res://assets/models/court/pawn.obj",
+		"rook": "res://assets/models/court/rook.obj",
+		"knight": "res://assets/models/court/knight.obj",
+		"bishop": "res://assets/models/court/bishop.obj",
+		"queen": "res://assets/models/court/queen.obj",
+		"king": "res://assets/models/court/king.obj"
 	},
 	"medieval": {
 		"pawn": "res://assets/models/medieval/pawn.obj",
@@ -103,7 +106,7 @@ const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q
 ## was eight things that all looked alike. What is left is three genuinely
 ## different boards and three genuinely different sets of pieces.
 const BOARD_THEME_ORDER := ["classic", "royal_wood", "royal_blue"]
-const PIECE_THEME_ORDER := ["medieval", "persian", "classic"]
+const PIECE_THEME_ORDER := ["medieval", "court", "classic"]
 ## What a fresh install wears. The hand-sculpted set is the one that reads best
 ## on a phone: a carved pawn is legible at the size a phone actually shows it,
 ## where a turned one is a silhouette.
@@ -185,22 +188,25 @@ const PIECE_THEMES := {
 		"swatch_light": Color(0.87, 0.82, 0.71),
 		"swatch_dark": Color(0.305, 0.225, 0.165),
 	},
-	# The earlier sculpted set, painted as Persian faience is glazed: pale
-	# turquoise against deep lapis, with gold rules. The pale glaze is kept low
-	# enough (0.70) that it does not go chalk under the key light.
-	"persian": {
-		"label": "FAIENCE & LAPIS",
-		"model_set": "persian",
-		"light": Color(0.70, 0.795, 0.755),
-		"dark": Color(0.175, 0.215, 0.385),
+	# The court figures, glazed as carved jade is: pale celadon against deep
+	# nephrite, with gold rules on the plinths. Both albedos stay clear of the
+	# two other sets on purpose - warm ivory and walnut, cool alabaster and
+	# obsidian - so three sets reading as three different materials is a property
+	# of the colours as well as of the carving. Celadon is desaturated, not mint;
+	# a mint piece reads as plastic the moment the key light hits it.
+	"court": {
+		"label": "CELADON & NEPHRITE",
+		"model_set": "court",
+		"light": Color(0.655, 0.775, 0.705),
+		"dark": Color(0.125, 0.235, 0.255),
 		"accent": Color(0.80, 0.64, 0.26),
 		"light_roughness": 0.20,
-		"dark_roughness": 0.30,
+		"dark_roughness": 0.28,
 		"accent_roughness": 0.46,
 		"accent_metallic": 0.30,
-		"trim_variant": "persian",
-		"swatch_light": Color(0.76, 0.85, 0.81),
-		"swatch_dark": Color(0.175, 0.215, 0.385),
+		"trim_variant": "court",
+		"swatch_light": Color(0.72, 0.84, 0.77),
+		"swatch_dark": Color(0.125, 0.235, 0.255),
 	},
 	"classic": {
 		"label": "ALABASTER & OBSIDIAN",
@@ -686,7 +692,7 @@ func _setup_piece_materials() -> void:
 	# The three sets are balanced against each other rather than tuned alone,
 	# because the board is only ever seen with one of them on it:
 	#   medieval - carved boxwood against walnut, antique gold rules
-	#   persian  - glazed faience against lapis, gold rules
+	#   court    - pale celadon against deep nephrite, gold rules
 	#   classic  - polished alabaster against satin obsidian, silver trim
 	# Every colour, roughness and metallic below comes from PIECE_THEMES; the two
 	# spot values that used to be hard-coded here are now per theme, so a polish
@@ -1421,7 +1427,7 @@ const TRIM_STYLES := {
 	# The two sculpted sets bring their own foot, their own crowns and their own
 	# carving, so they get no extra silhouette at all - only the two gold rules.
 	"medieval": {"foot_scale": 1.00, "extra_bands": false},
-	"persian": {"foot_scale": 1.00, "extra_bands": false},
+	"court": {"foot_scale": 1.00, "extra_bands": false},
 	"classic": {"foot_scale": 1.00, "extra_bands": false},
 }
 const ORNAMENT_BAND_HEIGHT := 0.015
@@ -1755,7 +1761,7 @@ func _ornate_profile(kind: String) -> Dictionary:
 	# The sculpted set is not a surface of revolution anywhere, so none of the
 	# lathe entries above apply to it: it takes the turned=False path, which is
 	# just the two gold rules let into the base.
-	if _piece_set() == "medieval" or _piece_set() == "persian":
+	if _piece_set() != "staunton":
 		profile.turned = false
 		profile.foot = 0.326
 	return profile
@@ -1770,11 +1776,12 @@ func _ornate_mesh(kind: String, body: Material, accent: Material, variant: Strin
 	if _mesh_cache.has(key):
 		return _mesh_cache[key]
 	var parts: Array = _ornate_trim_parts(kind, variant)
-	# The crowns, coronets and battlements are only added for the plain turned
-	# bodies. The sculpted set already has all three carved into its own mesh -
-	# the king is a robed figure with a crown and a staff - so adding this layer
-	# on top of it would put a second crown through the first.
-	if variant != "medieval" and variant != "persian":
+	# The crowns, coronets and battlements are only added for the turned set.
+	# The two sculpted sets already have all three carved into their own meshes -
+	# the medieval king holds a staff, the court king a sceptre and the court
+	# queen wears a crown - so adding this layer on top would put a second crown
+	# through the first.
+	if variant == "classic":
 		_ornate_identity_parts(parts, kind)
 	var mesh := ArrayMesh.new()
 	for material_index in [ORNAMENT_BODY, ORNAMENT_ACCENT]:
@@ -1819,17 +1826,14 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 	# into the waist of the stem, sized off the body's own radius there (0.191) so
 	# it sits flush instead of being buried in the wood.
 	if not turned:
-		# The sculpted set is turned=False as well - its foot is not a lathe, it is
-		# a rough-hewn base modelled into the mesh - so this branch is shared. The
-		# difference is that the knight's own base already carries a carved
-		# groove at 0.396 whereas the sculpted pieces want their rules lower down,
-		# at the same two heights the turned pieces use, so the two sets read as
-		# the same family of table equipment.
-		if variant == "medieval" or variant == "persian":
-			_flush_band_add(parts, _body_radius_at(kind, 0.108), Vector3(0, 0.108, 0), 0.012, 0.004)
-			_flush_band_add(parts, _body_radius_at(kind, 0.146), Vector3(0, 0.146, 0), 0.010, 0.004)
-			return parts
-		_flush_band_add(parts, _body_radius_at(kind, 0.396), Vector3(0, 0.396, 0), 0.012, 0.004)
+		# Both sculpted sets are turned=False: their feet are carved into the body
+		# rather than lathed, so the only metal they get is a pair of gold rules
+		# let into the plinth, at the same two heights the turned pieces use.
+		# The radius comes from the body mesh at each height, so the rules follow
+		# a wide engraved plinth and a narrow waist alike instead of floating off
+		# one and sinking into the other.
+		_flush_band_add(parts, _body_radius_at(kind, 0.108), Vector3(0, 0.108, 0), 0.012, 0.004)
+		_flush_band_add(parts, _body_radius_at(kind, 0.146), Vector3(0, 0.146, 0), 0.010, 0.004)
 		return parts
 	# Tiered foot. The lower collar is a fluted lathe rather than a smooth
 	# cylinder, and the fluting is shallow: 0.008 of amplitude over 16 grooves.

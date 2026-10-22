@@ -31,16 +31,18 @@ The uploaded GLBs were 200–320k vertices each (56 MB in total) and all exactly
 triangles, scales it onto this project's height ladder and writes the OBJ that
 the game actually loads, 1.8 MB for the set.
 
-## Persian chess piece meshes
+## Court chess piece meshes
 
-- Source: supplied by the project author (six GLB files, originally committed
-  under `assets/models/persian/candidate2/optimized/`)
+- Source: supplied by the project author (six GLB files, now kept in
+  `tools/sources/figurines/`, which the Android export excludes)
 - License: author's own work, used by permission in this project
-- Local notes: `assets/models/persian/README.md`
+- Local notes: `assets/models/court/README.md`
 
-Recovered from an earlier branch during the 0.15.0 cleanup and converted with
-the same `tools/prepare_sculpt_set.py` as the medieval set. The six runtime
-OBJs total 1.6 MB and 60 000 triangles.
+Converted with the same `tools/prepare_sculpt_set.py` as the other sets:
+2.1 million source triangles decimated to 60 000, 36 MB of upload reduced to a
+1.75 MB set of six OBJs. The Persian set these replace was withdrawn because it
+was the medieval set in another colour; its raw export is still in
+`tools/sources/persian/` for the record.
 
 ## Godot Engine
 
