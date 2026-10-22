@@ -1654,12 +1654,19 @@ func _lathe_mesh(vertices: PackedVector3Array, normals: PackedVector3Array, uvs:
 ## is used rather than a torus because a torus makes height and protrusion the
 ## same number, and the brief wants them to differ.
 func _flush_band(radius: float, height := ORNAMENT_BAND_HEIGHT, proud := ORNAMENT_BAND_PROUD) -> Array:
+	# A ridge, not a cylinder wall. The band used to be a flat annulus whose
+	# normals pointed straight out sideways, and the key light arrives from above
+	# and to the left - so the ring was lit by the fill alone and every "gold"
+	# line on every piece rendered as a black scribe mark. Three rings instead of
+	# four, with the outer one in the middle: the upper facet tilts up toward the
+	# key and catches a real metal highlight, the lower one falls into shade, and
+	# the whole thing reads as a machined ring set into the surface rather than a
+	# painted stripe. It is the same three vertices, one ring fewer than before.
 	var half := height * 0.5
 	var outer := radius + proud
 	return [
 		[radius, -half, 1, 1],
-		[outer, -half, 1, 1],
-		[outer, half, 1, 1],
+		[outer, 0.0, 1, 1],
 		[radius, half, 1, 1]
 	]
 
