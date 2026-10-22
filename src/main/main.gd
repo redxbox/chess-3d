@@ -943,7 +943,7 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 	# The ribbon stands slightly further out than the surface it was measured on,
 	# because the measurement is of vertex rows, not of the true surface between
 	# them.
-	const CLEARANCE := 0.008
+	const CLEARANCE := 0.004
 	var best := PackedFloat32Array()
 	var second := PackedFloat32Array()
 	var seen := PackedByteArray()
@@ -970,18 +970,25 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 		covered += seen[bin]
 	if covered < BINS / 2:
 		return false
-	# A high percentile rather than the maximum: one stray vertex from a spear or
-	# a tail must not push a third of the ring out into the air.
+	# The largest radius in each bin, and this is the second correction the
+	# measurement needed. A high percentile looked safer - one stray vertex from a
+	# tail should not push a third of the ring into the air - but on a carved base
+	# the percentiles are the problem: the lobes stick 0.01-0.016 past the median,
+	# so a ring built at the second-largest radius is buried inside the carving
+	# and shows only as slivers between lobes. Sitting just outside the worst lobe
+	# in each direction is the only placement the carving cannot swallow.
 	var radii := PackedFloat32Array()
 	radii.resize(BINS)
 	for bin in BINS:
-		radii[bin] = second[bin] if seen[bin] == 1 and second[bin] > 0.0 else best[bin]
+		radii[bin] = best[bin] if best[bin] > 0.0 else second[bin]
 	# Fill any empty bin from its neighbour before smoothing, so the sweep has no
 	# zero-radius hole in it.
 	for bin in BINS:
 		if not seen[bin]:
 			radii[bin] = radii[(bin - 1 + BINS) % BINS]
-	for pass_index in 3:
+	# One pass only: enough to keep the band from being a polygon of the mesh's
+	# noise, not so much that it cuts across the lobes it is following.
+	for pass_index in 1:
 		var smoothed_radii := radii.duplicate()
 		for bin in BINS:
 			var prev := radii[(bin - 1 + BINS) % BINS]
@@ -993,7 +1000,7 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 	# middle row stands a fraction proud.
 	var band_mid := (band_low + band_high) * 0.5
 	var rows := [band_low, band_mid, band_high]
-	var spreads := [0.996, 1.012, 0.996]
+	var spreads := [1.000, 1.006, 1.000]
 	var tilts := [0.55, 0.0, -0.55]
 	var segments := BINS
 	var ring: Array[PackedVector3Array] = []
