@@ -266,6 +266,9 @@ var _board_light_material: StandardMaterial3D
 var _board_dark_material: StandardMaterial3D
 var _piece_ivory_material: Material
 var _piece_obsidian_material: Material
+## The gold rule round a sculpted figure's foot. Shared by all 32 pieces, because
+## it is deliberately the one thing on the board that is not the army's colour.
+var _gold_rule_material: Material
 var _piece_gold_material: StandardMaterial3D
 var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
@@ -1498,7 +1501,7 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	if model.mesh != null and model.mesh.get_surface_count() > 1:
 		model.set_surface_override_material(0, body)
 		for surface in range(1, model.mesh.get_surface_count()):
-			model.set_surface_override_material(surface, accent)
+			model.set_surface_override_material(surface, _gold_rule())
 	else:
 		model.material_override = body
 	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
@@ -4013,6 +4016,18 @@ func _new_game() -> void:
 	_update_move_history()
 	_update_captured_pieces()
 	_save_autosave()
+
+
+## Gold for the rule round a sculpted figure's foot, and it is a gold of albedo
+## rather than of reflection. The accent metal the crowns use is 0.55 metallic,
+## which is right for a shape that can hold a highlight but not for a band four
+## pixels tall on a phone renderer with nothing to reflect: a thin metallic line
+## in this scene comes out brown. Warm albedo, low metallic, moderate roughness -
+## that is a gilded line that reads at any size.
+func _gold_rule() -> Material:
+	if _gold_rule_material == null:
+		_gold_rule_material = _luxury_piece_material(Color(0.96, 0.77, 0.33), 0.38, 0.15)
+	return _gold_rule_material
 
 
 func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false, sheen := 0.30, figure: Texture2D = null, normal: Texture2D = null, bump_scale := 0.7, clearcoat := 0.40, clearcoat_roughness := 0.20, tinted := false) -> StandardMaterial3D:
