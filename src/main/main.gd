@@ -204,14 +204,18 @@ const PIECE_THEMES := {
 		# folds but never black, because a robe with no albedo has no shading on
 		# it and the figures are all robe.
 		"light": Color(0.775, 0.805, 0.735),
-		"dark": Color(0.115, 0.155, 0.325),
+		# Lapis, not ink. At 0.115 the folded robes had no albedo to shade, so the
+		# army read as one dark shape with a few highlights on it; 0.19 with a
+		# little more blue gives the folds somewhere to go while staying clearly
+		# the dark side of the board.
+		"dark": Color(0.19, 0.225, 0.44),
 		"accent": Color(0.86, 0.68, 0.26),
 		# Glazed stone: a tight lobe, so the folds of the robes carry a highlight
 		# along them instead of a flat wash. This is the finish the figures were
 		# modelled for, and it is what makes armour and cloth read as different
 		# materials even where the mesh is one surface.
 		"light_roughness": 0.17,
-		"dark_roughness": 0.21,
+		"dark_roughness": 0.19,
 		# The gold is the only colour break on a sculpted figure, so it is a real
 		# metal: rougher than a mirror so the ribbon keeps its facets, metallic
 		# enough (0.55) that it takes its colour from reflection rather than from
@@ -866,19 +870,21 @@ func _piece_mesh(kind: String) -> Mesh:
 	# which on a narrow band is exactly what polished gold does. The lapis albedo
 	# is about 0.15, so the same multiplier gives 0.48 / 0.34 / 0.24 - a bronze
 	# rule on blue stone, which is what gold looks like in shadow.
-	var gold_tint := Color(3.2, 2.2, 0.75)
+	var gold_tint := Color(4.2, 2.9, 1.0)
 	var gold_top := -1.0
 	var plinth_top := -1.0
 	if _piece_set() != "staunton":
 		plinth_top = float(SET_PLINTH_FRACTION.get(kind, 0.11)) * highest
-		# A cool carved stone against the warm glazed figure above it. Not darker
-		# than this: at 0.60 the plinth read as a black puck and the white army
-		# looked like figures standing on holes.
-		plinth_tint = Color(0.74, 0.75, 0.82)
+		# The plinth is left at the piece's own colour. A darker stone base was
+		# tried and it cannot work here: the mesh is shared between the two
+		# armies, so one multiplier has to serve an albedo of 0.78 and an albedo
+		# of 0.16, and a value that reads as grey stone on the pale set reads as
+		# nothing at all on the dark one. The break in colour comes from the gold
+		# rule above it, which is the one thing that can be bright on both.
 		# A narrow rule, a hair under one per cent of the piece's height: at the
 		# size a figure is drawn that is about four pixels, which is a line of
 		# inlay. Twice this width reads as a stripe of paint instead.
-		gold_top = plinth_top + 0.014 * highest
+		gold_top = plinth_top + 0.020 * highest
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in positions.size():
