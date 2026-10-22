@@ -925,16 +925,25 @@ func _piece_mesh(kind: String) -> Mesh:
 ## happens on a mesh whose base is not where the profile says it is.
 func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_top: float, highest: float) -> bool:
 	const BINS := 96
+	# Where the ribbon goes: the wall of the plinth, not its shoulder. This is the
+	# correction that took three renders to see. A band at the top of the step is
+	# a vertical wall standing under a horizontal lip, and from a camera looking
+	# down at the board the lip hides it - the gold shows as scattered slivers no
+	# matter how thick the band is. Dropped 0.03 of the piece's height it sits on
+	# the open wall of the carving, where the camera can see it and where there is
+	# engraving behind it for it to read against.
+	var band_low := plinth_top - 0.030 * highest
+	var band_high := plinth_top - 0.002 * highest
 	# The window has to match the band it is measuring, and this is the whole
-	# trick: sample much wider and the measurement is dominated by the flare below
-	# the step, so the ribbon is built at a radius the plinth has already grown
-	# past and the carving swallows it, leaving slivers of gold showing through.
-	var sample_low := plinth_top + 0.001 * highest
-	var sample_high := plinth_top + 0.026 * highest
+	# trick: sample much wider and the measurement is dominated by the flare below,
+	# so the ribbon is built at a radius the plinth has already grown past and the
+	# carving swallows it.
+	var sample_low := band_low - 0.004 * highest
+	var sample_high := band_high + 0.004 * highest
 	# The ribbon stands slightly further out than the surface it was measured on,
 	# because the measurement is of vertex rows, not of the true surface between
 	# them.
-	const CLEARANCE := 0.006
+	const CLEARANCE := 0.008
 	var best := PackedFloat32Array()
 	var second := PackedFloat32Array()
 	var seen := PackedByteArray()
@@ -982,8 +991,6 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 	# Three rows, so the ribbon has a crown and reads as a raised band rather than
 	# as a painted line: the top and bottom rows sit back on the surface and the
 	# middle row stands a fraction proud.
-	var band_low := plinth_top + 0.003 * highest
-	var band_high := plinth_top + 0.023 * highest
 	var band_mid := (band_low + band_high) * 0.5
 	var rows := [band_low, band_mid, band_high]
 	var spreads := [0.996, 1.012, 0.996]
