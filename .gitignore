@@ -19,3 +19,7 @@ Thumbs.db
 
 # Local release signing credentials (never commit)
 .private-release/
+
+# Python bytecode from the asset tools
+__pycache__/
+*.pyc

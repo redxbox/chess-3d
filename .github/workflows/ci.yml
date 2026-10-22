@@ -25,6 +25,36 @@ jobs:
         uses: actions/checkout@v5
       - name: Import resources
         run: godot --headless --editor --quit-after 10
+      # The container image ships Godot and the Android toolchain but no Python.
+      # Both size checks below are Python (they parse OBJs and read the APK's
+      # zip directory), so it is installed once here rather than reimplemented
+      # in awk.
+      - name: Ensure python3
+        shell: bash
+        run: |
+          if ! command -v python3 >/dev/null; then
+            apt-get update && apt-get install -y --no-install-recommends python3
+            rm -rf /var/lib/apt/lists/*
+          fi
+
+      # The package budget is enforced before anything is built. It measures the
+      # part of the APK this repository decides - meshes, audio, scripts - and
+      # warns about files under assets/ that Godot has no importer for, which is
+      # how a multi-megabyte source export once came within one extension of
+      # shipping.
+      - name: Check packaged content budget
+        shell: bash
+        run: |
+          set +e
+          output=$(python3 tools/export_budget.py -v 2>&1 | head -30)
+          status=$?
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            encoded=$(printf '%s' "$output" | tail -20 | base64 -w0 | cut -c1-4000)
+            echo "::error title=Content budget base64::$encoded"
+          fi
+          exit "$status"
+
       - name: Run chess rules tests
         shell: bash
         run: |
@@ -66,12 +96,12 @@ jobs:
       - name: Render real Godot screenshot
         run: |
           mkdir -p build/preview
-          # Four combinations rather than one, because there are now four board
-          # themes and four piece sets and each of the two axes has to be seen
-          # working: the diagonal shows all four boards and all four sets in the
-          # smallest number of renders. classic-royal_wood is kept because the
-          # published showcase image is that pairing.
-          for pair in medieval-medieval persian-persian medieval-classic classic-classic classic-royal_wood jade-marble royal_blue-baroque royal_wood-classic; do
+          # One render per board/piece combination, over the diagonal of the two
+          # axes plus one cross pairing: there are three boards and three sets,
+          # and the diagonal proves all six are wired up in three renders.
+          # royal_wood-classic is kept as the fourth because the published
+          # showcase image is that pairing - the turned set on the wood board.
+          for pair in classic-classic royal_wood-bastani royal_blue-persian royal_wood-classic; do
             board="${pair%%-*}"
             pieces="${pair#*-}"
             name="${pair}.png"
@@ -87,7 +117,7 @@ jobs:
             godot --path . --rendering-method gl_compatibility \
             --resolution 1536x864 --script res://tools/capture_preview.gd
           test -s "build/preview/style-picker.png"
-          cp build/preview/classic-royal_wood.png build/preview/theme-showcase-preview.png
+          cp build/preview/royal_wood-classic.png build/preview/theme-showcase-preview.png
       - name: Upload visual preview
         uses: actions/upload-artifact@v4
         with:
@@ -95,34 +125,6 @@ jobs:
           path: build/preview/*.png
           if-no-files-found: error
           retention-days: 14
-      - name: Publish latest preview on session branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/arena/01a0dc2e-chess-3d'
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const fs = require('fs');
-            const path = 'docs/previews/theme-showcase-preview.png';
-            let sha;
-            try {
-              const current = await github.rest.repos.getContent({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                path,
-                ref: context.ref
-              });
-              sha = current.data.sha;
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
-            await github.rest.repos.createOrUpdateFileContents({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              path,
-              branch: 'arena/01a0dc2e-chess-3d',
-              message: 'Update rendered Persian preview [skip ci]',
-              content: fs.readFileSync('build/preview/theme-showcase-preview.png').toString('base64'),
-              ...(sha ? { sha } : {})
-            });
       # Committing the per-theme renders back to the branch gives a real visual
       # feedback loop: the sandbox that edits the code has no Godot binary, so
       # without this step lighting and material changes could only be judged by
@@ -134,7 +136,7 @@ jobs:
           script: |
             const fs = require('fs');
             const branch = context.ref.replace('refs/heads/', '');
-            for (const name of ['medieval-medieval.png', 'persian-persian.png', 'medieval-classic.png', 'classic-classic.png', 'classic-royal_wood.png', 'jade-marble.png', 'royal_blue-baroque.png', 'royal_wood-classic.png', 'style-picker.png']) {
+            for (const name of ['classic-classic.png', 'royal_wood-bastani.png', 'royal_blue-persian.png', 'royal_wood-classic.png', 'style-picker.png']) {
               const path = `docs/previews/${name}`;
               let sha;
               try {
@@ -246,6 +248,33 @@ jobs:
             exit 1
           fi
           printf '## APK identity\n\n| field | value |\n| --- | --- |\n| version name | `%s` |\n| version code | `%s` |\n\nInstall this build; **About** reports `%s`.\n' "$got_name" "$got_code" "$got_name" >> "$GITHUB_STEP_SUMMARY"
+      # The container image ships Godot and the Android toolchain but no Python.
+      # Both size checks below are Python (they parse OBJs and read the APK's
+      # zip directory), so it is installed once here rather than reimplemented
+      # in awk.
+      - name: Ensure python3
+        shell: bash
+        run: |
+          if ! command -v python3 >/dev/null; then
+            apt-get update && apt-get install -y --no-install-recommends python3
+            rm -rf /var/lib/apt/lists/*
+          fi
+
+      # The APK's own file list, not a guess: this is the only place the real
+      # number exists. The table goes into the job summary and the total into a
+      # step annotation, which the API can read, so a size change is visible on
+      # the pull request that caused it instead of only on a phone.
+      - name: Report package size
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=build/android/chess-3d.apk
+          total=$(stat -c %s "$APK")
+          python3 tools/apk_size_report.py "$APK" --annotate > build/android/size-report.md
+          echo "::notice title=APK size::$total bytes"
+          { printf '## APK size\n\n`%s` - %s\n\n' "$APK" "$(numfmt --to=iec "$total")"
+            cat build/android/size-report.md; } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
