@@ -206,7 +206,7 @@ const PIECE_THEMES := {
 		# Jade glaze, cut a little darker and a little rougher than the ivory it
 		# replaces: at 0.78 albedo and 0.17 roughness the folded robes of the
 		# court figures clipped to flat white and the carving disappeared.
-		"light": Color(0.700, 0.755, 0.685),
+		"light": Color(0.615, 0.720, 0.620),
 		# Lapis, not ink. At 0.115 the folded robes had no albedo to shade, so the
 		# army read as one dark shape with a few highlights on it; 0.19 with a
 		# little more blue gives the folds somewhere to go while staying clearly
@@ -226,8 +226,8 @@ const PIECE_THEMES := {
 		"accent_roughness": 0.30,
 		"accent_metallic": 0.55,
 		"trim_variant": "court",
-		"swatch_light": Color(0.84, 0.86, 0.79),
-		"swatch_dark": Color(0.115, 0.155, 0.325),
+		"swatch_light": Color(0.66, 0.77, 0.66),
+		"swatch_dark": Color(0.19, 0.225, 0.44),
 	},
 	"classic": {
 		"label": "ALABASTER & OBSIDIAN",
