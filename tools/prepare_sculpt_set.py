@@ -82,6 +82,23 @@ def load(path: str) -> tuple[np.ndarray, np.ndarray]:
             np.asarray(mesh.faces, dtype=np.int64))
 
 
+# The plinth is the bottom tenth of a figure. Centring a piece on its *plinths*
+# rather than on its bounding box matters for anything holding a spear, a
+# standard or a raised arm: the arm pushes the box sideways, so a box-centred
+# piece stands off-centre on its square and its base rings are no longer
+# concentric with the foot. Three of the six court figures were off by 4-6% of
+# their width, which is visible on a 1.0-wide square.
+PLINTH_BAND = 0.05
+
+
+def _plinth_centre(vertices: np.ndarray) -> tuple[float, float]:
+    height = float(vertices[:, 1].max() - vertices[:, 1].min())
+    base = vertices[vertices[:, 1] < vertices[:, 1].min() + PLINTH_BAND * height]
+    if len(base) < 16:
+        base = vertices
+    return float(base[:, 0].mean()), float(base[:, 2].mean())
+
+
 def prepare(kind: str, path: str) -> tuple[np.ndarray, np.ndarray]:
     vertices, faces = load(path)
     # The two sets are not equally dense: the persian pieces arrive already
@@ -97,7 +114,7 @@ def prepare(kind: str, path: str) -> tuple[np.ndarray, np.ndarray]:
     return _normalise(kind, vertices, faces)
 
 
-def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_plinth: bool = False) -> tuple[np.ndarray, np.ndarray]:
     """Put a piece on the board's scale: target height, feet on y = 0, centred."""
     low = vertices.min(axis=0)
     high = vertices.max(axis=0)
@@ -109,9 +126,14 @@ def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray) -> tuple[np.n
     # cannot touch.
     scale = TARGET_HEIGHT[kind] / float(high[1] - low[1])
     vertices *= scale
-    # Stand it on y = 0 and put its own centre over the square's centre.
-    vertices[:, 0] -= (low[0] + high[0]) * 0.5 * scale
-    vertices[:, 2] -= (low[2] + high[2]) * 0.5 * scale
+    # Stand it on y = 0 and put its own centre over the square's centre. A
+    # plinth-centred piece is centred on the thing that touches the board.
+    if centre_on_plinth:
+        centre_x, centre_z = _plinth_centre(vertices)
+    else:
+        centre_x, centre_z = (low[0] + high[0]) * 0.5 * scale, (low[2] + high[2]) * 0.5 * scale
+    vertices[:, 0] -= centre_x
+    vertices[:, 2] -= centre_z
     vertices[:, 1] -= vertices[:, 1].min()
     return vertices, faces
 

@@ -1980,11 +1980,17 @@ func _ornate_trim_parts(kind: String, variant: String) -> Array:
 		var height := _set_height(kind)
 		var lower_rule := 0.060 * height
 		var upper_rule := 0.092 * height
-		_flush_band_add(parts, _set_radius_at(kind, lower_rule), Vector3(0, lower_rule, 0), 0.012, 0.004)
-		_flush_band_add(parts, _set_radius_at(kind, upper_rule), Vector3(0, upper_rule, 0), 0.010, 0.004)
+		# These three bands are deliberately thicker and prouder than the turned
+		# set's hairlines. A sculpted figure is 0.30 across at the plinth and is
+		# about 200 pixels wide on the screen the game is played on, so the turned
+		# set's 0.012-by-0.004 rule lands as a one-pixel scribe mark and vanishes.
+		# At 0.022 by 0.007 the ring is four or five pixels and reads as the
+		# inlay it is meant to be, which is the whole reason it is there.
+		_flush_band_add(parts, _set_radius_at(kind, lower_rule), Vector3(0, lower_rule, 0), 0.022, 0.007)
+		_flush_band_add(parts, _set_radius_at(kind, upper_rule), Vector3(0, upper_rule, 0), 0.018, 0.006)
 		var collar_y := _set_narrowest_y(kind, 0.62, 0.86)
 		if collar_y > 0.0:
-			_flush_band_add(parts, _set_radius_at(kind, collar_y) + 0.002, Vector3(0, collar_y, 0), 0.009, 0.003)
+			_flush_band_add(parts, _set_radius_at(kind, collar_y) + 0.002, Vector3(0, collar_y, 0), 0.016, 0.005)
 		return parts
 	# Tiered foot. The lower collar is a fluted lathe rather than a smooth
 	# cylinder, and the fluting is shallow: 0.008 of amplitude over 16 grooves.
