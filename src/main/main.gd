@@ -887,8 +887,8 @@ func _piece_mesh(kind: String) -> Mesh:
 		# poured band, and triangles that face up are excluded in the loop below,
 		# because a gold top surface on a stepped plinth is what made the first
 		# good version look melted.
-		gold_low = plinth_top - 0.002 * highest
-		gold_high = plinth_top + 0.017 * highest
+		gold_low = plinth_top - 0.004 * highest
+		gold_high = plinth_top + 0.021 * highest
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rule := SurfaceTool.new()
