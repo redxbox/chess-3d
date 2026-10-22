@@ -203,7 +203,10 @@ const PIECE_THEMES := {
 		# it - and the dark set is lapis: a blue-violet stone, near-black in the
 		# folds but never black, because a robe with no albedo has no shading on
 		# it and the figures are all robe.
-		"light": Color(0.775, 0.805, 0.735),
+		# Jade glaze, cut a little darker and a little rougher than the ivory it
+		# replaces: at 0.78 albedo and 0.17 roughness the folded robes of the
+		# court figures clipped to flat white and the carving disappeared.
+		"light": Color(0.700, 0.755, 0.685),
 		# Lapis, not ink. At 0.115 the folded robes had no albedo to shade, so the
 		# army read as one dark shape with a few highlights on it; 0.19 with a
 		# little more blue gives the folds somewhere to go while staying clearly
@@ -214,8 +217,8 @@ const PIECE_THEMES := {
 		# along them instead of a flat wash. This is the finish the figures were
 		# modelled for, and it is what makes armour and cloth read as different
 		# materials even where the mesh is one surface.
-		"light_roughness": 0.17,
-		"dark_roughness": 0.19,
+		"light_roughness": 0.26,
+		"dark_roughness": 0.22,
 		# The gold is the only colour break on a sculpted figure, so it is a real
 		# metal: rougher than a mirror so the ribbon keeps its facets, metallic
 		# enough (0.55) that it takes its colour from reflection rather than from
@@ -878,8 +881,14 @@ func _piece_mesh(kind: String) -> Mesh:
 	var gold_high := 0.0
 	if _piece_set() != "staunton":
 		var plinth_top: float = float(SET_PLINTH_FRACTION.get(kind, 0.11)) * highest
-		gold_low = plinth_top - 0.006 * highest
-		gold_high = plinth_top + 0.026 * highest
+		# A thin rule on the outer wall of the step, not a cap over it. Both
+		# bounds matter: the slab is narrow so that at the size a figure is drawn
+		# the rule is three or four pixels and reads as inlay rather than as a
+		# poured band, and triangles that face up are excluded in the loop below,
+		# because a gold top surface on a stepped plinth is what made the first
+		# good version look melted.
+		gold_low = plinth_top - 0.002 * highest
+		gold_high = plinth_top + 0.017 * highest
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rule := SurfaceTool.new()
@@ -907,7 +916,13 @@ func _piece_mesh(kind: String) -> Mesh:
 		var b := indices[t * 3 + 1]
 		var c := indices[t * 3 + 2]
 		var centre_y := (positions[a].y + positions[b].y + positions[c].y) / 3.0
-		var is_rule := gold_high > 0.0 and centre_y >= gold_low and centre_y <= gold_high
+		var normal_y := 0.0
+		if has_normals:
+			normal_y = (source_normals[a].y + source_normals[b].y + source_normals[c].y) / 3.0
+		else:
+			normal_y = (smoothed[a].y + smoothed[b].y + smoothed[c].y) / 3.0
+		var is_rule := gold_high > 0.0 and centre_y >= gold_low and centre_y <= gold_high \
+			and absf(normal_y) < 0.55
 		has_rule = has_rule or is_rule
 		if is_rule:
 			for index in [a, b, c]:
