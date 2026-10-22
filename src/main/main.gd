@@ -998,13 +998,20 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 	# Three rows, so the ribbon has a crown and reads as a raised band rather than
 	# as a painted line: the top and bottom rows sit back on the surface and the
 	# middle row stands a fraction proud.
-	var band_mid := (band_low + band_high) * 0.5
-	var rows := [band_low, band_mid, band_high]
-	var spreads := [1.000, 1.006, 1.000]
-	var tilts := [0.55, 0.0, -0.55]
+	# A crowned profile, four rows: a chamfer facing up, a proud face, a second
+	# face, and a chamfer facing down. The upward tilt on the top rows is not
+	# decoration - the key light in this scene comes from above and to the left,
+	# and a band whose normals point straight out sideways is lit by the fill only
+	# and renders as brown. That is the same trap the flat-annulus trim fell into
+	# two rounds ago, and a few pixels wide it is much less forgiving.
+	var band_span := band_high - band_low
+	var rows := [band_low, band_low + band_span * 0.30, band_high - band_span * 0.30, band_high]
+	var spreads := [0.994, 1.010, 1.010, 0.994]
+	var tilts := [1.15, 0.20, 0.20, -0.85]
 	var segments := BINS
+	var row_count := rows.size()
 	var ring: Array[PackedVector3Array] = []
-	for row in 3:
+	for row in row_count:
 		var points := PackedVector3Array()
 		points.resize(segments + 1)
 		for segment in segments + 1:
@@ -1013,7 +1020,7 @@ func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_t
 			var radius := float(radii[bin]) * float(spreads[row]) + CLEARANCE * highest
 			points[segment] = Vector3(cos(angle) * radius, float(rows[row]), sin(angle) * radius)
 		ring.append(points)
-	for row in 2:
+	for row in row_count - 1:
 		for segment in segments:
 			var angle := -PI + TAU * (float(segment) + 0.5) / float(segments)
 			var facing := Vector3(cos(angle), 0.0, sin(angle))
