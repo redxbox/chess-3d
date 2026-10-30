@@ -57,6 +57,14 @@ const PIECE_MODELS_MEDIEVAL := {
 	"queen": preload("res://assets/models/medieval/queen.obj"),
 	"king": preload("res://assets/models/medieval/king.obj")
 }
+const PIECE_MODELS_EBONY := {
+	"pawn": preload("res://assets/models/ebony/pawn.obj"),
+	"rook": preload("res://assets/models/ebony/rook.obj"),
+	"knight": preload("res://assets/models/ebony/knight.obj"),
+	"bishop": preload("res://assets/models/ebony/bishop.obj"),
+	"queen": preload("res://assets/models/ebony/queen.obj"),
+	"king": preload("res://assets/models/ebony/king.obj")
+}
 const BOARD_SIZE := 8
 const SQUARE_SIZE := 1.0
 ## Single source of truth for the in-game version label. project.godot carries
@@ -83,7 +91,7 @@ const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q
 ## albedo is a shade off white, for the same reason.
 ## ---------------------------------------------------------------------------
 const BOARD_THEME_ORDER := ["classic", "royal_wood", "jade", "royal_blue"]
-const PIECE_THEME_ORDER := ["medieval", "persian", "classic", "royal_wood", "marble", "baroque"]
+const PIECE_THEME_ORDER := ["medieval", "persian", "ebony", "classic", "royal_wood", "marble", "baroque"]
 ## What a fresh install wears. The hand-sculpted set is the one that reads best
 ## on a phone: a carved pawn is legible at the size a phone actually shows it,
 ## where a turned one is a silhouette.
@@ -178,6 +186,20 @@ const PIECE_THEMES := {
 	# against dark walnut, with antique gold in the two rules at the base. Both
 	# albedos are held above the values where a phone turns a dark piece into a
 	# flat hole - see the note on the classic set below.
+	"ebony": {
+		"label": "EBONY & MAPLE",
+		"model_set": "ebony",
+		"light": Color(0.85, 0.72, 0.53),
+		"dark": Color(0.12, 0.10, 0.10),
+		"accent": Color(0.70, 0.53, 0.20),
+		"light_roughness": 0.28,
+		"dark_roughness": 0.25,
+		"accent_roughness": 0.46,
+		"accent_metallic": 0.26,
+		"trim_variant": "ebony",
+		"swatch_light": Color(0.90, 0.78, 0.60),
+		"swatch_dark": Color(0.15, 0.13, 0.13),
+	},
 	"medieval": {
 		"label": "CARVED IVORY & WALNUT",
 		"model_set": "medieval",
@@ -1309,6 +1331,7 @@ func _piece_set() -> String:
 
 func _piece_models() -> Dictionary:
 	match _piece_set():
+		"ebony": return PIECE_MODELS_EBONY
 		"medieval": return PIECE_MODELS_MEDIEVAL
 		"persian": return PIECE_MODELS_PERSIAN
 	return PIECE_MODELS_STAUNTON
