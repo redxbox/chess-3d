@@ -862,11 +862,9 @@ func _piece_mesh(kind: String) -> Mesh:
 		return _mesh_cache[cache_key]
 	# The model dictionary is a Dictionary, so indexing it yields Variant; an explicit
 	# type is what lets the rest of this function be checked at all.
+	# _piece_models() has already guaranteed six bodies from one set, so this
+	# lookup cannot mix two sets together.
 	var models := _piece_models()
-	if not models.has(kind):
-		# A missing body must never take the board down with it: fall back to the
-		# turned set, which every install ships and which covers all six kinds.
-		models = _piece_models_for("staunton")
 	var source: Mesh = models.get(kind)
 	if source == null or source.get_surface_count() == 0:
 		return source
@@ -1358,8 +1356,23 @@ func _piece_set() -> String:
 
 
 ## The six bodies of the set the player is wearing, loaded on first use.
+##
+## The fallback is decided for the whole set, never for one piece, and that is a
+## fix rather than tidying. The old code fell back per kind: if one body of the
+## chosen set failed to load, that one piece came from the turned set while the
+## other five stayed sculpted. On the board that is a set of figures with one
+## turned pawn standing among them - which is exactly what "the pieces are mixed
+## up" means when a player reports it. A set is all six or it is not that set.
 func _piece_models() -> Dictionary:
-	return _piece_models_for(_piece_set())
+	var wanted := _piece_set()
+	var models := _piece_models_for(wanted)
+	if models.size() >= PIECE_KINDS.size():
+		return models
+	# Loud, because it is not recoverable and it is not meant to be: the only ways
+	# to reach it are a corrupt install or an export that left a body out.
+	push_warning("Piece set '%s' is missing %d of its six bodies; using the turned set instead of mixing them."
+		% [wanted, PIECE_KINDS.size() - models.size()])
+	return _piece_models_for("staunton")
 
 
 ## Loads (once) and returns one set's six bodies by name.
