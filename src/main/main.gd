@@ -57,6 +57,14 @@ const PIECE_MODELS_MEDIEVAL := {
 	"queen": preload("res://assets/models/medieval/queen.obj"),
 	"king": preload("res://assets/models/medieval/king.obj")
 }
+const PIECE_MODELS_EBONY := {
+	"pawn": preload("res://assets/models/ebony/pawn.obj"),
+	"rook": preload("res://assets/models/ebony/rook.obj"),
+	"knight": preload("res://assets/models/ebony/knight.obj"),
+	"bishop": preload("res://assets/models/ebony/bishop.obj"),
+	"queen": preload("res://assets/models/ebony/queen.obj"),
+	"king": preload("res://assets/models/ebony/king.obj")
+}
 const BOARD_SIZE := 8
 const SQUARE_SIZE := 1.0
 ## Single source of truth for the in-game version label. project.godot carries
@@ -82,14 +90,30 @@ const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q
 ## shading left on it. Every light square below is under that, and every piece
 ## albedo is a shade off white, for the same reason.
 ## ---------------------------------------------------------------------------
-const BOARD_THEME_ORDER := ["classic", "royal_wood", "jade", "royal_blue"]
-const PIECE_THEME_ORDER := ["medieval", "persian", "classic", "royal_wood", "marble", "baroque"]
+const BOARD_THEME_ORDER := ["ebony", "classic", "royal_wood", "jade", "royal_blue", "glass"]
+const PIECE_THEME_ORDER := ["medieval", "persian", "ebony", "classic", "royal_wood", "marble", "baroque", "glass"]
 ## What a fresh install wears. The hand-sculpted set is the one that reads best
 ## on a phone: a carved pawn is legible at the size a phone actually shows it,
 ## where a turned one is a silhouette.
 const DEFAULT_PIECE_THEME := "medieval"
 
 const BOARD_THEMES := {
+	"ebony": {
+		"label": "MACASSAR & ASH",
+		"light_square": Color(0.72, 0.65, 0.55),
+		"dark_square": Color(0.12, 0.10, 0.09),
+		"square_roughness": 0.20,
+		"apron": Color(0.10, 0.08, 0.08),
+		"apron_roughness": 0.22,
+		"apron_metallic": 0.08,
+		"trim": Color(0.75, 0.60, 0.35),
+		"trim_roughness": 0.30,
+		"table": Color(0.10, 0.10, 0.10),
+		"apron_map": "rosewood",
+		"label_color": Color(0.85, 0.70, 0.45),
+		"swatch_light": Color(0.80, 0.72, 0.60),
+		"swatch_dark": Color(0.15, 0.12, 0.11),
+	},
 	"classic": {
 		"model_set": "staunton",
 		"label": "MARBLE & SLATE",
@@ -171,13 +195,59 @@ const BOARD_THEMES := {
 		"swatch_light": Color(0.90, 0.87, 0.80),
 		"swatch_dark": Color(0.13, 0.22, 0.42),
 	},
-}
+	"glass": {
+		"label": "GLASS & SILVER",
+		"light_square": Color(0.85, 0.86, 0.84),
+		"dark_square": Color(0.48, 0.52, 0.50),
+		"square_roughness": 0.1,
+		"apron": Color(0.70, 0.72, 0.70),
+		"apron_roughness": 0.15,
+		"apron_metallic": 0.2,
+		"trim": Color(0.9, 0.9, 0.9),
+		"trim_roughness": 0.1,
+		"table": Color(0.2, 0.4, 0.5),
+		"apron_map": "marble",
+		"label_color": Color(0.2, 0.2, 0.2),
+		"swatch_light": Color(0.85, 0.86, 0.84),
+		"swatch_dark": Color(0.48, 0.52, 0.50),
+	},
+
+	"glass": {
+		"label": "GLASS & SILVER",
+		"light_square": Color(0.85, 0.86, 0.84),
+		"dark_square": Color(0.48, 0.52, 0.50),
+		"square_roughness": 0.1,
+		"apron": Color(0.70, 0.72, 0.70),
+		"apron_roughness": 0.15,
+		"apron_metallic": 0.2,
+		"trim": Color(0.9, 0.9, 0.9),
+		"trim_roughness": 0.1,
+		"table": Color(0.2, 0.4, 0.5),
+		"apron_map": "marble",
+		"label_color": Color(0.2, 0.2, 0.2),
+		"swatch_light": Color(0.85, 0.86, 0.84),
+		"swatch_dark": Color(0.48, 0.52, 0.50),
+	}
 
 const PIECE_THEMES := {
 	# The hand-sculpted set, painted the way a carved boxwood set is: warm ivory
 	# against dark walnut, with antique gold in the two rules at the base. Both
 	# albedos are held above the values where a phone turns a dark piece into a
 	# flat hole - see the note on the classic set below.
+	"ebony": {
+		"label": "EBONY & MAPLE",
+		"model_set": "ebony",
+		"light": Color(0.85, 0.75, 0.60),
+		"dark": Color(0.15, 0.13, 0.13),
+		"accent": Color(0.78, 0.65, 0.25),
+		"light_roughness": 0.20,
+		"dark_roughness": 0.22,
+		"accent_roughness": 0.35,
+		"accent_metallic": 0.50,
+		"trim_variant": "ebony",
+		"swatch_light": Color(0.90, 0.80, 0.65),
+		"swatch_dark": Color(0.15, 0.13, 0.13),
+	},
 	"medieval": {
 		"label": "CARVED IVORY & WALNUT",
 		"model_set": "medieval",
@@ -280,6 +350,20 @@ const PIECE_THEMES := {
 		"trim_variant": "baroque",
 		"swatch_light": Color(0.71, 0.58, 0.40),
 		"swatch_dark": Color(0.195, 0.20, 0.225),
+	},
+	"glass": {
+		"model_set": "staunton",
+		"label": "GLASS & OBSIDIAN",
+		"light": Color(0.95, 0.96, 0.98),
+		"dark": Color(0.05, 0.05, 0.08),
+		"accent": Color(0.9, 0.95, 1.0),
+		"light_roughness": 0.05,
+		"dark_roughness": 0.05,
+		"accent_roughness": 0.02,
+		"accent_metallic": 0.9,
+		"trim_variant": "baroque",
+		"swatch_light": Color(0.95, 0.96, 0.98),
+		"swatch_dark": Color(0.05, 0.05, 0.08),
 	},
 }
 
@@ -473,7 +557,10 @@ func _setup_environment() -> void:
 	# and screen-space AA, never the exposure or the tonemapper.
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("3b2e42")
+	if board_theme == "glass":
+		environment.background_color = Color(0.1, 0.6, 0.8) # Bright cyan/blue
+	else:
+		environment.background_color = Color("3b2e42")
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	# Exposure is the master fader for the whole frame, and it is set against the
 	# light rig below rather than in isolation. The brief's light energies plus
@@ -484,10 +571,16 @@ func _setup_environment() -> void:
 	var sky_material := ProceduralSkyMaterial.new()
 	# A dark studio with a warm horizon. The horizon band is what the brass and
 	# gold inlays reflect; with the old near-black sky every gold collar read as mud.
-	sky_material.sky_top_color = Color("3d4550")
-	sky_material.sky_horizon_color = Color("a0958a")
-	sky_material.ground_bottom_color = Color("14100f")
-	sky_material.ground_horizon_color = Color("4d4239")
+	if board_theme == "glass":
+		sky_material.sky_top_color = Color(0.2, 0.7, 0.9)
+		sky_material.sky_horizon_color = Color(0.7, 0.9, 1.0)
+		sky_material.ground_bottom_color = Color(0.0, 0.2, 0.3)
+		sky_material.ground_horizon_color = Color(0.2, 0.5, 0.6)
+	else:
+		sky_material.sky_top_color = Color("3d4550")
+		sky_material.sky_horizon_color = Color("a0958a")
+		sky_material.ground_bottom_color = Color("14100f")
+		sky_material.ground_horizon_color = Color("4d4239")
 	var studio_sky := Sky.new()
 	studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
 	studio_sky.sky_material = sky_material
@@ -1309,6 +1402,7 @@ func _piece_set() -> String:
 
 func _piece_models() -> Dictionary:
 	match _piece_set():
+		"ebony": return PIECE_MODELS_EBONY
 		"medieval": return PIECE_MODELS_MEDIEVAL
 		"persian": return PIECE_MODELS_PERSIAN
 	return PIECE_MODELS_STAUNTON
@@ -1337,6 +1431,8 @@ func _facing_yaw(is_white: bool) -> float:
 ## opposite yaws. The quarter turns (+-90 degrees) were rejected outright - nose
 ## on into the board's flank is not how a set is arranged.
 func _knight_yaw(_file: int, is_white: bool) -> float:
+	if _piece_set() == "ebony":
+		return PI if is_white else 0.0
 	return _facing_yaw(is_white)
 
 
@@ -1513,8 +1609,7 @@ const TRIM_STYLES := {
 	"classic": {"foot_scale": 1.00, "extra_bands": false},
 	"royal_wood": {"foot_scale": 1.14, "extra_bands": false},
 	"marble": {"foot_scale": 1.00, "extra_bands": false},
-	"baroque": {"foot_scale": 1.07, "extra_bands": true},
-}
+	"baroque": {"foot_scale": 1.07, "extra_bands": true}
 const ORNAMENT_BAND_HEIGHT := 0.015
 const ORNAMENT_BAND_PROUD := 0.004
 
@@ -3447,8 +3542,12 @@ func _draw_highlights() -> void:
 	for child in highlights_root.get_children():
 		child.queue_free()
 	if not last_move.is_empty():
-		_add_highlight(last_move.from, Color(0.22, 0.52, 0.9, 0.32), 0.44)
-		_add_highlight(last_move.to, Color(0.22, 0.52, 0.9, 0.48), 0.44)
+		if board_theme == "glass":
+			_add_highlight(last_move.from, Color(0.5, 0.8, 1.0, 0.5), 0.48)
+			_add_highlight(last_move.to, Color(0.5, 0.8, 1.0, 0.7), 0.48)
+		else:
+			_add_highlight(last_move.from, Color(0.22, 0.52, 0.9, 0.32), 0.44)
+			_add_highlight(last_move.to, Color(0.22, 0.52, 0.9, 0.48), 0.44)
 	var check_color := Color(0.95, 0.46, 0.10, 0.70) if colorblind_enabled else Color(0.82, 0.16, 0.12, 0.64)
 	var move_color := Color(0.20, 0.56, 0.85, 0.66) if colorblind_enabled else Color(0.72, 0.56, 0.25, 0.58)
 	if game.result == "" and game.is_in_check(game.turn):
