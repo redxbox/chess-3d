@@ -110,7 +110,7 @@ const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q
 ## turned Staunton bodies in different colours, so the choice on the style screen
 ## was eight things that all looked alike. What is left is three genuinely
 ## different boards and three genuinely different sets of pieces.
-const BOARD_THEME_ORDER := ["classic", "royal_wood", "royal_blue"]
+const BOARD_THEME_ORDER := ["classic", "royal_wood", "jade", "royal_blue"]
 const PIECE_THEME_ORDER := ["classic", "persian", "bastani"]
 ## What a fresh install wears. The hand-sculpted set is the one that reads best
 ## on a phone: a carved pawn is legible at the size a phone actually shows it,
@@ -152,6 +152,31 @@ const BOARD_THEMES := {
 		"swatch_light": Color(0.76, 0.63, 0.45),
 		"swatch_dark": Color(0.34, 0.16, 0.09),
 	},
+	# Jade: pale celadon against deep nephrite, with a patinated bronze frame and
+	# a brass inlay. It is the fourth board and the only green one; its two squares
+	# differ in value by about a factor of three as well as in hue, which keeps the
+	# board readable for every kind of colour vision.
+	"jade": {
+		"model_set": "staunton",
+		"label": "JADE & BRONZE",
+		"light_square": Color(0.525, 0.645, 0.545),
+		"dark_square": Color(0.115, 0.255, 0.195),
+		"square_roughness": 0.22,
+		# Metallic 0.35 at 0.24 rendered as a black edge - a metalness that high
+		# leaves nothing for the fill and ambient to reach - so the frame is lifted
+		# and the metalness halved. It reads as patinated bronze, which is what the
+		# name promises.
+		"apron": Color(0.30, 0.375, 0.325),
+		"apron_roughness": 0.34,
+		"apron_metallic": 0.18,
+		"trim": Color(0.52, 0.44, 0.24),
+		"trim_roughness": 0.38,
+		"table": Color(0.10, 0.16, 0.15),
+		"apron_map": "marble",
+		"label_color": Color(0.80, 0.85, 0.66),
+		"swatch_light": Color(0.60, 0.71, 0.61),
+		"swatch_dark": Color(0.10, 0.24, 0.18),
+	},
 	# Royal blue: the tournament pairing. Ivory on a saturated blue, gold inlay,
 	# near-black frame.
 	"royal_blue": {
@@ -182,11 +207,16 @@ const PIECE_THEMES := {
 	"persian": {
 		"label": "PERSIAN",
 		"model_set": "persian",
-		"light": Color(0.815, 0.765, 0.655),
-		"dark": Color(0.305, 0.225, 0.165),
+		"light": Color(0.760, 0.712, 0.610),
+		# Walnut, not tar. At 0.305 the carved drapery had no shading left once the
+		# frame was tonemapped down, and the whole army read as one dark silhouette
+		# with a few specular speckles on it - the single thing the player asked
+		# about twice. 0.40 keeps it unmistakably the dark side while giving the
+		# folds somewhere to go.
+		"dark": Color(0.400, 0.300, 0.225),
 		"accent": Color(0.76, 0.585, 0.245),
 		"light_roughness": 0.34,
-		"dark_roughness": 0.34,
+		"dark_roughness": 0.44,
 		"accent_roughness": 0.46,
 		"accent_metallic": 0.30,
 		"trim_variant": "persian",
@@ -211,19 +241,21 @@ const PIECE_THEMES := {
 		# Jade glaze, cut a little darker and a little rougher than the ivory it
 		# replaces: at 0.78 albedo and 0.17 roughness the folded robes of the
 		# bastani figures clipped to flat white and the carving disappeared.
-		"light": Color(0.615, 0.720, 0.620),
+		"light": Color(0.560, 0.665, 0.575),
 		# Lapis, not ink. At 0.115 the folded robes had no albedo to shade, so the
 		# army read as one dark shape with a few highlights on it; 0.19 with a
 		# little more blue gives the folds somewhere to go while staying clearly
 		# the dark side of the board.
-		"dark": Color(0.19, 0.225, 0.44),
+		# Lapis, lifted again. This set's figures are almost all robe, and a robe
+		# with no albedo shows no folds: at 0.19 the army was a navy silhouette.
+		"dark": Color(0.300, 0.345, 0.560),
 		"accent": Color(0.86, 0.68, 0.26),
 		# Glazed stone: a tight lobe, so the folds of the robes carry a highlight
 		# along them instead of a flat wash. This is the finish the figures were
 		# modelled for, and it is what makes armour and cloth read as different
 		# materials even where the mesh is one surface.
 		"light_roughness": 0.26,
-		"dark_roughness": 0.22,
+		"dark_roughness": 0.34,
 		# The gold is the only colour break on a sculpted figure, so it is a real
 		# metal: rougher than a mirror so the ribbon keeps its facets, metallic
 		# enough (0.55) that it takes its colour from reflection rather than from
@@ -236,17 +268,17 @@ const PIECE_THEMES := {
 	},
 	"classic": {
 		"label": "CLASSIC",
-		"light": Color(0.82, 0.78, 0.70),
+		"light": Color(0.775, 0.735, 0.660),
 		# The black set used to be 0.20 / 0.21 / 0.24 at roughness 0.22, which on a
 		# phone is below the point where a dark albedo can show any shading at
 		# all: the pieces read as holes cut out of the board with a white
 		# highlight stuck on top of the crown. 0.285 at 0.30 is still unmistakably
 		# "the black pieces" - the board's dark squares are 0.22 - but the form,
 		# the fluting and the gold inlays are all visible now.
-		"dark": Color(0.285, 0.30, 0.335),
+		"dark": Color(0.360, 0.375, 0.410),
 		"accent": Color(0.62, 0.61, 0.57),
 		"light_roughness": 0.24,
-		"dark_roughness": 0.30,
+		"dark_roughness": 0.38,
 		"accent_roughness": 0.50,
 		"accent_metallic": 0.26,
 		"trim_variant": "classic",
@@ -271,9 +303,6 @@ var _board_light_material: StandardMaterial3D
 var _board_dark_material: StandardMaterial3D
 var _piece_ivory_material: Material
 var _piece_obsidian_material: Material
-## The gold rule round a sculpted figure's foot. Shared by all 32 pieces, because
-## it is deliberately the one thing on the board that is not the army's colour.
-var _gold_rule_material: Material
 var _piece_gold_material: StandardMaterial3D
 var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
@@ -481,7 +510,7 @@ func _setup_environment() -> void:
 	# key light cannot see: at 0.35 every table step sitting in the board's own
 	# shadow collapsed to pure black, which is exactly the void the brief wants
 	# gone.
-	environment.ambient_light_energy = 0.45
+	environment.ambient_light_energy = 0.55
 	# A three-point studio rig, so both sets read as solid volume at once. The
 	# old single key light left the camera-facing side of every dark piece in
 	# its own shadow, which is why the black set used to collapse into
@@ -494,7 +523,10 @@ func _setup_environment() -> void:
 	# fill's grazing shadows doing less work the pale squares sat the rest of the
 	# way into the clip and came back as flat #ffffff with no shading left on
 	# them. 0.73 puts them back just under.
-	$KeyLight.light_energy = 0.73
+	# 0.73 -> 0.66 to pay for the brighter fill and ambient below: the pale armies
+	# are the ones at risk of clipping, and a clipped piece has no carving left on
+	# it at all. The exposure stays where it is.
+	$KeyLight.light_energy = 0.66
 	$KeyLight.light_color = Color(1.0, 0.96, 0.90)
 	$KeyLight.rotation_degrees = Vector3(-48, -32, 0)
 	# Contact-tight shadows. The normal bias is deliberately small: a large one
@@ -510,7 +542,11 @@ func _setup_environment() -> void:
 	$KeyLight.directional_shadow_max_distance = 40.0
 	# Fill: soft, front-right and low, no shadow. This is what actually lights
 	# the side of a piece the camera can see.
-	$FillLight.light_energy = 0.28
+	# 0.28 -> 0.40. The fill is the only light that reaches the camera-facing side
+	# of a piece, and the dark armies were being lit almost entirely by it: at
+	# 0.28 the folds of a walnut king had about three values in them and read as
+	# one shape. This is the single number that made the black pieces legible.
+	$FillLight.light_energy = 0.40
 	$FillLight.light_color = Color(0.88, 0.91, 0.98)
 	$FillLight.rotation_degrees = Vector3(-60, 45, 0)
 	$FillLight.shadow_enabled = false
@@ -525,7 +561,7 @@ func _setup_environment() -> void:
 	# body with any specular at all was enough to clip the rook's crown and the
 	# pawns' collars to white rings. 0.25 still leaves a specular edge along the
 	# silhouette, which is the whole point of a rim, without the blowout.
-	$RimLight.light_energy = 0.25
+	$RimLight.light_energy = 0.34
 	$RimLight.shadow_enabled = false
 	# Bounce: a fourth, upward-facing light that stands in for the light the pale
 	# board throws back up. It is what keeps the underside of a piece from going
@@ -533,7 +569,7 @@ func _setup_environment() -> void:
 	# neck, so the whole underside of the head is a crevice the three top lights
 	# cannot reach, and at full shadow it read as a hole through the piece. Warm
 	# and dim on purpose - it must lift the shadow, not add a second key.
-	$BounceLight.light_energy = 0.16
+	$BounceLight.light_energy = 0.24
 	$BounceLight.light_color = Color(0.97, 0.90, 0.80)
 	$BounceLight.rotation_degrees = Vector3(68, 12, 0)
 	$BounceLight.shadow_enabled = false
@@ -865,30 +901,21 @@ func _piece_mesh(kind: String) -> Mesh:
 	var smoothed: PackedVector3Array = PackedVector3Array()
 	if not has_normals:
 		smoothed = _smoothed_normals(positions, indices)
-	# The gold rule round the foot of a sculpted figure, built as a real ring with
-	# its own surface and material.
+	# No metal band is generated for a sculpted piece, and that is the decision
+	# this round settles after seven failed attempts.
 	#
-	# Two earlier versions of this are worth recording, because both failed for
-	# structural reasons rather than for want of tuning. Tinting the vertices with
-	# an albedo multiplier cannot work: one multiplier has to serve a pale albedo
-	# and a lapis one, so the gold on one army is a grey line on the other and
-	# bright enough for the dark army it clips the pale one to white. Cutting the
-	# rule out of the body's own triangles at a fixed height cannot work either:
-	# a carved plinth has no constant radius, so the slab catches the shoulders
-	# where the mesh happens to have vertex rows and breaks into dashes.
+	# The carving is scalloped and irregular: there is no circle that follows it.
+	# Measured inside the lobes the band is buried and shows as slivers; measured
+	# outside them it floats clear of the stone and reads as a hoop hanging in the
+	# air. Both of those shipped, and both are worse than nothing - the ring is
+	# the first thing the eye finds on the whole board.
 	#
-	# What works is to measure the plinth: sample its radius in angular bins at
-	# the height of the rule, take a high percentile rather than the maximum, and
-	# then sweep a ribbon round those measured radii. The ribbon follows the
-	# lobes, cannot break, cannot float, and is the same gold on both armies.
+	# The sculpted sets are detailed enough without it: the drapery, the armour,
+	# the mane and the engraved plinth are all in the mesh. Their gold is in the
+	# palette - the trim colour of the accent material - not in a hoop round the
+	# base.
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var rule := SurfaceTool.new()
-	rule.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var has_rule := false
-	if _piece_set() != "staunton" and positions.size() > 0:
-		var plinth_top: float = float(SET_PLINTH_FRACTION.get(kind, 0.11)) * highest
-		has_rule = _add_gold_ribbon(rule, positions, plinth_top, highest)
 	for i in positions.size():
 		var vertex: Vector3 = positions[i]
 		var angle := atan2(vertex.z, vertex.x)
@@ -909,148 +936,8 @@ func _piece_mesh(kind: String) -> Mesh:
 	# out to flat white, and without tangents the carve map cannot be applied.
 	tool.generate_tangents()
 	var mesh := tool.commit()
-	if has_rule:
-		rule.generate_tangents()
-		mesh = rule.commit(mesh)
 	_mesh_cache[cache_key] = mesh
 	return mesh
-
-
-## Builds the gold rule round a sculpted figure's plinth into `rule`.
-##
-## This is a skirt, not a ring, and each of those words cost a render.
-##
-## A ring - one radius, swept round at one height - cannot sit on a carved base.
-## The plinth is scalloped, so a circle at the median radius is buried in the
-## lobes and a circle at the lobes floats over the valleys, and the plinth also
-## flares towards its foot, so any circle higher up the wall is hidden behind the
-## flare below it when the camera looks down at the board. Every attempt shows
-## the same thing: slivers of gold, then dashes, then a thin brown scribble.
-##
-## So the band is measured at every row of its own height: for each row, the
-## mesh's radius is sampled in angular bins and the largest radius in each bin is
-## used, and the rows are sewn together. The result is a surface that follows the
-## flare and the lobes both - a gilded skin over the top of the base rather than
-## a hoop hovering near it - and it is wide enough to read as metal rather than as
-## a painted line.
-##
-## Returns false when the plinth could not be measured at all, which is what
-## happens on a mesh whose base is not where the profile says it is.
-func _add_gold_ribbon(rule: SurfaceTool, positions: PackedVector3Array, plinth_top: float, highest: float) -> bool:
-	const BINS := 96
-	const ROWS := 10
-	# The skirt covers the upper half of the plinth. Below that is the flare, which
-	# the camera sees the top of; above it is the figure.
-	# Down on the body of the base rather than up under the figure: the figures
-	# stand in draped cloth and hang tails over the top of their plinths, so a band
-	# that reaches the shoulder is fighting the sculpture for the same pixels. The
-	# lower two-thirds of the base is clean stone in every one of the six meshes.
-	var band_low := plinth_top * 0.26
-	var band_high := plinth_top * 0.60
-	var scaled := PackedFloat32Array()
-	scaled.resize(positions.size())
-	var angles := PackedFloat32Array()
-	angles.resize(positions.size())
-	for i in positions.size():
-		var vertex: Vector3 = positions[i]
-		scaled[i] = sqrt(vertex.x * vertex.x + vertex.z * vertex.z)
-		angles[i] = atan2(vertex.z, vertex.x)
-	var row_radius := PackedFloat32Array()
-	row_radius.resize(ROWS * BINS)
-	var row_seen := PackedByteArray()
-	row_seen.resize(ROWS * BINS)
-	for row in ROWS:
-		var height := band_low + (band_high - band_low) * float(row) / float(ROWS - 1)
-		var window := (band_high - band_low) / float(ROWS) * 0.9
-		for i in positions.size():
-			var offset := absf(positions[i].y - height)
-			if offset > window or scaled[i] < 0.02:
-				continue
-			var bin := clampi(int(floor((angles[i] + PI) / TAU * float(BINS))), 0, BINS - 1)
-			var slot := row * BINS + bin
-			row_seen[slot] = 1
-			# The largest radius in the bin: the lobes stick 0.01-0.016 past the
-			# median, and anything built inside them is swallowed by the carving.
-			row_radius[slot] = maxf(row_radius[slot], scaled[i])
-	var covered := 0
-	for slot in row_radius.size():
-		covered += row_seen[slot]
-	if covered < ROWS * BINS / 2:
-		return false
-	# Fill the bins the mesh had no vertex rows in, from the row above or below,
-	# then smooth along the ring only - across rows the flare is real and must not
-	# be flattened out.
-	for row in ROWS:
-		for bin in BINS:
-			var slot := row * BINS + bin
-			if not row_seen[slot]:
-				var above := (row - 1) * BINS + bin
-				var below := (row + 1) * BINS + bin
-				row_radius[slot] = row_radius[above] if row > 0 else row_radius[below]
-	for row in ROWS:
-		var samples := PackedFloat32Array()
-		samples.resize(BINS)
-		for bin in BINS:
-			samples[bin] = row_radius[row * BINS + bin]
-		for pass_index in 2:
-			var smoothed := samples.duplicate()
-			for bin in BINS:
-				smoothed[bin] = samples[(bin - 1 + BINS) % BINS] * 0.25 + samples[bin] * 0.5 + samples[(bin + 1) % BINS] * 0.25
-			samples = smoothed
-		for bin in BINS:
-			row_radius[row * BINS + bin] = samples[bin]
-	# The band's relief, and the shape of it is what stops the ragged edge: the
-	# middle rows stand proud of the stone and the first and last rows sink into
-	# it. A skirt whose rim is exposed has a torn edge where it crosses the
-	# carving; a skirt whose rim is buried in the stone has whatever edge the
-	# carving gives it, which is what an inlaid band looks like.
-	var clearance_profile := PackedFloat32Array()
-	clearance_profile.resize(ROWS)
-	for row in ROWS:
-		var t := float(row) / float(ROWS - 1)
-		clearance_profile[row] = (-0.008 + 0.020 * sin(PI * t)) * highest
-	var segments := BINS
-	for row in ROWS - 1:
-		var low_height := band_low + (band_high - band_low) * float(row) / float(ROWS - 1)
-		var high_height := band_low + (band_high - band_low) * float(row + 1) / float(ROWS - 1)
-		for segment in segments:
-			var angle0 := -PI + TAU * float(segment) / float(segments)
-			var angle1 := -PI + TAU * float(segment + 1) / float(segments)
-			var bin0 := segment
-			var bin1 := (segment + 1) % BINS
-			var r00 := row_radius[row * BINS + bin0] + clearance_profile[row]
-			var r01 := row_radius[row * BINS + bin1] + clearance_profile[row]
-			var r10 := row_radius[(row + 1) * BINS + bin0] + clearance_profile[row + 1]
-			var r11 := row_radius[(row + 1) * BINS + bin1] + clearance_profile[row + 1]
-			var a := Vector3(cos(angle0) * r00, low_height, sin(angle0) * r00)
-			var b := Vector3(cos(angle1) * r01, low_height, sin(angle1) * r01)
-			var c := Vector3(cos(angle1) * r11, high_height, sin(angle1) * r11)
-			var d := Vector3(cos(angle0) * r10, high_height, sin(angle0) * r10)
-			var facing := Vector3(cos((angle0 + angle1) * 0.5), 0.0, sin((angle0 + angle1) * 0.5))
-			# Tilted up a little: the key light comes from above and to the left,
-			# and a band lit only by the fill light renders brown rather than gold.
-			var normal := (facing + Vector3.UP * 0.30).normalized()
-			var uv0 := Vector2(float(segment) / float(segments) * 3.0, 0.0)
-			var uv1 := Vector2(float(segment + 1) / float(segments) * 3.0, 1.0)
-			rule.set_normal(normal)
-			rule.set_uv(uv0)
-			rule.add_vertex(a)
-			rule.set_normal(normal)
-			rule.set_uv(uv1)
-			rule.add_vertex(b)
-			rule.set_normal(normal)
-			rule.set_uv(Vector2(uv1.x, 0.0))
-			rule.add_vertex(c)
-			rule.set_normal(normal)
-			rule.set_uv(uv0)
-			rule.add_vertex(a)
-			rule.set_normal(normal)
-			rule.set_uv(Vector2(uv1.x, 0.0))
-			rule.add_vertex(c)
-			rule.set_normal(normal)
-			rule.set_uv(Vector2(uv0.x, 1.0))
-			rule.add_vertex(d)
-	return true
 
 
 ## Where the plinth ends, as a fraction of each piece's own height. Read off the
@@ -1532,8 +1419,16 @@ func _facing_yaw(is_white: bool) -> float:
 ##    happened when only the king and queen were listed - left a rank of guards
 ##    staring at their own player while the rest of the army faced the enemy.
 func _piece_yaw(kind: String, _file: int, is_white: bool) -> float:
+	# The turned set has a front as well, and this is the bug the player reported
+	# as "some pieces are the wrong way round, like the knight and the king": the
+	# turned set was given no per-army turn at all, so both armies faced the same
+	# way down the board and the black king and knights stood with their backs to
+	# the enemy. Its bishop additionally carries the quarter turn that puts its
+	# mitre slit forward, which has to be added to whichever half-turn the army
+	# needs.
 	if _piece_set() == "staunton":
-		return PI * 0.25 if (kind == "bishop" and is_white) else (PI * 1.25 if kind == "bishop" else 0.0)
+		var quarter := PI * 0.25 if kind == "bishop" else 0.0
+		return quarter + _facing_yaw(is_white)
 	match kind:
 		"pawn", "knight", "bishop", "king", "queen":
 			return _facing_yaw(is_white)
@@ -1563,10 +1458,6 @@ func _apply_piece_materials(piece: Node3D, body: Material) -> void:
 			continue
 		if mesh_instance.name == "OrnateTrim":
 			continue
-		# A mesh with more than one surface has already been given a material per
-		# surface; overriding it here would paint the gold rule out.
-		if mesh_instance.mesh != null and mesh_instance.mesh.get_surface_count() > 1:
-			continue
 		if mesh_instance.material_override == null:
 			mesh_instance.material_override = body
 
@@ -1593,16 +1484,7 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	var model := MeshInstance3D.new()
 	model.name = "SculptedModel"
 	model.mesh = _piece_mesh(kind)
-	# A sculpted body can carry a second surface - the gold rule cut out of its
-	# foot - and material_override would bury that surface under the body colour.
-	# Where there are two surfaces the materials are set per surface instead,
-	# which is per instance and so still lets the two armies share one mesh.
-	if model.mesh != null and model.mesh.get_surface_count() > 1:
-		model.set_surface_override_material(0, body)
-		for surface in range(1, model.mesh.get_surface_count()):
-			model.set_surface_override_material(surface, _gold_rule())
-	else:
-		model.material_override = body
+	model.material_override = body
 	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	model.rotation.y = _piece_yaw(kind, file, is_white)
 	piece.add_child(model)
@@ -2778,10 +2660,10 @@ func _build_theme_picker() -> void:
 	piece_header.text = _text("piece_theme")
 	piece_header.add_theme_font_size_override("font_size", 14)
 	piece_header.add_theme_color_override("font_color", Color("c5a96b"))
-	# The two rows sit side by side rather than stacked, and each one is three wide:
-	# with three options apiece there is no reason for the screen to be a tall
-	# strip, and a phone held in landscape gets a wider picker with larger
-	# thumbnails for the same screen area.
+	# The two rows sit side by side rather than stacked, so a phone held in
+	# landscape gets a wider picker with larger thumbnails for the same screen
+	# area: two columns of two boards on the left, a single row of three sets on
+	# the right.
 	var rows := HBoxContainer.new()
 	rows.add_theme_constant_override("separation", 26)
 	content.add_child(rows)
@@ -2791,7 +2673,10 @@ func _build_theme_picker() -> void:
 	board_column.add_child(board_header)
 	var board_row := GridContainer.new()
 	board_row.name = "BoardRow"
-	board_row.columns = 3
+	# Two columns of two: there are four boards and three sets now, so the board
+	# row wraps instead of stretching to four narrow cards, which keeps every
+	# thumbnail at the size the piece thumbnails already use.
+	board_row.columns = 2
 	board_row.add_theme_constant_override("h_separation", 12)
 	board_column.add_child(board_row)
 	for id in BOARD_THEME_ORDER:
@@ -4115,24 +4000,6 @@ func _new_game() -> void:
 	_update_move_history()
 	_update_captured_pieces()
 	_save_autosave()
-
-
-## Gold for the rule round a sculpted figure's foot, and it is a gold of albedo
-## rather than of reflection. The accent metal the crowns use is 0.55 metallic,
-## which is right for a shape that can hold a highlight but not for a band four
-## pixels tall on a phone renderer with nothing to reflect: a thin metallic line
-## in this scene comes out brown. Warm albedo, low metallic, moderate roughness -
-## that is a gilded line that reads at any size.
-func _gold_rule() -> Material:
-	if _gold_rule_material == null:
-		var gold := _luxury_piece_material(Color(0.96, 0.77, 0.33), 0.38, 0.15)
-		# The ribbon is a swept strip, and a strip that follows a scalloped plinth
-		# does not keep one winding all the way round. Culling would then punch
-		# holes in it - which is exactly what the dashes in the renders were.
-		# Lighting does not depend on this: the ribbon carries its own normals.
-		gold.cull_mode = BaseMaterial3D.CULL_DISABLED
-		_gold_rule_material = gold
-	return _gold_rule_material
 
 
 func _luxury_piece_material(color: Color, roughness: float, metallic: float, emissive := false, glossy := false, sheen := 0.30, figure: Texture2D = null, normal: Texture2D = null, bump_scale := 0.7, clearcoat := 0.40, clearcoat_roughness := 0.20, tinted := false) -> StandardMaterial3D:

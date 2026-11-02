@@ -55,6 +55,13 @@ jobs:
           fi
           exit "$status"
 
+      # Nothing that is not a runtime asset may sit under assets/. A 36 MB folder
+      # of raw sculpts got packed into the APK that way once; see
+      # tools/check_shipped_assets.py.
+      - name: Check nothing unshippable is in assets
+        shell: bash
+        run: python3 tools/check_shipped_assets.py
+
       - name: Run chess rules tests
         shell: bash
         run: |
