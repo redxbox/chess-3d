@@ -3518,7 +3518,12 @@ func _spawn_capture_effect(position: Vector3, captured_code: String) -> void:
 
 
 func _draw_highlights() -> void:
+	# Removed now rather than queued. queue_free() leaves the old markers in the
+	# tree until the end of the frame, so any second redraw in the same frame drew
+	# the new set on top of the old one - which is how two gold move discs were
+	# left sitting on empty squares after the board had been rebuilt.
 	for child in highlights_root.get_children():
+		highlights_root.remove_child(child)
 		child.queue_free()
 	if not last_move.is_empty():
 		_add_highlight(last_move.from, Color(0.22, 0.52, 0.9, 0.32), 0.44)

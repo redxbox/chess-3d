@@ -27,6 +27,7 @@ func _init() -> void:
 	_test_threefold_repetition()
 	_test_offline_ai()
 	_test_game_archive()
+	_test_piece_facing()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -324,3 +325,51 @@ func _test_game_archive() -> void:
 	_expect(int(side_reloaded.games[0].get("human_color", ChessGame.WHITE)) == ChessGame.BLACK, "archive entries remember which side the player controlled")
 	side_store.remove_game(side_id)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(test_path))
+
+
+## Every piece with a front must face the opposing army.
+##
+## This is a table, tested rather than eyeballed, because it has now been wrong in
+## both directions: first only the king and queen were listed, so the guards and
+## the elephant faced their own player; then the turned set was given no
+## per-army turn at all, so its black king and knights stood with their backs to
+## the enemy. The model sets are sculpted facing opposite ways - the turned
+## knight's muzzle points -Z and the two sculpted sets face +Z - so the two need
+## opposite half-turns for the same result.
+func _test_piece_facing() -> void:
+	# White stands on +Z and therefore has to look -Z; Black is the mirror.
+	# (set name, kind, army, expected yaw)
+	var expectations := [
+		# Turned set: muzzle -Z, so White keeps it and Black takes half a turn.
+		["staunton", "knight", true, 0.0],
+		["staunton", "knight", false, PI],
+		# Its bishop also needs the quarter turn that puts the mitre slit forward.
+		["staunton", "bishop", true, PI * 0.25],
+		["staunton", "bishop", false, PI * 1.25],
+		# A turned pawn, rook, queen and king have no front, so they are left be.
+		["staunton", "pawn", true, 0.0],
+		["staunton", "rook", false, 0.0],
+		# Sculpted sets face +Z: White takes half a turn, Black keeps the model.
+		["persian", "king", true, PI],
+		["persian", "king", false, 0.0],
+		["persian", "knight", true, PI],
+		["persian", "knight", false, 0.0],
+		["bastani", "knight", true, PI],
+		["bastani", "knight", false, 0.0],
+		["bastani", "bishop", true, PI],
+		["bastani", "bishop", false, 0.0],
+	]
+	# The function lives on the main scene script, so it is instantiated rather
+	# than preloaded: the scene builds a board, which a test has no use for.
+	var scene := load("res://src/main/main.tscn") as PackedScene
+	var main = scene.instantiate()
+	for case in expectations:
+		var set_name: String = case[0]
+		var kind: String = case[1]
+		var is_white: bool = case[2]
+		var expected: float = case[3]
+		main.piece_theme = set_name
+		var actual: float = main._piece_yaw(kind, 0, is_white)
+		var same := absf(wrapf(actual - expected, -PI, PI)) < 0.001
+		_expect(same, "%s %s %s faces the enemy (yaw %.2f)" % [set_name, kind, "white" if is_white else "black", actual])
+	main.free()
