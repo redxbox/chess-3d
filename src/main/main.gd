@@ -90,7 +90,7 @@ const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q
 ## shading left on it. Every light square below is under that, and every piece
 ## albedo is a shade off white, for the same reason.
 ## ---------------------------------------------------------------------------
-const BOARD_THEME_ORDER := ["classic", "royal_wood", "jade", "royal_blue"]
+const BOARD_THEME_ORDER := ["ebony", "classic", "royal_wood", "jade", "royal_blue"]
 const PIECE_THEME_ORDER := ["medieval", "persian", "ebony", "classic", "royal_wood", "marble", "baroque"]
 ## What a fresh install wears. The hand-sculpted set is the one that reads best
 ## on a phone: a carved pawn is legible at the size a phone actually shows it,
@@ -98,6 +98,22 @@ const PIECE_THEME_ORDER := ["medieval", "persian", "ebony", "classic", "royal_wo
 const DEFAULT_PIECE_THEME := "medieval"
 
 const BOARD_THEMES := {
+	"ebony": {
+		"label": "MACASSAR & ASH",
+		"light_square": Color(0.72, 0.65, 0.55),
+		"dark_square": Color(0.12, 0.10, 0.09),
+		"square_roughness": 0.20,
+		"apron": Color(0.10, 0.08, 0.08),
+		"apron_roughness": 0.22,
+		"apron_metallic": 0.08,
+		"trim": Color(0.75, 0.60, 0.35),
+		"trim_roughness": 0.30,
+		"table": Color(0.10, 0.10, 0.10),
+		"apron_map": "rosewood",
+		"label_color": Color(0.85, 0.70, 0.45),
+		"swatch_light": Color(0.80, 0.72, 0.60),
+		"swatch_dark": Color(0.15, 0.12, 0.11),
+	},
 	"classic": {
 		"model_set": "staunton",
 		"label": "MARBLE & SLATE",
@@ -189,15 +205,15 @@ const PIECE_THEMES := {
 	"ebony": {
 		"label": "EBONY & MAPLE",
 		"model_set": "ebony",
-		"light": Color(0.85, 0.72, 0.53),
-		"dark": Color(0.12, 0.10, 0.10),
-		"accent": Color(0.70, 0.53, 0.20),
-		"light_roughness": 0.28,
-		"dark_roughness": 0.25,
-		"accent_roughness": 0.46,
-		"accent_metallic": 0.26,
+		"light": Color(0.85, 0.75, 0.60),
+		"dark": Color(0.15, 0.13, 0.13),
+		"accent": Color(0.78, 0.65, 0.25),
+		"light_roughness": 0.20,
+		"dark_roughness": 0.22,
+		"accent_roughness": 0.35,
+		"accent_metallic": 0.50,
 		"trim_variant": "ebony",
-		"swatch_light": Color(0.90, 0.78, 0.60),
+		"swatch_light": Color(0.90, 0.80, 0.65),
 		"swatch_dark": Color(0.15, 0.13, 0.13),
 	},
 	"medieval": {
@@ -1360,6 +1376,8 @@ func _facing_yaw(is_white: bool) -> float:
 ## opposite yaws. The quarter turns (+-90 degrees) were rejected outright - nose
 ## on into the board's flank is not how a set is arranged.
 func _knight_yaw(_file: int, is_white: bool) -> float:
+	if _piece_set() == "ebony":
+		return PI if is_white else 0.0
 	return _facing_yaw(is_white)
 
 
