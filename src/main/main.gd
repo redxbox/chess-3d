@@ -88,6 +88,7 @@ const SQUARE_SIZE := 1.0
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
 const APP_BUILD := "24.0"
+const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 ## ---------------------------------------------------------------------------
@@ -1374,65 +1375,18 @@ func _piece_models_for(set_name: String) -> Dictionary:
 	return _loaded_piece_models[set_name]
 
 
-## How far round a piece has to be turned so that it faces the enemy - i.e. up
-## the board for White and down it for Black, the way a set is arranged on a
-## table.
-##
-## The two body sets were sculpted facing opposite ways. The Staunton knight's
-## muzzle points down -Z and the persian one's points up +Z (the persian king
-## and queen hold their staff and orb in front of them, likewise +Z), so the two
-## need opposite yaws for the same result. Everything else about the facing is
-## shared, which is why it is one function and not one per set.
-func _facing_yaw(is_white: bool) -> float:
-	# Two facts decide this, and both are facts about the geometry rather than
-	# about taste:
-	#
-	#   1. White stands on the +Z half of the board and Black on the -Z half (the
-	#      camera is at +Z, which is why White is the near army on screen).
-	#   2. The turned Staunton bodies are sculpted with their muzzle down -Z; the
-	#      two sculpted sets are sculpted with theirs up +Z.
-	#
-	# To face the enemy, White has to look -Z and Black +Z. So a -Z-front body
-	# needs no turn for White and half a turn for Black, and a +Z-front body
-	# needs exactly the opposite. Getting this backwards - which it was - made
-	# every pair of knights stare away from each other, backs to the middle of
-	# the board.
-	var front_is_plus_z := _piece_set() != "staunton"
-	if front_is_plus_z:
-		return PI if is_white else 0.0
-	return 0.0 if is_white else PI
-
-
 ## How far to turn one piece so that it faces the enemy.
 ##
-## Which kinds have a front at all is a property of the set, and getting that
-## wrong is visible immediately:
-##
-##  * The turned Staunton bodies are bodies of revolution. Only the bishop has a
-##    side at all - its mitre slit is cut on one face - so only the bishop is
-##    turned, by a quarter turn, which is what squares the slit to the camera.
-##  * Both sculpted sets are full figures. The pawn is a guard with a shield on
-##    one arm and a spear in the other hand, the bishop is an elephant, the
-##    knight is a rearing horse, and the king and queen hold a sceptre and a
-##    cup in front of them. Every one of those has a front, so every one of
-##    them gets the per-army facing yaw. Leaving the pawn out - which is what
-##    happened when only the king and queen were listed - left a rank of guards
-##    staring at their own player while the rest of the army faced the enemy.
+## The rule itself - which set faces which way, and which kinds have a front at
+## all - lives in src/chess/piece_facing.gd, because it is a table that this
+## project has now had wrong in both directions and a table that can be tested is
+## worth more than a table that has to be looked at. This function is only the
+## glue that tells it which set is on the board.
 func _piece_yaw(kind: String, _file: int, is_white: bool) -> float:
-	# The turned set has a front as well, and this is the bug the player reported
-	# as "some pieces are the wrong way round, like the knight and the king": the
-	# turned set was given no per-army turn at all, so both armies faced the same
-	# way down the board and the black king and knights stood with their backs to
-	# the enemy. Its bishop additionally carries the quarter turn that puts its
-	# mitre slit forward, which has to be added to whichever half-turn the army
-	# needs.
-	if _piece_set() == "staunton":
-		var quarter := PI * 0.25 if kind == "bishop" else 0.0
-		return quarter + _facing_yaw(is_white)
-	match kind:
-		"pawn", "knight", "bishop", "king", "queen":
-			return _facing_yaw(is_white)
-	return 0.0
+	# The table lives in src/chess/piece_facing.gd so that tests/test_chess.gd can
+	# check it without building a board. See that file for why each value is what
+	# it is.
+	return PieceFacing.yaw(_piece_set(), kind, is_white)
 
 
 ## Which carved variant the current piece theme asks for. Kept in one place so
