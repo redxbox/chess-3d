@@ -69,7 +69,7 @@ jobs:
           godot --headless --path . --script res://tests/test_chess.gd 2>&1 | tee /tmp/chess-tests.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            encoded_log=$(base64 -w0 /tmp/chess-tests.log | cut -c1-6000)
+            encoded_log=$(base64 -w0 /tmp/chess-tests.log | cut -c1-24000)
             echo "::error title=Chess tests log base64::$encoded_log"
           fi
           exit "$status"
@@ -78,7 +78,7 @@ jobs:
         run: |
           godot --headless --path . --quit-after 2 2>&1 | tee /tmp/godot-startup.log
           if grep -E "SCRIPT ERROR|Parse Error|Invalid call|Invalid set index" /tmp/godot-startup.log; then
-            encoded_log=$(base64 -w0 /tmp/godot-startup.log | cut -c1-6000)
+            encoded_log=$(base64 -w0 /tmp/godot-startup.log | cut -c1-24000)
             echo "::error title=Godot startup log base64::$encoded_log"
             echo "Godot reported a runtime error during startup"
             exit 1
@@ -219,7 +219,7 @@ jobs:
           tail -120 build/android/export.log >> "$GITHUB_STEP_SUMMARY"
           printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
           if [ "$status" -ne 0 ]; then
-            encoded_log=$(base64 -w0 build/android/export.log | cut -c1-6000)
+            encoded_log=$(base64 -w0 build/android/export.log | cut -c1-24000)
             echo "::error title=Godot export log base64::$encoded_log"
             tail -12 build/android/export.log | while IFS= read -r line; do
               echo "::error title=Godot Android export::$line"
