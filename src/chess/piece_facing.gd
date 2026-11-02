@@ -29,6 +29,11 @@ const PLUS_Z_SETS := ["persian", "bastani"]
 
 
 static func yaw(set_name: String, kind: String, is_white: bool) -> float:
+	# A piece with no front is left exactly as it was modelled. Turning it would
+	# not change a single pixel, and spinning nine hundred vertices per piece for
+	# nothing is the sort of thing that later reads as a bug.
+	if not has_front(set_name, kind):
+		return 0.0
 	var front_is_plus_z := set_name in PLUS_Z_SETS
 	var facing := (PI if is_white else 0.0) if front_is_plus_z else (0.0 if is_white else PI)
 	if set_name == TURNED_SET and kind == "bishop":
