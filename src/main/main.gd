@@ -89,6 +89,7 @@ const SQUARE_SIZE := 1.0
 const APP_VERSION_FALLBACK := "0.16.1"
 const APP_BUILD := "24.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
+const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 ## ---------------------------------------------------------------------------
@@ -325,6 +326,13 @@ var _drag_piece_active := false
 var haptics_enabled := true
 var graphics_quality := "auto"
 var _fps_accumulator := 0.0
+var _clock_label_accumulator := 0.0
+## Multiplier on the preset's 3D render scale, moved by the frame-rate governor.
+## 1.0 means the preset is rendered as designed.
+var _render_scale_factor := 1.0
+## How long the frame rate has been below, or comfortably above, its target.
+var _slow_seconds := 0.0
+var _fast_seconds := 0.0
 var _fps_label: Label
 var capture_effects_enabled := true
 var high_contrast_enabled := false
@@ -370,6 +378,8 @@ var clock_enabled := true
 var white_time := 600.0
 var black_time := 600.0
 var _autosave_accumulator := 0.0
+## What was last written to the autosave, so an unchanged board is not rewritten.
+var _autosave_stamp := ""
 const AUTOSAVE_PATH := "user://autosave.json"
 const PIECE_THEME_PATH := "user://piece_theme.txt"
 const BOARD_THEME_PATH := "user://board_theme.txt"
@@ -391,7 +401,14 @@ var _theme_pick_piece := "classic"
 ## Guards the pending move animation so a scene rebuild can never leave
 ## animating_move stuck on true (which would freeze all board input).
 var _move_tween: Tween
+## The rook's slide during a castle. Kept so a rebuild can kill it alongside the
+## king's tween: a tween whose target node has been freed keeps running and
+## complains once per frame.
+var _rook_tween: Tween
 var _move_finished_callback: Callable
+## The body of the last captured piece, held until its collapse finishes and then
+## taken out of the tree - see _drop_captured_node().
+var _captured_piece_node: Node3D
 var _promotion_popup: PopupPanel
 ## Promotions change the piece kind, so the whole board is rebuilt for that move.
 var _needs_full_piece_rebuild := false
@@ -439,6 +456,9 @@ func _process(delta: float) -> void:
 	if _fps_accumulator >= 1.0:
 		_fps_accumulator = 0.0
 		_monitor_performance()
+		# The frame-rate governor, once a second. It only ever moves the 3D render
+		# scale - see _govern_render_scale() for why it must not touch the lights.
+		_govern_render_scale()
 	var clock_expired := false
 	if clock_enabled and game.result == "":
 		if game.turn == ChessRules.WHITE:
@@ -455,7 +475,13 @@ func _process(delta: float) -> void:
 		_update_status()
 		_show_game_over_if_needed()
 		_save_autosave()
-	_update_clock_label()
+	# Four times a second, not sixty. The label is two formatted strings and a
+	# comparison, and on a phone the garbage from doing that every frame is a
+	# real cost for a clock that only shows seconds.
+	_clock_label_accumulator += delta
+	if _clock_label_accumulator >= 0.25:
+		_clock_label_accumulator = 0.0
+		_update_clock_label()
 	_autosave_accumulator += delta
 	if _autosave_accumulator >= 5.0:
 		_autosave_accumulator = 0.0
@@ -1302,7 +1328,13 @@ func _add_board_box(position: Vector3, size: Vector3, material: Material) -> voi
 
 
 func _create_pieces() -> void:
+	# Removed from the tree now, freed later. queue_free() alone leaves the old
+	# bodies parented until the end of the frame, so for the rest of this frame
+	# pieces_root holds both armies twice over - and every lookup that walks the
+	# children (selection, drag, the move animation, the reconcile) can pick one of
+	# the doomed nodes and report or move a piece on a square it has already left.
 	for child in pieces_root.get_children():
+		pieces_root.remove_child(child)
 		child.queue_free()
 	for rank in BOARD_SIZE:
 		for file in BOARD_SIZE:
@@ -1315,30 +1347,53 @@ func _create_pieces() -> void:
 ## thirty-two pieces after every move. Nodes that stay on the same square with
 ## the same piece kind are reused; only the moved, captured and promoted pieces
 ## are touched. _create_pieces() is still used for resets and quality changes.
+##
+## Which node goes where is decided by PieceLayout.plan(); this function only
+## carries the decision out. Removals are immediate rather than queued, and that
+## is deliberate: queue_free() leaves the node in the tree until the end of the
+## frame, so a reconcile running later in the same frame would still see the
+## captured piece claiming the square its captor had just arrived on - which is
+## how two pieces ended up standing on one tile.
 func _sync_pieces() -> void:
-	var existing: Dictionary = {}
-	for piece in pieces_root.get_children():
-		existing[piece.get_meta("square", Vector2i(-1, -1))] = piece
-	for rank in BOARD_SIZE:
-		for file in BOARD_SIZE:
-			var square := Vector2i(file, rank)
-			var code: String = game.board[rank][file]
-			if not existing.has(square):
-				if code != "":
-					_add_piece(_kind_for_code(code), code, file, rank, _body_material(code), _piece_gold_material)
-				continue
-			var node: Node3D = existing[square]
-			if code == "":
-				node.queue_free()
-				continue
-			var kind := _kind_for_code(code)
-			if String(node.get_meta("kind", "")) != kind:
-				node.queue_free()
-				_add_piece(kind, code, file, rank, _body_material(code), _piece_gold_material)
-			else:
-				node.name = _piece_node_name(kind, file, rank)
-				node.set_meta("square", square)
-				node.position = Vector3((file - 3.5) * SQUARE_SIZE, 0.072, (rank - 3.5) * SQUARE_SIZE)
+	var nodes: Array = pieces_root.get_children()
+	var described: Array = []
+	for piece in nodes:
+		described.append(PieceLayout.node(piece.get_meta("square", Vector2i(-1, -1)),
+			String(piece.get_meta("kind", "pawn"))))
+	# The captured body, if it is somehow still here, is the node to give up when
+	# it and its captor both claim the arrival square.
+	var avoid: Array = []
+	if is_instance_valid(_captured_piece_node):
+		avoid.append(nodes.find(_captured_piece_node))
+	var layout := PieceLayout.plan(described, game.board, avoid)
+	var doomed: Array = layout.free
+	for index in doomed:
+		var node: Node3D = nodes[index]
+		pieces_root.remove_child(node)
+		node.queue_free()
+	var keep: Dictionary = layout.keep
+	for index in keep:
+		var square: Vector2i = keep[index]
+		var node: Node3D = nodes[index]
+		var code: String = game.board[square.y][square.x]
+		var kind := _kind_for_code(code)
+		if String(node.get_meta("kind", "")) != kind:
+			# A promotion: the body has to change, and no amount of repositioning
+			# turns a pawn into a queen.
+			pieces_root.remove_child(node)
+			node.queue_free()
+			_add_piece(kind, code, square.x, square.y, _body_material(code), _piece_gold_material)
+			continue
+		node.name = _piece_node_name(kind, square.x, square.y)
+		node.set_meta("square", square)
+		node.set_meta("code", code)
+		# A node reused for a plain move may still be carrying a selection lift or
+		# the tail of a capture collapse.
+		node.scale = Vector3.ONE
+		node.position = Vector3((square.x - 3.5) * SQUARE_SIZE, 0.072, (square.y - 3.5) * SQUARE_SIZE)
+	for square in layout.create:
+		var code: String = game.board[square.y][square.x]
+		_add_piece(_kind_for_code(code), code, square.x, square.y, _body_material(code), _piece_gold_material)
 
 
 func _kind_for_code(code: String) -> String:
@@ -3384,10 +3439,25 @@ func _refresh_pieces_after_move() -> void:
 		_sync_pieces()
 
 
+## Where the rook starts and ends when the king castles, or an empty array when
+## the move is not a castle.
+##
+## Both squares are derived from the king's destination, which is what the rules
+## engine writes: g-file is the king side, c-file the queen side. The rook moves
+## at the same time as the king, and it is animated - a castle where the king
+## slides across and the rook appears out of nowhere reads as a missing move,
+## which is exactly how it was reported.
+func _castle_rook_squares(move: Dictionary) -> Array:
+	return PieceLayout.castle_rook_squares(move)
+
+
 func _animate_board_move(move: Dictionary, finished: Callable) -> void:
 	animating_move = true
 	var moving_piece: Node3D
 	var captured_piece: Node3D
+	var castling_rook: Node3D
+	var castling_rook_to := Vector2i(-1, -1)
+	var rook_squares := _castle_rook_squares(move)
 	var captured_square: Vector2i = move.to
 	if move.get("en_passant", false):
 		captured_square = Vector2i(move.to.x, move.from.y)
@@ -3397,6 +3467,9 @@ func _animate_board_move(move: Dictionary, finished: Callable) -> void:
 			moving_piece = piece
 		elif square == captured_square:
 			captured_piece = piece
+		elif not rook_squares.is_empty() and square == rook_squares[0]:
+			castling_rook = piece
+			castling_rook_to = rook_squares[1]
 	if not is_instance_valid(moving_piece):
 		animating_move = false
 		finished.call()
@@ -3415,12 +3488,31 @@ func _animate_board_move(move: Dictionary, finished: Callable) -> void:
 	var second_duration := 0.01 if reduced_motion_enabled else 0.15
 	tween.tween_property(moving_piece, "position", midpoint, first_duration)
 	tween.tween_property(moving_piece, "position", target, second_duration)
+	if is_instance_valid(castling_rook):
+		# The rook goes first and slightly slower than the king's hop over it, so
+		# the two never occupy the same square at the same time on screen.
+		castling_rook.set_meta("square", castling_rook_to)
+		castling_rook.name = _piece_node_name("rook", castling_rook_to.x, castling_rook_to.y)
+		var rook_tween := create_tween()
+		rook_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+		var rook_duration := 0.01 if reduced_motion_enabled else 0.22
+		rook_tween.tween_property(castling_rook, "position",
+			Vector3((castling_rook_to.x - 3.5) * SQUARE_SIZE, 0.12, (castling_rook_to.y - 3.5) * SQUARE_SIZE),
+			rook_duration)
+		_rook_tween = rook_tween
 	if is_instance_valid(captured_piece):
 		_spawn_capture_effect(captured_piece.position, move.captured)
 		var capture_tween := create_tween().set_parallel(true)
-		var capture_duration := 0.01 if reduced_motion_enabled else 0.2
+		# Faster than the mover's first leg: the captured piece collapses while the
+		# captor is still climbing, so a frame of the animation never shows two
+		# bodies sharing one square.
+		var capture_duration := 0.01 if reduced_motion_enabled else 0.11
 		capture_tween.tween_property(captured_piece, "scale", Vector3.ZERO, capture_duration)
 		capture_tween.tween_property(captured_piece, "position:y", -0.25, capture_duration)
+		# Held so the node can be taken out of the tree when the animation ends.
+		# It is invisible by then, but it still claims the arrival square, and the
+		# reconcile that runs next would otherwise have two nodes to choose from.
+		_captured_piece_node = captured_piece
 	_move_tween = tween
 	_move_finished_callback = finished
 	tween.finished.connect(_on_move_animation_finished)
@@ -3433,19 +3525,49 @@ func _on_move_animation_finished() -> void:
 	var callback := _move_finished_callback
 	_move_tween = null
 	_move_finished_callback = Callable()
+	_drop_captured_node()
 	if callback.is_valid():
 		callback.call()
+
+
+## Takes the captured body out of the tree for good. It has been scaled to zero
+## and dropped below the board by the time this runs, so it is already invisible;
+## what is being removed is a node that still claims the square its captor is
+## standing on.
+func _drop_captured_node() -> void:
+	if is_instance_valid(_captured_piece_node):
+		if _captured_piece_node.get_parent() != null:
+			_captured_piece_node.get_parent().remove_child(_captured_piece_node)
+		_captured_piece_node.queue_free()
+	_captured_piece_node = null
 
 
 ## Abandons an in-flight move animation. Used whenever the scene is about to be
 ## rebuilt or reset, where the tweened node would otherwise be destroyed and the
 ## game would freeze with animating_move stuck on true.
+##
+## The geometry is reconciled here rather than left to the caller. The rules
+## engine has already applied the move by the time an animation exists, so a
+## cancelled animation used to leave the board drawn from the old position - the
+## mover frozen mid-flight and the captured piece still standing. Only the
+## pieces and the markers are brought up to date: the full finish callback is
+## deliberately not run, because it also schedules the AI's reply, and a cancel
+## comes from New Game, Undo and a quality change, none of which want that.
 func _cancel_move_animation() -> void:
 	animating_move = false
 	_move_finished_callback = Callable()
 	if _move_tween != null:
 		_move_tween.kill()
 		_move_tween = null
+	if _rook_tween != null:
+		_rook_tween.kill()
+		_rook_tween = null
+	_drop_captured_node()
+	# Only if the board is built: _cancel_move_animation() is also called from
+	# paths that run before the first _create_pieces() of a session.
+	if is_instance_valid(pieces_root) and pieces_root.is_inside_tree():
+		_refresh_pieces_after_move()
+		_draw_highlights()
 
 
 func _spawn_capture_effect(position: Vector3, captured_code: String) -> void:
@@ -3495,6 +3617,12 @@ func _draw_highlights() -> void:
 	if not last_move.is_empty():
 		_add_highlight(last_move.from, Color(0.22, 0.52, 0.9, 0.32), 0.44)
 		_add_highlight(last_move.to, Color(0.22, 0.52, 0.9, 0.48), 0.44)
+		# A castle moves two pieces, so it marks four squares. Marking only the
+		# king's two made the rook's move invisible in the record of the move.
+		var rook_squares := _castle_rook_squares(last_move)
+		if not rook_squares.is_empty():
+			_add_highlight(rook_squares[0], Color(0.22, 0.52, 0.9, 0.22), 0.40)
+			_add_highlight(rook_squares[1], Color(0.22, 0.52, 0.9, 0.34), 0.40)
 	var check_color := Color(0.95, 0.46, 0.10, 0.70) if colorblind_enabled else Color(0.82, 0.16, 0.12, 0.64)
 	var move_color := Color(0.20, 0.56, 0.85, 0.66) if colorblind_enabled else Color(0.72, 0.56, 0.25, 0.58)
 	if game.result == "" and game.is_in_check(game.turn):
@@ -3701,6 +3829,12 @@ func _monitor_performance() -> void:
 	if not is_instance_valid(_fps_label):
 		return
 	var fps := Engine.get_frames_per_second()
+	var scale_now := get_viewport().scaling_3d_scale
+	# The scale is only shown once it is not 1.0, so the readout stays short; when
+	# it is shown it is the answer to "why did it look slightly softer".
+	if scale_now < 0.999:
+		_fps_label.text = "%d FPS • %s • %.2fx" % [fps, _effective_graphics_quality().to_upper(), scale_now]
+		return
 	_fps_label.text = "%d FPS • %s" % [fps, _effective_graphics_quality().to_upper()]
 
 
@@ -3746,28 +3880,89 @@ func _apply_graphics_quality() -> void:
 	# frame time, while the UI - which is drawn on a separate canvas at full
 	# resolution - stays crisp. That is a much better trade than turning the
 	# shadows off, which makes the pieces float.
-	var render_scale := 1.0
 	match quality:
 		"high":
 			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
-			render_scale = 1.0
 		"medium":
 			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
-			render_scale = 0.85
 		_:
 			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
-			render_scale = 0.70
-	get_viewport().scaling_3d_scale = render_scale
+	_apply_render_scale()
 	# The key light's shadow reach costs more the further it has to cover, and
 	# the ranks past the board edge never cast anything worth seeing.
 	$KeyLight.directional_shadow_max_distance = 40.0 if quality == "high" else (30.0 if quality == "medium" else 24.0)
 	_update_graphics_button()
 
 
+## The render scale a preset asks for, before the governor has its say.
+func _base_render_scale() -> float:
+	match _effective_graphics_quality():
+		"high":
+			return 1.0
+		"medium":
+			return 0.85
+	return 0.70
+
+
+## Never below 0.62 of native. On a LOW preset - already 0.70 - a full governor
+## step taken twice would land at 0.49, which is a board you cannot read the
+## pieces on, and that is not a trade this project makes for frames.
+const MIN_RENDER_SCALE := 0.62
+
+
+func _apply_render_scale() -> void:
+	get_viewport().scaling_3d_scale = maxf(MIN_RENDER_SCALE, _base_render_scale() * _render_scale_factor)
+
+
+## Eases the 3D render scale down when the phone cannot hold the frame rate, and
+## back up when it can, in AUTO only.
+##
+## This is the one adjustment that is allowed to happen without the player asking,
+## and the reason it is this one is that it is the only one they cannot see the
+## colour of. The presets differ in the light rig - MEDIUM and LOW switch the fill
+## light's shadows off, which visibly lifts every pale square - so silently
+## dropping a tier is what produced the old "the lighting changed by itself after
+## a while" report. The render scale only changes how sharp the 3D is, and the UI
+## is drawn on its own canvas at full resolution, so a 0.8x board is a slightly
+## softer board rather than a different-looking one.
+##
+## It stops at MIN_RENDER_SCALE, so there is a floor under the legibility of the
+## board rather than a race to the bottom. A player who has picked a preset by
+## hand gets exactly that preset, immovable.
+func _govern_render_scale() -> void:
+	if graphics_quality != "auto":
+		return
+	var fps := Engine.get_frames_per_second()
+	if fps < 29:
+		_slow_seconds += 1.0
+		_fast_seconds = 0.0
+	elif fps > 52:
+		_fast_seconds += 1.0
+		_slow_seconds = 0.0
+	else:
+		_slow_seconds = 0.0
+		_fast_seconds = 0.0
+	if _slow_seconds >= 3.0 and _render_scale_factor > 0.70:
+		_render_scale_factor = maxf(0.70, _render_scale_factor - 0.10)
+		_slow_seconds = 0.0
+		_apply_render_scale()
+	elif _fast_seconds >= 8.0 and _render_scale_factor < 1.0:
+		# Slower to climb than to drop, and in smaller steps, so a board that sits
+		# right on the threshold does not breathe in and out every few seconds.
+		_render_scale_factor = minf(1.0, _render_scale_factor + 0.05)
+		_fast_seconds = 0.0
+		_apply_render_scale()
+
+
 func _cycle_graphics_quality() -> void:
 	var levels := ["auto", "low", "medium", "high"]
 	var index := levels.find(graphics_quality)
 	graphics_quality = levels[(index + 1) % levels.size()]
+	# A preset picked by hand is the last word: the governor's multiplier goes
+	# back to neutral, so HIGH is rendered at HIGH and LOW at LOW.
+	_render_scale_factor = 1.0
+	_slow_seconds = 0.0
+	_fast_seconds = 0.0
 	_mesh_cache.clear()
 	# Abandon any in-flight animation first: _create_pieces() destroys the very
 	# node the tween is targeting, which would leave animating_move stuck on.
@@ -3850,6 +4045,16 @@ func _toggle_haptics(button: Button) -> void:
 func _save_autosave() -> void:
 	if not is_inside_tree():
 		return
+	# The autosave runs on a timer every five seconds as well as after every
+	# event, so most of those writes would be byte-for-byte identical: to_pgn()
+	# formats the whole game, to_fen() serialises the board, and then the file is
+	# rewritten, for nothing. The stamp is everything that can change in the file
+	# and nothing that cannot, so an idle board writes nothing at all.
+	var stamp := "%s|%s|%.0f|%.0f|%s" % [game.to_fen(), game.result, white_time, black_time,
+		"%s%s%s%s" % [graphics_quality, clock_enabled, music_enabled, language]]
+	if stamp == _autosave_stamp:
+		return
+	_autosave_stamp = stamp
 	var data := {
 		"version": 1,
 		"pgn": game.to_pgn({"White": "Player", "Black": "Offline AI"}),

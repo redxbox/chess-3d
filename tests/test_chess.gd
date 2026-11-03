@@ -4,6 +4,7 @@ const ChessGame = preload("res://src/chess/chess_game.gd")
 const OfflineAI = preload("res://src/ai/offline_ai.gd")
 const GameArchive = preload("res://src/storage/game_archive.gd")
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
+const PieceLayout = preload("res://src/main/piece_layout.gd")
 var passed := 0
 var failed := 0
 
@@ -29,6 +30,7 @@ func _init() -> void:
 	_test_offline_ai()
 	_test_game_archive()
 	_test_piece_facing()
+	_test_piece_layout()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -364,3 +366,105 @@ func _test_piece_facing() -> void:
 		var actual: float = PieceFacing.yaw(set_name, kind, is_white)
 		var same := absf(wrapf(actual - expected, -PI, PI)) < 0.001
 		_expect(same, "%s %s %s faces the enemy (yaw %.2f)" % [set_name, kind, "white" if is_white else "black", actual])
+
+
+## Only one node may stand on a square, and it has to be the right piece. Every
+## case here is one that went wrong on a real board: a capture leaving two bodies
+## on the arrival square, a promotion keeping the pawn's body, and a desynced node
+## that would have been turned into the wrong shape rather than replaced.
+func _test_piece_layout() -> void:
+	var empty_board := _empty_board()
+	# Nothing on the board, pieces in the tree: all of them go.
+	var plan := PieceLayout.plan([PieceLayout.node(Vector2i(4, 4), "pawn")], empty_board)
+	_expect(plan.free == [0] and plan.create.is_empty() and plan.keep.is_empty(),
+		"a piece that is not on the board is removed")
+
+	# A plain move. The animation re-tags the mover to its destination before the
+	# board is reconciled, so the node is already there and is simply kept.
+	var moved := _empty_board()
+	moved[4][4] = "P"
+	plan = PieceLayout.plan([PieceLayout.node(Vector2i(4, 4), "pawn")], moved)
+	_expect(plan.keep.get(0) == Vector2i(4, 4) and plan.create.is_empty() and plan.free.is_empty(),
+		"a moved piece keeps its node")
+	# If it was never re-tagged - a cancelled animation - the node is still on the
+	# square it left; it is freed and the piece is built on its real square, which
+	# is the behaviour that makes a desync repair itself instead of persisting.
+	plan = PieceLayout.plan([PieceLayout.node(Vector2i(4, 2), "pawn")], moved)
+	_expect(plan.free == [0] and plan.create == [Vector2i(4, 4)],
+		"a node left on a square the board no longer has is rebuilt")
+
+	# The capture window: the captor and the captured body both claim the square.
+	var captured := _empty_board()
+	captured[4][4] = "P"
+	plan = PieceLayout.plan([
+		PieceLayout.node(Vector2i(4, 4), "pawn"),
+		PieceLayout.node(Vector2i(4, 4), "pawn"),
+	], captured)
+	_expect(plan.keep.size() == 1 and plan.free.size() == 1 and plan.create.is_empty(),
+		"two nodes on one square are reduced to one")
+
+	# The captured body and its captor are both pawns, so child order decides -
+	# unless the caller says which one is the corpse.
+	plan = PieceLayout.plan([
+		PieceLayout.node(Vector2i(4, 4), "pawn"),
+		PieceLayout.node(Vector2i(4, 4), "pawn"),
+	], captured, [0])
+	_expect(plan.keep.get(1) == Vector2i(4, 4) and plan.free == [0],
+		"the captured body is given up rather than the captor")
+
+	# Same square, different kinds: the one that matches the board wins, whichever
+	# order they come in.
+	captured[4][4] = "Q"
+	plan = PieceLayout.plan([
+		PieceLayout.node(Vector2i(4, 4), "pawn"),
+		PieceLayout.node(Vector2i(4, 4), "queen"),
+	], captured)
+	_expect(plan.keep.get(1) == Vector2i(4, 4) and plan.free == [0],
+		"the node of the right kind is kept on a contested square")
+	plan = PieceLayout.plan([
+		PieceLayout.node(Vector2i(4, 4), "queen"),
+		PieceLayout.node(Vector2i(4, 4), "pawn"),
+	], captured)
+	_expect(plan.keep.get(0) == Vector2i(4, 4) and plan.free == [1],
+		"and the other way round")
+
+	# A promotion: the pawn's body cannot become a queen, so it is replaced.
+	var promoted := _empty_board()
+	promoted[7][4] = "Q"
+	plan = PieceLayout.plan([PieceLayout.node(Vector2i(7, 4), "pawn")], promoted)
+	_expect(plan.free == [0] and plan.create == [Vector2i(7, 4)],
+		"a promoted pawn's node is replaced, not re-positioned")
+
+	# A square that has nothing on it at all has to be built.
+	var start := ChessGame.new().board
+	plan = PieceLayout.plan([], start)
+	_expect(plan.create.size() == 32 and plan.free.is_empty(),
+		"an empty tree builds all thirty-two pieces")
+	# ...and reconciling a board that already matches touches nothing.
+	var nodes: Array = []
+	for square in plan.create:
+		var code: String = start[square.y][square.x]
+		nodes.append(PieceLayout.node(square, String(PieceLayout.KIND_FOR_CODE[code.to_lower()])))
+	plan = PieceLayout.plan(nodes, start)
+	_expect(plan.create.is_empty() and plan.free.is_empty() and plan.keep.size() == 32,
+		"a board that already matches is left alone")
+
+	# The rook's half of a castle, which is the half that used to be invisible.
+	var castled_king_side := {"from": Vector2i(4, 7), "to": Vector2i(6, 7), "castle": "king"}
+	_expect(PieceLayout.castle_rook_squares(castled_king_side) == [Vector2i(7, 7), Vector2i(5, 7)],
+		"king-side castling moves the rook h to f")
+	var castled_queen_side := {"from": Vector2i(4, 7), "to": Vector2i(2, 7), "castle": "queen"}
+	_expect(PieceLayout.castle_rook_squares(castled_queen_side) == [Vector2i(0, 7), Vector2i(3, 7)],
+		"queen-side castling moves the rook a to d")
+	_expect(PieceLayout.castle_rook_squares({"from": Vector2i(4, 7), "to": Vector2i(4, 6)}).is_empty(),
+		"an ordinary move moves no rook")
+
+
+func _empty_board() -> Array:
+	var board: Array = []
+	for rank in 8:
+		var row: Array = []
+		row.resize(8)
+		row.fill("")
+		board.append(row)
+	return board
