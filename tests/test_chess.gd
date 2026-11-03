@@ -373,7 +373,7 @@ func _test_piece_facing() -> void:
 ## on the arrival square, a promotion keeping the pawn's body, and a desynced node
 ## that would have been turned into the wrong shape rather than replaced.
 func _test_piece_layout() -> void:
-	var empty_board := _empty_board()
+	var empty_board := _blank_board()
 	# Nothing on the board, pieces in the tree: all of them go.
 	var plan := PieceLayout.plan([PieceLayout.node(Vector2i(4, 4), "pawn")], empty_board)
 	_expect(plan.free == [0] and plan.create.is_empty() and plan.keep.is_empty(),
@@ -381,7 +381,7 @@ func _test_piece_layout() -> void:
 
 	# A plain move. The animation re-tags the mover to its destination before the
 	# board is reconciled, so the node is already there and is simply kept.
-	var moved := _empty_board()
+	var moved := _blank_board()
 	moved[4][4] = "P"
 	plan = PieceLayout.plan([PieceLayout.node(Vector2i(4, 4), "pawn")], moved)
 	_expect(plan.keep.get(0) == Vector2i(4, 4) and plan.create.is_empty() and plan.free.is_empty(),
@@ -394,7 +394,7 @@ func _test_piece_layout() -> void:
 		"a node left on a square the board no longer has is rebuilt")
 
 	# The capture window: the captor and the captured body both claim the square.
-	var captured := _empty_board()
+	var captured := _blank_board()
 	captured[4][4] = "P"
 	plan = PieceLayout.plan([
 		PieceLayout.node(Vector2i(4, 4), "pawn"),
@@ -429,7 +429,7 @@ func _test_piece_layout() -> void:
 		"and the other way round")
 
 	# A promotion: the pawn's body cannot become a queen, so it is replaced.
-	var promoted := _empty_board()
+	var promoted := _blank_board()
 	promoted[7][4] = "Q"
 	plan = PieceLayout.plan([PieceLayout.node(Vector2i(7, 4), "pawn")], promoted)
 	_expect(plan.free == [0] and plan.create == [Vector2i(7, 4)],
@@ -460,7 +460,7 @@ func _test_piece_layout() -> void:
 		"an ordinary move moves no rook")
 
 
-func _empty_board() -> Array:
+func _blank_board() -> Array:
 	var board: Array = []
 	for rank in 8:
 		var row: Array = []
