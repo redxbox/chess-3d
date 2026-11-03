@@ -431,8 +431,9 @@ func _test_piece_layout() -> void:
 	# A promotion: the pawn's body cannot become a queen, so it is replaced.
 	var promoted := _blank_board()
 	promoted[7][4] = "Q"
-	plan = PieceLayout.plan([PieceLayout.node(Vector2i(7, 4), "pawn")], promoted)
-	_expect(plan.free == [0] and plan.create == [Vector2i(7, 4)],
+	# board[rank][file], but a square is Vector2i(file, rank): rank 7, file 4.
+	plan = PieceLayout.plan([PieceLayout.node(Vector2i(4, 7), "pawn")], promoted)
+	_expect(plan.free == [0] and plan.create == [Vector2i(4, 7)],
 		"a promoted pawn's node is replaced, not re-positioned")
 
 	# A square that has nothing on it at all has to be built.
