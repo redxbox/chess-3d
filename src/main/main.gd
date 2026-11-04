@@ -87,7 +87,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "35.0"
+const APP_BUILD := "36.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -154,7 +154,7 @@ const BOARD_THEMES := {
 	"royal_wood": {
 		"label": "MAPLE & MAHOGANY",
 		"light_square": Color(0.535, 0.480, 0.385),
-		"dark_square": Color(0.330, 0.190, 0.140),
+		"dark_square": Color(0.348, 0.202, 0.150),
 		"square_roughness": 0.34,
 		"apron": Color(0.232, 0.160, 0.122),
 		"apron_roughness": 0.32,
