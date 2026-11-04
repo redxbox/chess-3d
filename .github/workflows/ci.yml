@@ -189,6 +189,11 @@ jobs:
           fi
           { printf '## Performance (llvmpipe, 1536x864 - relative, not a phone)\n\n| metric | value |\n| --- | --- |\n'
             while read -r name value; do printf '| %s | %s |\n' "$name" "$value"; done < build/preview/perf.txt; } >> "$GITHUB_STEP_SUMMARY"
+          # Also as a step annotation, because the artifact is not always
+          # downloadable and these are the numbers every performance change in
+          # this project is judged against.
+          compact=$(paste -sd' ' build/preview/perf.txt)
+          echo "::notice title=Performance::$compact"
           cat build/preview/perf.txt
           exit "$status"
 

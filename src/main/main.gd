@@ -87,7 +87,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "38.0"
+const APP_BUILD := "39.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -137,7 +137,7 @@ const BOARD_THEMES := {
 	# The default: warm cream marble on matte charcoal slate.
 	"classic": {
 		"label": "MARBLE & SLATE",
-		"light_square": Color(0.520, 0.504, 0.473),
+		"light_square": Color(0.562, 0.545, 0.512),
 		"dark_square": Color(0.252, 0.257, 0.281),
 		"square_roughness": 0.30,
 		"apron": Color(0.205, 0.212, 0.232),
@@ -154,7 +154,7 @@ const BOARD_THEMES := {
 	# Maple on mahogany: the warm board, held at the same brightness band.
 	"royal_wood": {
 		"label": "MAPLE & MAHOGANY",
-		"light_square": Color(0.535, 0.480, 0.385),
+		"light_square": Color(0.578, 0.519, 0.416),
 		"dark_square": Color(0.348, 0.202, 0.150),
 		"square_roughness": 0.34,
 		"apron": Color(0.232, 0.160, 0.122),
@@ -173,7 +173,7 @@ const BOARD_THEMES := {
 	# of colour vision.
 	"jade": {
 		"label": "JADE & BRONZE",
-		"light_square": Color(0.450, 0.520, 0.458),
+		"light_square": Color(0.486, 0.562, 0.495),
 		"dark_square": Color(0.138, 0.265, 0.205),
 		"square_roughness": 0.28,
 		"apron": Color(0.215, 0.250, 0.228),
@@ -193,7 +193,7 @@ const BOARD_THEMES := {
 	# than a paint chart, and the cream squares no longer glare next to it.
 	"royal_blue": {
 		"label": "IVORY & SLATE BLUE",
-		"light_square": Color(0.520, 0.510, 0.489),
+		"light_square": Color(0.562, 0.551, 0.528),
 		"dark_square": Color(0.165, 0.245, 0.430),
 		"square_roughness": 0.30,
 		"apron": Color(0.200, 0.225, 0.270),

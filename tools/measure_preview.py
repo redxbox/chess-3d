@@ -52,7 +52,7 @@ BACKGROUND_NEUTRAL = 9.0         # max channel spread: no purple, no magenta
 # what "the gold looks like mud" was. These are counts and a floor, not a target:
 # the trim is a few hundred pixels at this resolution and its brightness is a
 # specular lobe, so the check only asks that it exists and is bright somewhere.
-GOLD_MIN_PIXELS = 220
+GOLD_MIN_PIXELS = 600
 GOLD_MIN_BRIGHT = 150.0
 
 
@@ -196,7 +196,10 @@ def measure(path: Path) -> list[str]:
     # The gold trim, found by hue rather than by position: gold is the only warm
     # saturated thing in a frame of neutral stone and slate.
     rgb = pixels.reshape(-1, 3)
-    warm = (rgb[:, 0] - rgb[:, 2] > 26) & (rgb[:, 1] - rgb[:, 2] > 8) & (rgb[:, 0] > 70)
+    # A low threshold finds the mahogany board as well as the trim - a board is
+    # warm too. Gold separates from wood on saturation: (0.76, 0.60, 0.23) is a
+    # much wider R-B than any square on any of the four boards.
+    warm = (rgb[:, 0] - rgb[:, 2] > 80) & (rgb[:, 1] - rgb[:, 2] > 30) & (rgb[:, 0] > 70)
     gold = luma(rgb[warm])
     gold_count = int(warm.sum())
     gold_bright = float(np.percentile(gold, 90)) if gold_count else 0.0
