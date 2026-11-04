@@ -87,7 +87,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "28.0"
+const APP_BUILD := "29.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -227,11 +227,11 @@ const PIECE_THEMES := {
 	"persian": {
 		"label": "PERSIAN",
 		"model_set": "persian",
-		"light": Color(0.790, 0.768, 0.715),
-		"dark": Color(0.250, 0.238, 0.228),
+		"light": Color(0.760, 0.740, 0.690),
+		"dark": Color(0.310, 0.296, 0.284),
 		"accent": Color(0.70, 0.69, 0.66),
-		"light_roughness": 0.44,
-		"dark_roughness": 0.52,
+		"light_roughness": 0.50,
+		"dark_roughness": 0.56,
 		"accent_roughness": 0.46,
 		"accent_metallic": 0.30,
 		"trim_variant": "persian",
@@ -243,11 +243,11 @@ const PIECE_THEMES := {
 	"bastani": {
 		"label": "BASTANI",
 		"model_set": "bastani",
-		"light": Color(0.815, 0.820, 0.800),
-		"dark": Color(0.240, 0.243, 0.262),
+		"light": Color(0.790, 0.795, 0.775),
+		"dark": Color(0.300, 0.303, 0.325),
 		"accent": Color(0.70, 0.69, 0.66),
-		"light_roughness": 0.36,
-		"dark_roughness": 0.46,
+		"light_roughness": 0.42,
+		"dark_roughness": 0.50,
 		"accent_roughness": 0.30,
 		"accent_metallic": 0.55,
 		"trim_variant": "bastani",
@@ -259,11 +259,11 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "CLASSIC",
 		"model_set": "staunton",
-		"light": Color(0.840, 0.832, 0.805),
-		"dark": Color(0.255, 0.258, 0.276),
+		"light": Color(0.815, 0.808, 0.780),
+		"dark": Color(0.315, 0.318, 0.340),
 		"accent": Color(0.70, 0.69, 0.66),
-		"light_roughness": 0.32,
-		"dark_roughness": 0.44,
+		"light_roughness": 0.40,
+		"dark_roughness": 0.48,
 		"accent_roughness": 0.50,
 		"accent_metallic": 0.26,
 		"trim_variant": "classic",
@@ -494,7 +494,7 @@ func _setup_environment() -> void:
 	# the pale Carrara and alabaster albedoes at exposure 0.80 pushed 85% of the
 	# classic light squares past 1.0, and a clipped square is a flat white slab
 	# with no veining and no shading left anywhere on it.
-	environment.tonemap_exposure = 0.66
+	environment.tonemap_exposure = 0.68
 	var sky_material := ProceduralSkyMaterial.new()
 	# A dark studio with a warm horizon. The horizon band is what the brass and
 	# gold inlays reflect; with the old near-black sky every gold collar read as mud.
@@ -527,7 +527,7 @@ func _setup_environment() -> void:
 	# head-on and a fold lit from every direction look exactly alike. Dropping it
 	# and raising the key is what puts the light back into the sculpture, which is
 	# the difference between these pieces and the flat pastel versions.
-	environment.ambient_light_energy = 0.40
+	environment.ambient_light_energy = 0.48
 	# A three-point studio rig, so both sets read as solid volume at once. The
 	# old single key light left the camera-facing side of every dark piece in
 	# its own shadow, which is why the black set used to collapse into
@@ -543,7 +543,7 @@ func _setup_environment() -> void:
 	# 0.73 -> 0.66 to pay for the brighter fill and ambient below: the pale armies
 	# are the ones at risk of clipping, and a clipped piece has no carving left on
 	# it at all. The exposure stays where it is.
-	$KeyLight.light_energy = 0.86
+	$KeyLight.light_energy = 0.78
 	$KeyLight.light_color = Color(1.0, 0.96, 0.90)
 	$KeyLight.rotation_degrees = Vector3(-48, -32, 0)
 	# Contact-tight shadows. The normal bias is deliberately small: a large one
@@ -563,7 +563,7 @@ func _setup_environment() -> void:
 	# of a piece, and the dark armies were being lit almost entirely by it: at
 	# 0.28 the folds of a walnut king had about three values in them and read as
 	# one shape. This is the single number that made the black pieces legible.
-	$FillLight.light_energy = 0.38
+	$FillLight.light_energy = 0.46
 	$FillLight.light_color = Color(0.88, 0.91, 0.98)
 	$FillLight.rotation_degrees = Vector3(-60, 45, 0)
 	$FillLight.shadow_enabled = false
@@ -794,7 +794,7 @@ func _setup_piece_materials() -> void:
 	# it climbing to 1.0 and clipping to flat white under ACES - and a clipped
 	# surface has no shading and no shadow gradient left anywhere on it to show
 	# the carving. Pure white is never a white-piece albedo.
-	_piece_ivory_material = _luxury_piece_material(body_light, palette.light_roughness, 0.05, false, false, 0.04, null, carve, 0.30, 0.40, 0.20, true)
+	_piece_ivory_material = _luxury_piece_material(body_light, palette.light_roughness, 0.05, false, false, 0.04, null, carve, 0.16, 0.40, 0.20, true)
 	# Black pieces: never pure black. A satin body with a real clearcoat lobe is
 	# what gives the camera-facing side of a dark piece a highlight, so it reads
 	# as a solid object beside the white set instead of a silhouette. The
