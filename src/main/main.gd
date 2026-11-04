@@ -87,7 +87,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "27.0"
+const APP_BUILD := "28.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -216,17 +216,19 @@ const BOARD_THEMES := {
 ##
 ## "White" is never pure white and "black" is never black, for the same reason in
 ## both cases: an albedo at either end of the range has no room left to shade. The
-## whites stay under 0.87 so that a robe keeps a gradient, and the blacks stay
-## near 0.14 - dark stone, not a hole - so that the folds of a drapery still have
-## somewhere to go. The first attempt this round used 0.10, which is blacker than
-## black plastic and lost the carving again on the far side of the board.
+## whites stay under 0.86 so that a robe keeps a gradient, and the blacks sit near
+## 0.25 - dark stone, not a hole. This project has now measured that boundary three
+## times: at 0.10 and 0.14 the dark army renders as an unlit silhouette with a few
+## specular rings on it, and the carving is gone however much geometry is in the
+## mesh. A near-black albedo has no room left between lit and unlit, and the eye
+## reads the result as a hole in the board rather than as a black piece.
 const PIECE_THEMES := {
 	# Carved wood: matte and warm, the roughest of the three finishes.
 	"persian": {
 		"label": "PERSIAN",
 		"model_set": "persian",
-		"light": Color(0.800, 0.778, 0.722),
-		"dark": Color(0.150, 0.142, 0.136),
+		"light": Color(0.790, 0.768, 0.715),
+		"dark": Color(0.250, 0.238, 0.228),
 		"accent": Color(0.70, 0.69, 0.66),
 		"light_roughness": 0.44,
 		"dark_roughness": 0.52,
@@ -241,8 +243,8 @@ const PIECE_THEMES := {
 	"bastani": {
 		"label": "BASTANI",
 		"model_set": "bastani",
-		"light": Color(0.830, 0.840, 0.818),
-		"dark": Color(0.138, 0.140, 0.155),
+		"light": Color(0.815, 0.820, 0.800),
+		"dark": Color(0.240, 0.243, 0.262),
 		"accent": Color(0.70, 0.69, 0.66),
 		"light_roughness": 0.36,
 		"dark_roughness": 0.46,
@@ -257,8 +259,8 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "CLASSIC",
 		"model_set": "staunton",
-		"light": Color(0.860, 0.850, 0.820),
-		"dark": Color(0.128, 0.130, 0.146),
+		"light": Color(0.840, 0.832, 0.805),
+		"dark": Color(0.255, 0.258, 0.276),
 		"accent": Color(0.70, 0.69, 0.66),
 		"light_roughness": 0.32,
 		"dark_roughness": 0.44,
@@ -492,7 +494,7 @@ func _setup_environment() -> void:
 	# the pale Carrara and alabaster albedoes at exposure 0.80 pushed 85% of the
 	# classic light squares past 1.0, and a clipped square is a flat white slab
 	# with no veining and no shading left anywhere on it.
-	environment.tonemap_exposure = 0.62
+	environment.tonemap_exposure = 0.66
 	var sky_material := ProceduralSkyMaterial.new()
 	# A dark studio with a warm horizon. The horizon band is what the brass and
 	# gold inlays reflect; with the old near-black sky every gold collar read as mud.
@@ -525,7 +527,7 @@ func _setup_environment() -> void:
 	# head-on and a fold lit from every direction look exactly alike. Dropping it
 	# and raising the key is what puts the light back into the sculpture, which is
 	# the difference between these pieces and the flat pastel versions.
-	environment.ambient_light_energy = 0.34
+	environment.ambient_light_energy = 0.40
 	# A three-point studio rig, so both sets read as solid volume at once. The
 	# old single key light left the camera-facing side of every dark piece in
 	# its own shadow, which is why the black set used to collapse into
@@ -561,7 +563,7 @@ func _setup_environment() -> void:
 	# of a piece, and the dark armies were being lit almost entirely by it: at
 	# 0.28 the folds of a walnut king had about three values in them and read as
 	# one shape. This is the single number that made the black pieces legible.
-	$FillLight.light_energy = 0.32
+	$FillLight.light_energy = 0.38
 	$FillLight.light_color = Color(0.88, 0.91, 0.98)
 	$FillLight.rotation_degrees = Vector3(-60, 45, 0)
 	$FillLight.shadow_enabled = false
