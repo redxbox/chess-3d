@@ -87,7 +87,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "33.0"
+const APP_BUILD := "34.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -279,8 +279,8 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "CLASSIC",
 		"model_set": "staunton",
-		"light": Color(0.698, 0.692, 0.670),
-		"dark": Color(0.342, 0.344, 0.366),
+		"light": Color(0.672, 0.666, 0.645),
+		"dark": Color(0.328, 0.330, 0.352),
 		"accent": Color(0.560, 0.480, 0.300),
 		"light_roughness": 0.42,
 		"dark_roughness": 0.40,
@@ -553,10 +553,10 @@ func _setup_environment() -> void:
 	# the metals something to mirror and to give the ambient term a colour. Cool
 	# studio grey rather than a sunset, so it can no longer tint the shadowed side
 	# of a black piece mauve.
-	sky_material.sky_top_color = Color(0.090, 0.098, 0.112)
-	sky_material.sky_horizon_color = Color(0.340, 0.352, 0.370)
-	sky_material.ground_bottom_color = Color(0.035, 0.037, 0.041)
-	sky_material.ground_horizon_color = Color(0.160, 0.165, 0.175)
+	sky_material.sky_top_color = Color(0.095, 0.097, 0.103)
+	sky_material.sky_horizon_color = Color(0.368, 0.358, 0.338)
+	sky_material.ground_bottom_color = Color(0.037, 0.036, 0.035)
+	sky_material.ground_horizon_color = Color(0.162, 0.157, 0.148)
 	var studio_sky := Sky.new()
 	studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
 	studio_sky.sky_material = sky_material
@@ -596,8 +596,8 @@ func _setup_environment() -> void:
 	# camera-facing side of a piece, so it is the one that makes the black army
 	# legible; the cool colour keeps the shadow side of a white piece from turning
 	# into grey mud and separates the armies by temperature as well as by value.
-	$FillLight.light_energy = 0.52
-	$FillLight.light_color = Color(0.82, 0.87, 1.0)
+	$FillLight.light_energy = 0.46
+	$FillLight.light_color = Color(0.86, 0.90, 1.0)
 	$FillLight.rotation_degrees = Vector3(-58, 45, 0)
 	$FillLight.shadow_enabled = false
 	# Rim: grazing, from behind, and deliberately weak. Its job is the specular
