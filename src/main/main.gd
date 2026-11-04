@@ -600,9 +600,14 @@ func _setup_environment() -> void:
 	# which is finer than the bevel on a pawn's collar.
 	$KeyLight.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	$KeyLight.directional_shadow_max_distance = 24.0
-	# The shadow atlas is one map now, because exactly one light casts. See
+	# The map itself is 2048: that is `rendering/lights_and_shadows/
+	# directional_shadow/size` in project.godot, which is where a shadow map size
+	# belongs - it is allocated when the renderer starts, so setting it from a
+	# script would have no effect on an atlas that already exists. 2048 over an
+	# eleven-unit board is about 5 mm per texel.
+	#
+	# The atlas holds one map now, because exactly one light casts. See
 	# _apply_graphics_quality(); the fill light's shadows are gone with it.
-	get_viewport().shadow_atlas_size = 2048
 	# Contact shadows and PCSS soft shadow use the light's angular distance, which
 	# this renderer does not implement; zero leaves no shadow-ray march behind.
 	$KeyLight.light_angular_distance = 0.0
