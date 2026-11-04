@@ -23,10 +23,14 @@ extends RefCounted
 ## Pure and static so that tests/test_chess.gd can check it on meshes it builds
 ## itself, with no scene and no renderer.
 
-## How dark the deepest crease gets. 0.62 leaves the fold at a bit over a third
-## of the surrounding stone: visible as a fold on the pale army, and on the dark
-## army it is the difference between a robe and a black shape.
-const DEPTH := 0.62
+## How dark the deepest crease gets.
+##
+## 0.68 leaves the deepest fold at about a third of the surrounding stone: visible
+## as a fold on the pale army, and on the dark army it is the difference between
+## a robe and a black shape. This is the project's ambient occlusion: the
+## Compatibility renderer Godot 4 ships for Android has no SSAO pass, so the
+## occlusion has to be baked, and it is baked here from the geometry.
+const DEPTH := 0.68
 
 
 ## Per-vertex shading multipliers in [1 - DEPTH, 1], one per vertex.

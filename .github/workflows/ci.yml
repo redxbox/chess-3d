@@ -58,6 +58,15 @@ jobs:
       # Nothing that is not a runtime asset may sit under assets/. A 36 MB folder
       # of raw sculpts got packed into the APK that way once; see
       # tools/check_shipped_assets.py.
+      # The board and the two armies must stay in separate brightness bands.
+      # Two complaints in a row were really one arithmetic failure - an army and
+      # a square landing on the same value, or a piece landing on 255 - so the
+      # relationship is measured here on every push instead of being eyeballed in
+      # a render review. See tools/check_visual_balance.py.
+      - name: Check board and armies stay in separate brightness bands
+        shell: bash
+        run: python3 tools/check_visual_balance.py
+
       - name: Check nothing unshippable is in assets
         shell: bash
         run: python3 tools/check_shipped_assets.py

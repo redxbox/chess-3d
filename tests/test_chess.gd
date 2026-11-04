@@ -6,6 +6,7 @@ const GameArchive = preload("res://src/storage/game_archive.gd")
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
+const CameraRigSpec = preload("res://src/main/camera_rig.gd")
 var passed := 0
 var failed := 0
 
@@ -33,6 +34,7 @@ func _init() -> void:
 	_test_piece_facing()
 	_test_piece_layout()
 	_test_piece_shading()
+	_test_camera_rig()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -546,3 +548,32 @@ func _paraboloid(sign: float, steps: int) -> Dictionary:
 			for index in [a, b, d, a, d, c]:
 				indices.append(index)
 	return {"positions": positions, "normals": normals, "indices": indices}
+
+
+## The camera rig, checked for the properties that were asked for and that a
+## future edit could quietly undo: the elevation is in the range that clears the
+## pawns, the field of view is narrow enough not to trapezoid the board, and the
+## camera looks at the exact centre of the board rather than near it.
+func _test_camera_rig() -> void:
+	var home := CameraRigSpec.home()
+	var elevation := CameraRigSpec.elevation_of(home)
+	_expect(elevation >= 48.0 and elevation <= 52.0,
+		"the camera looks down at 48-52 degrees (%.1f)" % elevation)
+	_expect(CameraRigSpec.FOV >= 38.0 and CameraRigSpec.FOV <= 42.0,
+		"the field of view is 38-42 degrees (%.1f)" % CameraRigSpec.FOV)
+	# A camera on the origin's elevation vector looks at the origin: the angle
+	# below the horizon equals the elevation exactly, so the look-at point is
+	# (0, 0, 0) and the two armies are framed identically.
+	_expect(absf(elevation - CameraRigSpec.ELEVATION_DEG) < 0.001,
+		"the camera aims at the middle of the board")
+	_expect(home.x == 0.0, "and it is centred on the board's x axis")
+	_expect(CameraRigSpec.DISTANCE_DEFAULT >= CameraRigSpec.DISTANCE_MIN \
+			and CameraRigSpec.DISTANCE_DEFAULT <= CameraRigSpec.DISTANCE_MAX,
+		"the resting distance is inside the zoom range")
+	# The far rank has to clear the pawns, which is the whole reason for the
+	# elevation. At 50 degrees a piece five and a half units behind a one-unit
+	# pawn is seen about 5.5 units above it; at the old 42 it was 3.9.
+	var lift := CameraRigSpec.back_rank_lift()
+	_expect(lift > 5.0, "the back rank clears the pawns (%.2f units)" % lift)
+
+
