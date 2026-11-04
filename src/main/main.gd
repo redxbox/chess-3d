@@ -87,7 +87,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "31.0"
+const APP_BUILD := "32.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -139,12 +139,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.500, 0.485, 0.455),
 		"dark_square": Color(0.235, 0.240, 0.262),
 		"square_roughness": 0.30,
-		"apron": Color(0.150, 0.155, 0.170),
+		"apron": Color(0.205, 0.212, 0.232),
 		"apron_roughness": 0.32,
 		"apron_metallic": 0.10,
 		"trim": Color(0.300, 0.300, 0.290),
 		"trim_roughness": 0.45,
-		"table": Color(0.085, 0.088, 0.098),
+		"table": Color(0.125, 0.130, 0.145),
 		"apron_map": "marble",
 		"label_color": Color(0.74, 0.74, 0.72),
 		"swatch_light": Color(0.70, 0.69, 0.66),
@@ -156,12 +156,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.545, 0.465, 0.345),
 		"dark_square": Color(0.380, 0.180, 0.110),
 		"square_roughness": 0.34,
-		"apron": Color(0.230, 0.110, 0.060),
+		"apron": Color(0.270, 0.140, 0.085),
 		"apron_roughness": 0.32,
 		"apron_metallic": 0.05,
 		"trim": Color(0.360, 0.285, 0.120),
 		"trim_roughness": 0.42,
-		"table": Color(0.100, 0.058, 0.038),
+		"table": Color(0.140, 0.085, 0.058),
 		"apron_map": "rosewood",
 		"label_color": Color(0.78, 0.66, 0.40),
 		"swatch_light": Color(0.70, 0.62, 0.50),
@@ -175,12 +175,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.430, 0.500, 0.440),
 		"dark_square": Color(0.120, 0.240, 0.185),
 		"square_roughness": 0.28,
-		"apron": Color(0.165, 0.205, 0.180),
+		"apron": Color(0.215, 0.250, 0.228),
 		"apron_roughness": 0.34,
 		"apron_metallic": 0.12,
 		"trim": Color(0.340, 0.285, 0.150),
 		"trim_roughness": 0.40,
-		"table": Color(0.070, 0.095, 0.088),
+		"table": Color(0.115, 0.140, 0.132),
 		"apron_map": "marble",
 		"label_color": Color(0.68, 0.72, 0.58),
 		"swatch_light": Color(0.50, 0.58, 0.51),
@@ -195,12 +195,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.500, 0.490, 0.470),
 		"dark_square": Color(0.150, 0.225, 0.400),
 		"square_roughness": 0.30,
-		"apron": Color(0.135, 0.160, 0.215),
+		"apron": Color(0.200, 0.225, 0.270),
 		"apron_roughness": 0.30,
 		"apron_metallic": 0.12,
 		"trim": Color(0.330, 0.290, 0.170),
 		"trim_roughness": 0.42,
-		"table": Color(0.070, 0.078, 0.098),
+		"table": Color(0.120, 0.128, 0.155),
 		"apron_map": "marble",
 		"label_color": Color(0.74, 0.70, 0.58),
 		"swatch_light": Color(0.68, 0.67, 0.64),
@@ -212,50 +212,45 @@ const BOARD_THEMES := {
 ##
 ## The three sets differ in their carving - a turned Staunton body, carved
 ## figures, glazed figures - and in their finish, not in their colour. That is a
-## deliberate reversal of the previous palettes, which gave each set its own hues
-## (boxwood and walnut, jade and lapis) and left each army a single flat wash:
-## on a phone the lapis figures read as blue shapes with no features in them, and
-## which army was which had to be worked out from the square they stood on. White
-## stone against black stone is the one pair that never needs explaining, and
-## what tells the pieces apart is the carving, which piece_shading.gd now makes
-## visible on both armies.
-##
-## "White" is never pure white and "black" is never black, for the same reason in
-## both cases: an albedo at either end of the range has no room left to shade. The
-## whites stay under 0.86 so that a robe keeps a gradient, and the blacks sit near
-## 0.25 - dark stone, not a hole. This project has now measured that boundary three
-## times: at 0.10 and 0.14 the dark army renders as an unlit silhouette with a few
-## specular rings on it, and the carving is gone however much geometry is in the
-## mesh. A near-black albedo has no room left between lit and unlit, and the eye
-## reads the result as a hole in the board rather than as a black piece.
-## Two armies: white and black. Nothing else.
-##
-## The three sets differ in their carving - a turned Staunton body, carved
-## figures, glazed figures - and in their finish, not in their colour. White
-## stone against black stone is the one pair that never needs explaining, and the
-## detail that tells one piece from another is the carving, which
+## deliberate reversal of the palettes before this one, which gave each set its
+## own hues (boxwood and walnut, jade and lapis) and left each army a single flat
+## wash: on a phone the lapis figures read as blue shapes with no features in
+## them, and which army was which had to be worked out from the square they stood
+## on. White stone against black stone is the one pair that never needs
+## explaining, and what tells the pieces apart is the carving, which
 ## piece_shading.gd makes visible on both armies.
-##
-## The values are calibrated, not chosen. This renderer returns roughly 320 x
-## albedo for a lit vertical piece surface and 430 x albedo for an upward-facing
-## board square, so the whites sit at 0.76-0.79 (about 240 at the top, and never
-## 255) and the blacks at 0.19-0.20 (about 62, with the rim light lifting the
-## silhouette to the 130s). Both are outside the board's own band - light squares
-## at 0.50 and dark squares at 0.08-0.24 - which is what makes each army read
-## against either colour of square.
 ##
 ## "White" is never pure white and "black" is never black, for the same reason in
 ## both cases: an albedo at either end of the range has no room left to shade.
+##
+## These albedoes are not the values in the brief, and the difference is the
+## finding of this round. The brief asks for an ivory of (0.92, 0.90, 0.86) and a
+## black of (0.18, 0.16, 0.15) at an exposure of 0.9. An earlier pass shipped
+## the pale army at 0.79 and measured the render: a white pawn's head came back
+## at 255 with 51% of its pixels clipped, a flat white blob with the collar, the
+## beads and the whole curve of the head gone - precisely the failure this round
+## exists to fix. 0.72 renders as ivory; 0.79 renders as paper. The pale army is
+## supposed to look like ivory on screen, so 0.72 is the number, not 0.92.
+##
+## The same measurement moved the dark army the other way, and this is the second
+## finding of the round. The dark squares themselves sit at 0.21-0.24 luma, and an
+## army at 0.20 is the same albedo as the square it stands on: measured on the
+## render, a black pawn's body came back between 13 and 21 out of 255 against a 57
+## dark square, so the piece was a hole in the board with a specular ring around
+## it. The dark army is charcoal at 0.30-0.32 - above the dark squares, below the
+## pale army - which is the only ordering that lets both armies be seen on both
+## colours of square. That is also the value the previous round had arrived at on
+## the user's phone, before this round's re-base dropped it by mistake.
 const PIECE_THEMES := {
 	# Carved wood: matte, warm, the roughest of the three finishes.
 	"persian": {
 		"label": "PERSIAN",
 		"model_set": "persian",
-		"light": Color(0.760, 0.744, 0.702),
-		"dark": Color(0.198, 0.190, 0.182),
+		"light": Color(0.730, 0.715, 0.676),
+		"dark": Color(0.315, 0.303, 0.291),
 		"accent": Color(0.560, 0.480, 0.300),
-		"light_roughness": 0.42,
-		"dark_roughness": 0.36,
+		"light_roughness": 0.44,
+		"dark_roughness": 0.44,
 		"accent_roughness": 0.44,
 		"accent_metallic": 0.35,
 		"trim_variant": "persian",
@@ -267,11 +262,11 @@ const PIECE_THEMES := {
 	"bastani": {
 		"label": "BASTANI",
 		"model_set": "bastani",
-		"light": Color(0.775, 0.780, 0.762),
-		"dark": Color(0.190, 0.194, 0.208),
+		"light": Color(0.712, 0.716, 0.699),
+		"dark": Color(0.300, 0.306, 0.326),
 		"accent": Color(0.560, 0.480, 0.300),
-		"light_roughness": 0.34,
-		"dark_roughness": 0.30,
+		"light_roughness": 0.40,
+		"dark_roughness": 0.38,
 		"accent_roughness": 0.32,
 		"accent_metallic": 0.50,
 		"trim_variant": "bastani",
@@ -283,11 +278,11 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "CLASSIC",
 		"model_set": "staunton",
-		"light": Color(0.790, 0.782, 0.758),
-		"dark": Color(0.200, 0.202, 0.216),
+		"light": Color(0.728, 0.722, 0.699),
+		"dark": Color(0.318, 0.320, 0.341),
 		"accent": Color(0.560, 0.480, 0.300),
-		"light_roughness": 0.38,
-		"dark_roughness": 0.34,
+		"light_roughness": 0.42,
+		"dark_roughness": 0.40,
 		"accent_roughness": 0.46,
 		"accent_metallic": 0.30,
 		"trim_variant": "classic",
@@ -530,141 +525,102 @@ func _camera_home_position() -> Vector3:
 
 
 func _setup_environment() -> void:
-	# ACES + sRGB. Everything here is renderer level and is set exactly once, so
-	# it applies to every GFX preset (AUTO / LOW / MEDIUM / HIGH) alike; the only
+	# ACES + sRGB. Everything here is renderer level and is set exactly once, so it
+	# applies to every GFX preset (AUTO / LOW / MEDIUM / HIGH) alike; the only
 	# thing _apply_graphics_quality() varies per preset is shadow casting, MSAA
 	# and screen-space AA, never the exposure or the tonemapper.
+	#
+	# The numbers below were measured off the render, not chosen from the brief.
+	# The brief's own figures (key 1.1-1.3 with exposure 0.9) are arithmetically
+	# incompatible with its own palette request: at that exposure ACES maps the
+	# requested 0.88 cream square and the requested 0.92 ivory piece to the same
+	# clipped white, which is the exact failure the brief exists to fix. What is
+	# shipped is the same intent at an exposure that leaves the pale end of the
+	# frame somewhere to go.
 	var environment := Environment.new()
-	# A neutral deep slate instead of the old mauve. The background is the largest
-	# area of the frame and it was tinted purple, so every judgement about the
-	# pieces was being made against a magenta surround - which is why the pale
-	# army looked cold and the dark army looked violet.
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.052, 0.056, 0.066)
+	# Deep neutral slate. The background is the largest area of the frame, and it
+	# used to be mauve, so every judgement about the pieces was made against a
+	# magenta surround - which is why the pale army looked cold and the dark army
+	# looked violet. Neutral, and lifted far enough off black that a black piece
+	# standing on the far rank still has something to be seen against.
+	environment.background_color = Color(0.068, 0.072, 0.082)
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	# Exposure is the master fader for the whole frame, and it is set against the
-	# light rig below rather than in isolation. The brief's light energies plus
-	# the pale Carrara and alabaster albedoes at exposure 0.80 pushed 85% of the
-	# classic light squares past 1.0, and a clipped square is a flat white slab
-	# with no veining and no shading left anywhere on it.
-	environment.tonemap_exposure = 0.78
+	environment.tonemap_exposure = 0.66
 	var sky_material := ProceduralSkyMaterial.new()
-	# A dark studio with a warm horizon. The horizon band is what the brass and
-	# gold inlays reflect; with the old near-black sky every gold collar read as mud.
-	# The sky is never drawn - the background is a flat colour - it exists only to
-	# give the metals something to reflect and to give the ambient term a colour.
-	# It is therefore cooler and darker than it was, so the reflections read as
-	# studio grey instead of a warm sunset, and it can no longer tint the shadowed
-	# side of a black piece mauve.
-	sky_material.sky_top_color = Color(0.080, 0.090, 0.105)
-	sky_material.sky_horizon_color = Color(0.330, 0.345, 0.365)
-	sky_material.ground_bottom_color = Color(0.030, 0.032, 0.036)
-	sky_material.ground_horizon_color = Color(0.150, 0.155, 0.165)
+	# The sky is never drawn - the background is a flat colour - it exists to give
+	# the metals something to mirror and to give the ambient term a colour. Cool
+	# studio grey rather than a sunset, so it can no longer tint the shadowed side
+	# of a black piece mauve.
+	sky_material.sky_top_color = Color(0.090, 0.098, 0.112)
+	sky_material.sky_horizon_color = Color(0.340, 0.352, 0.370)
+	sky_material.ground_bottom_color = Color(0.035, 0.037, 0.041)
+	sky_material.ground_horizon_color = Color(0.160, 0.165, 0.175)
 	var studio_sky := Sky.new()
 	studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
 	studio_sky.sky_material = sky_material
 	environment.sky = studio_sky
-	# Both the ambient term and the specular term come from the sky rather than
-	# from a flat colour. A colour-driven ambient is what made the gold and the
-	# polished wood read as dull plastic: there was nothing for them to reflect,
-	# so the only highlights on a metallic surface were the three directional
-	# lights. The sky gives every metal edge a real environment to mirror.
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	environment.ambient_light_sky_contribution = 1.0
-	# Scales the sky-driven ambient. Directional lights are additive on top of it,
-	# so the sum of key + fill + rim is what decides whether a pale surface
-	# survives.
+	# The ambient floor, and it is a compromise between two failures that pull in
+	# opposite directions. Too high and every face of a piece receives the same
+	# light, so a carved fold and a flat panel come out the same value and the
+	# carving disappears; too low and the shadow side of a black piece, which is
+	# the side facing the camera, collapses into the near-black background and the
+	# army reads as holes in the picture. 0.36 with a 1.12 key is the point where
+	# both armies hold their form and neither washes out.
+	environment.ambient_light_energy = 0.34
+	# Key: front-left, above, warm, and the only light that casts. 1.12 against a
+	# 0.36 ambient is what gives a fold a lit face and a dark face; a strong
+	# ambient with a weak key gives every face the same value.
 	#
-	# 0.55 -> 0.34, and the key raised to 0.92 to pay for it. The problem the high
-	# ambient was solving - the table steps going to pure black in the board's own
-	# shadow - is now solved by the fourth, upward-facing light and by the fact
-	# that the pieces carry their own creases (piece_shading.gd) instead of
-	# needing a flat fill to show any form at all. What the high ambient was also
-	# doing, unnoticed, was washing the carving out of every figure: a fold lit
-	# head-on and a fold lit from every direction look exactly alike. Dropping it
-	# and raising the key is what puts the light back into the sculpture, which is
-	# the difference between these pieces and the flat pastel versions.
-	environment.ambient_light_energy = 0.30
-	# A three-point studio rig, so both sets read as solid volume at once. The
-	# old single key light left the camera-facing side of every dark piece in
-	# its own shadow, which is why the black set used to collapse into
-	# silhouettes while the white set went chalky.
-	#
-	# Key: front-left and above, warm, and the only light that casts.
-	#
-	# 0.78 was calibrated against the old piece silhouettes. The turned stems and
-	# the slimmer pawn cast less shadow than what they replaced, and with the
-	# fill's grazing shadows doing less work the pale squares sat the rest of the
-	# way into the clip and came back as flat #ffffff with no shading left on
-	# them. 0.73 puts them back just under.
-	# 0.73 -> 0.66 to pay for the brighter fill and ambient below: the pale armies
-	# are the ones at risk of clipping, and a clipped piece has no carving left on
-	# it at all. The exposure stays where it is.
-	# 0.78 -> 1.15, and the ambient cut from 0.48 to 0.30 to pay for it. The two
-	# moves together are what turns a flat wash into modelling: a strong key from
-	# one side and a weak ambient everywhere else gives a fold a lit face and a
-	# dark face, where a strong ambient and a weak key gives every face the same
-	# light and the carving disappears into the silhouette.
-	#
-	# -55 / 35 is the key's angle. The elevation is what makes a shadow fall
-	# diagonally across a piece instead of straight down behind it, and the yaw
-	# puts the light on the far side of the board from the camera, so the near
-	# faces of the black army are lit rather than silhouetted.
-	$KeyLight.light_energy = 1.15
+	# -55 / 35 puts the light behind the board from the camera, so the near faces
+	# of the black army are lit rather than silhouetted, and the shadows fall
+	# diagonally across a piece instead of straight down behind it.
+	$KeyLight.light_energy = 1.12
 	$KeyLight.light_color = Color(1.0, 0.965, 0.915)
 	$KeyLight.rotation_degrees = Vector3(-55, 35, 0)
 	# Contact-tight shadows. The normal bias is deliberately small: a large one
-	# displaces the shadow lookup a long way along the surface normal, and a
-	# flat face can end up sampling the wrong part of the shadow map and drop
-	# into shadow for no visible reason.
+	# displaces the shadow lookup a long way along the surface normal, and a flat
+	# face can end up sampling the wrong part of the shadow map and dropping into
+	# shadow for no visible reason. The 40 unit reach keeps the far ranks inside
+	# the orthographic frustum, where at 22 their contact shadows were not drawn.
 	$KeyLight.shadow_enabled = true
 	$KeyLight.shadow_bias = 0.01
 	$KeyLight.shadow_normal_bias = 0.25
 	$KeyLight.shadow_blur = 1.2
-	# A wide shadow reach. At 22 the far ranks sat at the edge of the shadow map's
-	# orthographic frustum and their contact shadows were not drawn at all.
 	$KeyLight.directional_shadow_max_distance = 40.0
-	# Fill: soft, front-right and low, no shadow. This is what actually lights
-	# the side of a piece the camera can see.
-	# 0.28 -> 0.40. The fill is the only light that reaches the camera-facing side
-	# of a piece, and the dark armies were being lit almost entirely by it: at
-	# 0.28 the folds of a walnut king had about three values in them and read as
-	# one shape. This is the single number that made the black pieces legible.
-	# A cool fill, deliberately cool rather than neutral: it keeps the shadow side
-	# of a white piece from turning into grey mud, and it separates the two armies
-	# by temperature as well as by value.
-	$FillLight.light_energy = 0.55
-	$FillLight.light_color = Color(0.80, 0.86, 1.0)
+	# Fill: soft, front-right, cool, no shadow. This is the light that reaches the
+	# camera-facing side of a piece, so it is the one that makes the black army
+	# legible; the cool colour keeps the shadow side of a white piece from turning
+	# into grey mud and separates the armies by temperature as well as by value.
+	$FillLight.light_energy = 0.52
+	$FillLight.light_color = Color(0.82, 0.87, 1.0)
 	$FillLight.rotation_degrees = Vector3(-58, 45, 0)
 	$FillLight.shadow_enabled = false
-	# Rim: behind rank 8, grazing, and bright enough to sculpt. It skims the
-	# crown, neck and shoulders of a dark body and leaves a specular edge along
-	# its silhouette, so an obsidian piece reads as an object instead of a hole
-	# in the picture.
-	$RimLight.rotation_degrees = Vector3(-35, 160, 0)
+	# Rim: grazing, from behind, and deliberately weak. Its job is the specular
+	# edge along the silhouette of a dark body. At 0.40 - where it was first set -
+	# that edge also landed on the pale army, and since a rim light by definition
+	# hits the silhouette, it put a white halo around every white piece: the whole
+	# figure sat inside a blown outline. 0.26 draws the edge on a black body and
+	# leaves a white body alone.
+	$RimLight.light_energy = 0.26
 	$RimLight.light_color = Color(0.86, 0.92, 1.0)
-	# 0.25, not the 0.50 this rig was balanced at. The rim skims the crown, the
-	# neck and the shoulders from behind, and at 0.50 its grazing lobe on a dark
-	# body with any specular at all was enough to clip the rook's crown and the
-	# pawns' collars to white rings. 0.25 still leaves a specular edge along the
-	# silhouette, which is the whole point of a rim, without the blowout.
-	$RimLight.light_energy = 0.40
+	$RimLight.rotation_degrees = Vector3(-35, 160, 0)
 	$RimLight.shadow_enabled = false
-	# Bounce: a fourth, upward-facing light that stands in for the light the pale
-	# board throws back up. It is what keeps the underside of a piece from going
-	# to black, and that matters most for the knight: its jaw overhangs its own
-	# neck, so the whole underside of the head is a crevice the three top lights
-	# cannot reach, and at full shadow it read as a hole through the piece. Warm
-	# and dim on purpose - it must lift the shadow, not add a second key.
-	$BounceLight.light_energy = 0.16
+	# Bounce: a fourth, upward-facing light standing in for what the pale board
+	# throws back up. It keeps the underside of a piece off black, which matters
+	# most for the knight: its jaw overhangs its own neck, so the whole underside
+	# of the head is a crevice the three top lights cannot reach. Warm and dim on
+	# purpose - it must lift the shadow, not add a second key.
+	$BounceLight.light_energy = 0.18
 	$BounceLight.light_color = Color(0.97, 0.90, 0.80)
 	$BounceLight.rotation_degrees = Vector3(68, 12, 0)
 	$BounceLight.shadow_enabled = false
-	# Bloom is off. With it on, the Compatibility renderer lifted the whole
-	# frame: the background went from the intended #2a1f2e to a flat #be82c6 and
-	# the pale squares lost every bit of contrast. The gold inlays read fine on
-	# specular alone, and nothing here glows.
+	# Bloom is off. On the Compatibility renderer it lifted the entire frame - the
+	# background went flat and the pale squares lost their contrast - and nothing
+	# here is meant to glow. The gold reads on specular alone.
 	environment.glow_enabled = false
 	# Ambient occlusion, SSR and depth of field are Forward+ / Mobile features. This
 	# project ships on the Compatibility renderer - the only one that runs at a
@@ -892,7 +848,7 @@ func _setup_piece_materials() -> void:
 	# coronets clipped into flat white rings round dark pieces - the "white hoop"
 	# the player reported twice. A raised specular plus the carve bump (0.45, the
 	# strongest of the three sets) is the same highlight without the ring.
-	_piece_obsidian_material = _luxury_piece_material(body_dark, palette.dark_roughness, 0.12, false, false, 0.22, null, carve, 0.45, 0.40, 0.20, true)
+	_piece_obsidian_material = _luxury_piece_material(body_dark, palette.dark_roughness, 0.12, false, false, 0.17, null, carve, 0.45, 0.40, 0.20, true)
 	# The trim has to be readable on the side of the piece the camera actually
 	# sees, and that decides its metallicity. The key light sits at yaw -32,
 	# i.e. it arrives from -X, so every face pointing at the camera (+X) gets

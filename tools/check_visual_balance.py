@@ -1,156 +1,171 @@
 #!/usr/bin/env python3
-"""Checks that the board and the armies stay in separate brightness bands.
+"""Check that the board and the two armies are built from separable albedoes.
 
-The complaint that drove this file - twice, in different words - is that one
-army washes out and the other disappears. Both are the same failure: a piece and
-a square landing on the same value, or a piece landing on 255. It is not a matter
-of taste, it is arithmetic, and the arithmetic is cheap enough to run on every
-push.
+Two rounds in a row the user's complaint was really one arithmetic failure: an
+army and a square landing on the same value, so the pieces vanished into the
+board, or the pale army sitting at 255 where ACES has nothing left to shade.
 
-The model is deliberately simple and empirical, and it predicts 8-bit sRGB
-directly rather than going through a tonemapper: in the unclipped middle of this
-rig's range the output is close enough to proportional to the albedo that the
-slope below is within a few per cent. It was calibrated against the previous
-shipped render, where a 0.738 light square came back at 246 and a 0.257 dark
-square at 90 - a slope of about 340 at exposure 0.68, scaled to 390 here for the
-0.78 exposure.
+That failure is visible in the palettes themselves, before anything is rendered:
 
-Only the *relative* placement is ever checked - is the white army brighter than
-the light squares, is the black army darker than the dark squares - so a small
-error in the slope cannot turn a good palette red.
+  * a pale army albedo that is close to the light squares' - the white pieces
+    then have nothing but their own shading to stand out with, and on a phone
+    seen at arm's length they do not;
+  * a dark army albedo that is close to the dark squares' - the same failure
+    from the other end;
+  * an albedo past about 0.75, which this rig's key light drives past 1.0, and
+    a clipped piece has no carving left on it at all.
 
-Run with no arguments. Exits non-zero and prints every violation if a band
-overlaps or a colour clips.
+What the numbers were measured to produce is in docs/previews and is checked
+end-to-end by tools/measure_preview.py against a real render. This script is the
+cheap guard that runs on every push, on every board and set, without a GPU.
 """
 
 from __future__ import annotations
 
-import pathlib
 import re
 import sys
+from pathlib import Path
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
-MAIN = ROOT / "src" / "main" / "main.gd"
+ROOT = Path(__file__).resolve().parent.parent
+MAIN_GD = ROOT / "src" / "main" / "main.gd"
 
-BOARD_GAIN = 390.0   # upward-facing squares
-PIECE_GAIN = 318.0   # lit vertical piece surfaces
+# Albedo bands. These are linear-space albedoes, not screen values - see the
+# comment in main.gd for why the shipped ivory is 0.72 and not the 0.92 the
+# brief asked for.
+LIGHT_SQUARE = (0.42, 0.58)
+DARK_SQUARE = (0.10, 0.27)
+PALE_ARMY = (0.55, 0.75)
+DARK_ARMY = (0.24, 0.35)
 
-# The band each surface has to land in, in 8-bit sRGB. Chosen so that nothing
-# clips (255) and no two bands touch: a gap of 8 is roughly three visible steps.
-LIGHT_SQUARE = (175, 220)
-DARK_SQUARE = (60, 125)
-WHITE_PIECE = (225, 252)
-BLACK_PIECE = (45, 95)
-MIN_WHITE_GAP = 8      # white army above the light squares
-MIN_BLACK_GAP = 12     # black army below the dark squares
-
-
-def value_of(albedo_rgb: tuple[float, float, float], gain: float) -> int:
-    """Rec.709 luma of one albedo under the rig, as 8-bit sRGB."""
-    luma = 0.2126 * albedo_rgb[0] + 0.7152 * albedo_rgb[1] + 0.0722 * albedo_rgb[2]
-    return int(round(max(0.0, min(255.0, luma * gain))))
-
-
-def luma_of(albedo_rgb: tuple[float, float, float]) -> int:
-    return value_of(albedo_rgb, 255.0)
+# How far apart an army and the square it can stand on have to be, in luma.
+#
+# 0.06 rather than something larger because a dark army cannot be pushed much
+# further from a dark square without becoming grey: the mahogany board's dark
+# square is 0.22 and the charcoal army is 0.30, and at that spacing the render
+# measurement shows a 25-point gap on screen. Below about 0.06 the piece is
+# distinguishable only by its specular ring, which is what the previous round
+# shipped and what the user reported as "the black side cannot be recognised".
+MIN_TERRITORY_LUMA = 0.06
 
 
-def parse_blocks(source: str, name: str) -> dict[str, dict[str, tuple[float, float, float]]]:
-    """Every `"key": {...}` block inside a top-level `const <name> := {...}`."""
+def luma(rgb: tuple[float, float, float]) -> float:
+    return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+
+
+def parse_theme_table(source: str, name: str) -> dict[str, dict[str, tuple[float, ...]]]:
+    """Pull `const NAME := { "id": { "key": Color(r, g, b), ... }, ... }` apart."""
     start = source.index(f"const {name} := {{")
-    end = source.index("\n}\n", start)
-    body = source[start:end]
-    blocks: dict[str, dict[str, tuple[float, float, float]]] = {}
-    for match in re.finditer(r'\n\t"([a-z_]+)": \{(.*?)\n\t\},', body, re.S):
-        block_id = match.group(1)
-        fields: dict[str, tuple[float, float, float]] = {}
-        for colour in re.finditer(r'"([a-z_]+)": Color\(([0-9.]+), ([0-9.]+), ([0-9.]+)\)', match.group(2)):
-            fields[colour.group(1)] = (
-                float(colour.group(2)),
-                float(colour.group(3)),
-                float(colour.group(4)),
-            )
-        blocks[block_id] = fields
-    return blocks
+    depth = 0
+    end = start
+    for offset, char in enumerate(source[start:], start):
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                end = offset + 1
+                break
+    block = source[start:end]
+
+    entries: dict[str, dict[str, tuple[float, ...]]] = {}
+    for entry in re.finditer(r'"([a-z_]+)": \{(.*?)\n\t\}', block, re.S):
+        theme_id, body = entry.group(1), entry.group(2)
+        values: dict[str, tuple[float, ...]] = {}
+        for line in body.splitlines():
+            match = re.match(r'\s*"([a-z_]+)": Color\(([^)]*)\),', line)
+            if match:
+                channels = tuple(float(part.strip()) for part in match.group(2).split(","))
+                values[match.group(1)] = channels
+            match = re.match(r'\s*"([a-z_]+)": ([0-9.]+),', line)
+            if match:
+                values[match.group(1)] = (float(match.group(2)),)
+        entries[theme_id] = values
+    return entries
 
 
-def check(problems: list[str], label: str, value: int, band: tuple[int, int]) -> None:
+def band_problem(label: str, value: float, band: tuple[float, float]) -> str | None:
     low, high = band
     if value < low:
-        problems.append(f"{label}: {value} is below {low} - too dark to read")
-    elif value > high:
-        problems.append(f"{label}: {value} is above {high} - clipping or glaring")
+        return f"{label}: {value:.3f} is below {low:.2f} - too dark to read on a phone"
+    if value > high:
+        return f"{label}: {value:.3f} is above {high:.2f} - it will clip"
+    return None
 
 
 def main() -> int:
-    source = MAIN.read_text(encoding="utf-8")
-    boards = parse_blocks(source, "BOARD_THEMES")
-    pieces = parse_blocks(source, "PIECE_THEMES")
-    if not boards or not pieces:
-        print("could not parse the theme tables out of main.gd", file=sys.stderr)
-        return 2
+    source = MAIN_GD.read_text()
+    boards = parse_theme_table(source, "BOARD_THEMES")
+    pieces = parse_theme_table(source, "PIECE_THEMES")
 
     problems: list[str] = []
+    print("albedoes (Rec.709 luma, linear)")
+
     for board_id, board in boards.items():
-        for field, band, name in (
-            ("light_square", LIGHT_SQUARE, "light square"),
-            ("dark_square", DARK_SQUARE, "dark square"),
+        if "light_square" not in board or "dark_square" not in board:
+            problems.append(f"board {board_id} has no light_square / dark_square")
+            continue
+        light = luma(board["light_square"])
+        dark = luma(board["dark_square"])
+        print(f"  board {board_id:11s} light {light:.3f}  dark {dark:.3f}")
+        for label, value, band in (
+            (f"board {board_id} light square", light, LIGHT_SQUARE),
+            (f"board {board_id} dark square", dark, DARK_SQUARE),
         ):
-            if field not in board:
-                problems.append(f"board '{board_id}' has no {field}")
-                continue
-            check(problems, f"board {board_id} {name}", value_of(board[field], BOARD_GAIN), band)
+            problem = band_problem(label, value, band)
+            if problem:
+                problems.append(problem)
 
     for set_id, palette in pieces.items():
-        for field, band, name in (
-            ("light", WHITE_PIECE, "white army"),
-            ("dark", BLACK_PIECE, "black army"),
+        if "light" not in palette or "dark" not in palette:
+            problems.append(f"set {set_id} has no light / dark body colour")
+            continue
+        pale = luma(palette["light"])
+        dark = luma(palette["dark"])
+        print(f"  set   {set_id:11s} pale {pale:.3f}  dark {dark:.3f}")
+        for label, value, band in (
+            (f"set {set_id} pale army", pale, PALE_ARMY),
+            (f"set {set_id} dark army", dark, DARK_ARMY),
         ):
-            if field not in palette:
-                problems.append(f"set '{set_id}' has no {field}")
-                continue
-            check(problems, f"set {set_id} {name}", value_of(palette[field], PIECE_GAIN), band)
+            problem = band_problem(label, value, band)
+            if problem:
+                problems.append(problem)
+        if dark > 0 and pale / dark < 2.0:
+            problems.append(
+                f"set {set_id}: the two armies are only {pale / dark:.1f}x apart in "
+                f"albedo (needs 2.0) - they will read as one colour")
 
-    # The two relationships that make the armies read against the board, checked
-    # against every pairing because a player can combine any board with any set.
+    # Every board can be worn with every set, so every pairing has to work.
     for board_id, board in boards.items():
         if "light_square" not in board or "dark_square" not in board:
             continue
-        light = value_of(board["light_square"], BOARD_GAIN)
-        dark = value_of(board["dark_square"], BOARD_GAIN)
+        light = luma(board["light_square"])
+        dark = luma(board["dark_square"])
         for set_id, palette in pieces.items():
-            if "light" in palette:
-                white = value_of(palette["light"], PIECE_GAIN)
-                if white - light < MIN_WHITE_GAP:
-                    problems.append(
-                        f"board {board_id} + set {set_id}: white army {white} sits on the "
-                        f"light squares {light} (needs {MIN_WHITE_GAP})"
-                    )
-            if "dark" in palette:
-                black = value_of(palette["dark"], PIECE_GAIN)
-                if dark - black < MIN_BLACK_GAP:
-                    problems.append(
-                        f"board {board_id} + set {set_id}: black army {black} sits on the "
-                        f"dark squares {dark} (needs {MIN_BLACK_GAP})"
-                    )
+            if "light" not in palette or "dark" not in palette:
+                continue
+            pale = luma(palette["light"])
+            army = luma(palette["dark"])
+            # Both armies stand on both colours of square, so what matters is the
+            # distance in either direction, not the sign: a charcoal piece that is
+            # lighter than the dark square reads fine, it just has to be
+            # decisively lighter rather than nearly equal.
+            for name, value in (("pale", pale), ("dark", army)):
+                for square_name, square in (("light", light), ("dark", dark)):
+                    if abs(value - square) < MIN_TERRITORY_LUMA:
+                        problems.append(
+                            f"board {board_id} + set {set_id}: the {name} army "
+                            f"({value:.3f}) is only {abs(value - square):.3f} from the "
+                            f"{square_name} squares ({square:.3f}), needs "
+                            f"{MIN_TERRITORY_LUMA:.2f}")
 
     if problems:
         print("visual balance check failed:", file=sys.stderr)
         for problem in problems:
             print(f"  - {problem}", file=sys.stderr)
         return 1
+
     print(f"visual balance ok: {len(boards)} boards, {len(pieces)} piece sets, "
           f"every pairing keeps the armies clear of the squares")
-    # Printed rather than only asserted, so the numbers are in the CI log next to
-    # the check that used them.
-    for board_id, board in boards.items():
-        if "light_square" in board and "dark_square" in board:
-            print(f"  board {board_id:11s} light {value_of(board['light_square'], BOARD_GAIN):3d}"
-                  f"  dark {value_of(board['dark_square'], BOARD_GAIN):3d}")
-    for set_id, palette in pieces.items():
-        if "light" in palette and "dark" in palette:
-            print(f"  set   {set_id:11s} white {value_of(palette['light'], PIECE_GAIN):3d}"
-                  f"  black {value_of(palette['dark'], PIECE_GAIN):3d}")
     return 0
 
 
