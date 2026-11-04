@@ -7,6 +7,7 @@ const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
 const CameraRigSpec = preload("res://src/main/camera_rig.gd")
+const PieceLadder = preload("res://src/main/piece_ladder.gd")
 var passed := 0
 var failed := 0
 
@@ -35,6 +36,7 @@ func _init() -> void:
 	_test_piece_layout()
 	_test_piece_shading()
 	_test_camera_rig()
+	_test_piece_height_ladder()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -577,3 +579,36 @@ func _test_camera_rig() -> void:
 	_expect(lift > 5.0, "the back rank clears the pawns (%.2f units)" % lift)
 
 
+
+
+## The height ladder: the six kinds must climb in the requested proportions, and
+## the bishop must be decisively taller than the knight.
+##
+## This is a test rather than a comment because the previous ladder had the two
+## within 1.5% of each other, which on a phone is the same height.
+func _test_piece_height_ladder() -> void:
+	var order := ["pawn", "rook", "knight", "bishop", "queen", "king"]
+	for index in order.size():
+		var kind: String = order[index]
+		var height := PieceLadder.height(kind)
+		_expect(is_equal_approx(height, PieceLadder.RATIOS[kind] / PieceLadder.RATIOS["king"] * PieceLadder.KING_HEIGHT),
+			"%s sits on the ladder" % kind)
+		if index > 0:
+			_expect(height > PieceLadder.height(order[index - 1]),
+				"%s is taller than %s" % [kind, order[index - 1]])
+	_expect(PieceLadder.height("king") / PieceLadder.height("pawn") > 1.64,
+		"the king is 1.65x the pawn")
+	_expect(PieceLadder.height("bishop") / PieceLadder.height("knight") >= 1.07,
+		"the bishop is clearly taller than the knight (%.2f)"
+			% (PieceLadder.height("bishop") / PieceLadder.height("knight")))
+	# The scale is a ratio to the shipped height: a piece that already ships at its
+	# ladder height must not be scaled at all.
+	_expect(is_equal_approx(PieceLadder.height_scale("king", PieceLadder.KING_HEIGHT), 1.0),
+		"a king at reference height is scaled by exactly 1")
+	var pawn_scale := PieceLadder.height_scale("pawn", 0.910, 1.620)
+	_expect(is_equal_approx(0.910 * pawn_scale, PieceLadder.height("pawn")),
+		"the pawn ends at its ladder height (%.3f)" % (0.910 * pawn_scale))
+	# And the ladder is anchored to the king's *measured* height, so a set that
+	# ships at half scale keeps its proportions instead of doubling in size.
+	var half := PieceLadder.height_scale("pawn", 0.455, 0.810)
+	_expect(is_equal_approx(half, pawn_scale), "a set at half scale scales the same (%.4f)" % half)

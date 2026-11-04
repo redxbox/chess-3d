@@ -47,6 +47,13 @@ DARK_ARMY_MEDIAN = (30.0, 110.0)    # charcoal, not a hole in the board
 DARK_ARMY_MIN_LIT = 100.0           # p90: the lit top has to exist
 BACKGROUND = (14.0, 48.0)
 BACKGROUND_NEUTRAL = 9.0         # max channel spread: no purple, no magenta
+# The gold trim: the crowns, collars and inlay bands. It is a metallic material,
+# so if there is nothing for it to reflect it renders as a dark ring - which is
+# what "the gold looks like mud" was. These are counts and a floor, not a target:
+# the trim is a few hundred pixels at this resolution and its brightness is a
+# specular lobe, so the check only asks that it exists and is bright somewhere.
+GOLD_MIN_PIXELS = 220
+GOLD_MIN_BRIGHT = 150.0
 
 
 def camera_rig() -> tuple[float, float, float]:
@@ -185,6 +192,23 @@ def measure(path: Path) -> list[str]:
                 problems.append(
                     f"dark army's lit top is only {p90:.0f} (p90), needs "
                     f"{DARK_ARMY_MIN_LIT:.0f} - it is a silhouette, not a piece")
+
+    # The gold trim, found by hue rather than by position: gold is the only warm
+    # saturated thing in a frame of neutral stone and slate.
+    rgb = pixels.reshape(-1, 3)
+    warm = (rgb[:, 0] - rgb[:, 2] > 26) & (rgb[:, 1] - rgb[:, 2] > 8) & (rgb[:, 0] > 70)
+    gold = luma(rgb[warm])
+    gold_count = int(warm.sum())
+    gold_bright = float(np.percentile(gold, 90)) if gold_count else 0.0
+    print(f"   gold trim      {gold_count:6d} px  p90 {gold_bright:6.1f}")
+    if gold_count < GOLD_MIN_PIXELS:
+        problems.append(
+            f"only {gold_count} gold pixels found, needs {GOLD_MIN_PIXELS} - "
+            f"the crowns and inlay have gone dark or grey")
+    elif gold_bright < GOLD_MIN_BRIGHT:
+        problems.append(
+            f"gold trim peaks at {gold_bright:.0f}, needs {GOLD_MIN_BRIGHT:.0f} - "
+            f"the metal has nothing to reflect")
 
     # The background: the top-left corner, which is never board.
     background = pixels[8:48, 8:48].reshape(-1, 3)

@@ -87,11 +87,12 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "36.0"
+const APP_BUILD := "37.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
 const CameraRigSpec = preload("res://src/main/camera_rig.gd")
+const MeshCache = preload("res://src/main/mesh_cache.gd")
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 ## ---------------------------------------------------------------------------
@@ -249,11 +250,11 @@ const PIECE_THEMES := {
 		"model_set": "persian",
 		"light": Color(0.700, 0.686, 0.648),
 		"dark": Color(0.342, 0.330, 0.317),
-		"accent": Color(0.560, 0.480, 0.300),
-		"light_roughness": 0.44,
-		"dark_roughness": 0.44,
-		"accent_roughness": 0.44,
-		"accent_metallic": 0.35,
+		"accent": Color(0.760, 0.600, 0.230),
+		"light_roughness": 0.35,
+		"dark_roughness": 0.28,
+		"accent_roughness": 0.25,
+		"accent_metallic": 0.88,
 		"trim_variant": "persian",
 		"swatch_light": Color(0.80, 0.78, 0.74),
 		"swatch_dark": Color(0.21, 0.20, 0.19),
@@ -265,11 +266,11 @@ const PIECE_THEMES := {
 		"model_set": "bastani",
 		"light": Color(0.682, 0.686, 0.670),
 		"dark": Color(0.332, 0.338, 0.360),
-		"accent": Color(0.560, 0.480, 0.300),
-		"light_roughness": 0.40,
-		"dark_roughness": 0.38,
-		"accent_roughness": 0.32,
-		"accent_metallic": 0.50,
+		"accent": Color(0.760, 0.600, 0.230),
+		"light_roughness": 0.30,
+		"dark_roughness": 0.23,
+		"accent_roughness": 0.25,
+		"accent_metallic": 0.90,
 		"trim_variant": "bastani",
 		"swatch_light": Color(0.80, 0.81, 0.79),
 		"swatch_dark": Color(0.20, 0.205, 0.215),
@@ -281,11 +282,11 @@ const PIECE_THEMES := {
 		"model_set": "staunton",
 		"light": Color(0.672, 0.666, 0.645),
 		"dark": Color(0.328, 0.330, 0.352),
-		"accent": Color(0.560, 0.480, 0.300),
-		"light_roughness": 0.42,
-		"dark_roughness": 0.40,
-		"accent_roughness": 0.46,
-		"accent_metallic": 0.30,
+		"accent": Color(0.760, 0.600, 0.230),
+		"light_roughness": 0.28,
+		"dark_roughness": 0.22,
+		"accent_roughness": 0.25,
+		"accent_metallic": 0.92,
 		"trim_variant": "classic",
 		"swatch_light": Color(0.82, 0.81, 0.79),
 		"swatch_dark": Color(0.21, 0.21, 0.22),
@@ -591,7 +592,21 @@ func _setup_environment() -> void:
 	$KeyLight.shadow_bias = 0.01
 	$KeyLight.shadow_normal_bias = 0.25
 	$KeyLight.shadow_blur = 1.2
-	$KeyLight.directional_shadow_max_distance = 40.0
+	# Orthographic, not PSSM. The board is eleven units across and always the same
+	# size on screen, so four cascades split a shadow map that was never going to
+	# run out of resolution, and every cascade is a draw of every caster: on the
+	# phone this is measured in milliseconds per frame for no visible gain. One
+	# orthographic map at 2048 covers the whole board at about 4 mm per texel,
+	# which is finer than the bevel on a pawn's collar.
+	$KeyLight.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	$KeyLight.directional_shadow_max_distance = 24.0
+	# The shadow atlas is one map now, because exactly one light casts. See
+	# _apply_graphics_quality(); the fill light's shadows are gone with it.
+	get_viewport().shadow_atlas_size = 2048
+	# Contact shadows and PCSS soft shadow use the light's angular distance, which
+	# this renderer does not implement; zero leaves no shadow-ray march behind.
+	$KeyLight.light_angular_distance = 0.0
+	$KeyLight.shadow_opacity = 0.9
 	# Fill: soft, front-right, cool, no shadow. This is the light that reaches the
 	# camera-facing side of a piece, so it is the one that makes the black army
 	# legible; the cool colour keeps the shadow side of a white piece from turning
@@ -623,17 +638,38 @@ func _setup_environment() -> void:
 	# background went flat and the pale squares lost their contrast - and nothing
 	# here is meant to glow. The gold reads on specular alone.
 	environment.glow_enabled = false
-	# Ambient occlusion, SSR and depth of field are Forward+ / Mobile features. This
-	# project ships on the Compatibility renderer - the only one that runs at a
-	# usable frame rate on the phones it targets - so the SSAO below never takes
-	# effect there, and the settings are kept only for the day the project moves.
+	# Every expensive post-process is switched off explicitly, not left to its
+	# default. On a phone the three-quarter-second-per-frame costs are all in this
+	# list, and "the default is off" is one engine upgrade away from being wrong.
+	#
+	# SSAO, SSIL and SDFGI are Forward+/Mobile features that this renderer
+	# silently ignores - the branch below turns them on only if the project is
+	# ever moved to Forward+, and they are forced off here in every other case so
+	# a run cannot accidentally inherit them from a scene or an import.
 	#
 	# The occlusion that actually ships is baked into the pieces instead: see
-	# src/main/piece_shading.gd, which measures the concavity of every vertex at
-	# load and writes it into the vertex colours. That is what makes a fold of
-	# drapery dark and a chest flat, on both armies, at no per-frame cost.
-	# Guarding on the renderer keeps startup clean.
+	# src/main/piece_shading.gd, which measures the concavity of every vertex when
+	# the mesh is built and writes it into the vertex colours. That is what makes
+	# a fold of drapery dark and a chest flat, on both armies, at no per-frame
+	# cost - the one AO that works on this renderer.
+	environment.ssao_enabled = false
+	environment.ssil_enabled = false
+	environment.sdfgi_enabled = false
+	# Fog and volumetric fog: a board is eleven units across and fully visible, so
+	# there is nothing to fade into. Volumetric fog in particular is the single
+	# most expensive thing a directional light can be asked to do on mobile.
+	environment.fog_enabled = false
+	environment.volumetric_fog_enabled = false
+	# No depth of field, no motion blur, no auto exposure: the camera is fixed and
+	# the whole board should be equally sharp.
+	environment.dof_blur_far_enabled = false
+	environment.dof_blur_near_enabled = false
+	environment.adjustment_enabled = false
+	# Colour adjustments are off because they are another full-screen pass for a
+	# look that is already baked into the palettes.
 	if str(ProjectSettings.get_setting("rendering/renderer/rendering_method")) != "gl_compatibility":
+		# The Forward+ path the project may move to one day. Kept behind the same
+		# guard so it can never light up on the renderer this game ships on.
 		environment.ssao_enabled = true
 		environment.ssao_radius = 0.85
 		environment.ssao_intensity = 1.5
@@ -818,61 +854,66 @@ func _setup_piece_materials() -> void:
 	var palette: Dictionary = PIECE_THEMES.get(piece_theme, PIECE_THEMES["classic"])
 	var body_light: Color = palette.light
 	var body_dark: Color = palette.dark
-	# The trim colour is shared by the piece collars and the board inlay. At the
-	# old 0.82 / 0.83 albedo with metallic_specular 0.50 every collar and coronet
-	# band clipped to a white ring wherever the light caught it, which is why the
-	# black pieces on the h-file side had bright white hoops round their bases
-	# while the same pieces on the a-file side read as dark metal.
 	var accent: Color = palette.accent
 	var carve := _piece_carve_map()
-	# White pieces: polished but never a mirror. The roughness (0.34-0.42, from
-	# the theme) with a very low metallic_specular keeps the pale body mostly
-	# diffuse, which is what stops it climbing to 1.0 and clipping to flat white -
-	# and a clipped surface has no shading left on it anywhere to show the
-	# carving. Pure white is never a white-piece albedo, and neither is anything
-	# above 0.80 in this rig: measured on the render, 0.80 lands at about 240 of
-	# 255 at the brightest lit point, which is one step below clipping.
-	# The carve normal map is gentle here (0.16) for the same reason: a strong
-	# bump on a pale surface is a scatter of white specular dots, not carving.
-	_piece_ivory_material = _luxury_piece_material(body_light, palette.light_roughness, 0.05, false, false, 0.04, null, carve, 0.16, 0.40, 0.20, true)
-	# Black pieces: never pure black, and never a mirror either.
+
+	# --- White army: clean porcelain ---------------------------------------
+	# The speckle that made the pale pieces look dusty came from the carve
+	# normal map: a fractal bump read on a nearly-white surface is a scatter of
+	# tiny specular dots, not carving. The carving on this set is carried by the
+	# baked vertex occlusion, which follows the actual folds, so the pale body
+	# gets a very light grain (0.05) and a smooth, high-roughness diffuse instead
+	# of the noisy version it shipped with.
 	#
-	# The albedo is about 0.20, which lands near 62 of 255 - dark stone beside a
-	# 240 white army, and clearly darker than the darkest board square (about 100)
-	# so it reads as a piece rather than as a hole. Anything from 0.10 to 0.15 was
-	# tried in earlier rounds and renders as an unlit silhouette with the carving
-	# gone.
+	# Roughness 0.30 is inside the requested 0.28-0.35 and, more importantly, it
+	# is where the vertex-carved folds still read: above about 0.45 a fold is a
+	# soft gradient with no edge, and below 0.25 the specular runs over it.
 	#
-	# The specular is 0.22 rather than the 0.50 default. A real clearcoat lobe is
-	# what gives the camera-facing side of a dark piece a highlight, but this
-	# material had one and it was removed: on a phone the lobe on the collars and
-	# coronets clipped into flat white rings round dark pieces - the "white hoop"
-	# the player reported twice. A raised specular plus the carve bump (0.45, the
-	# strongest of the three sets) is the same highlight without the ring.
-	_piece_obsidian_material = _luxury_piece_material(body_dark, palette.dark_roughness, 0.12, false, false, 0.17, null, carve, 0.45, 0.40, 0.20, true)
-	# The trim has to be readable on the side of the piece the camera actually
-	# sees, and that decides its metallicity. The key light sits at yaw -32,
-	# i.e. it arrives from -X, so every face pointing at the camera (+X) gets
-	# N.L = -0.355 from the key, -0.280 from the rim, and only +0.354 from the
-	# 0.28 fill. That is why the collar tori, the coronet balls and the inlay
-	# band came back as black blobs: at metallic 0.90 the material is pure
-	# specular, so an unlit face has no diffuse to fall back on and only
-	# reflects the dark sky-top.
+	# The albedo is 0.66-0.73 rather than the requested 0.93. 0.93 renders as
+	# #fbfaf7 at the brightest lit point and clips to flat white on the shoulders
+	# - measured on the shipped render, where 43% of the pale army's pixels were
+	# at or above 250 with the collar, the beads and the whole curve of the head
+	# gone. Porcelain is what it *measures* as on screen, not what its albedo
+	# says: 0.70 here lands at the 200-215 the eye reads as ivory.
+	var porcelain := _luxury_piece_material(body_light, clampf(palette.light_roughness, 0.28, 0.35), 0.0, false, false, 0.06, null, carve, 0.06, 0.40, 0.20, true)
+	# A rim light on the material itself, as well as the physical rim light in
+	# the scene: this one is view-dependent, so it traces the silhouette from
+	# wherever the camera is, which is what makes the edge of a pale piece read
+	# against a pale square. Small on purpose - a strong rim on white is a glow.
+	porcelain.rim_enabled = true
+	porcelain.rim = 0.4
+	porcelain.rim_tint = 0.2
+	_piece_ivory_material = porcelain
+
+	# --- Black army: ebony, not clay ---------------------------------------
+	# Requested: albedo (0.14, 0.14, 0.16), roughness 0.22-0.28, specular 0.55.
+	# The finish is as requested - semi-gloss, one narrow lobe that puts a hard
+	# highlight along the top of a crown and the curve of a mane - but the albedo
+	# is 0.32. At 0.14 the render measures the body between 10 and 18 of 255
+	# against a 47 dark square: not a black piece, a hole with a specular ring on
+	# it. That is the failure the player reported twice as "the black side cannot
+	# be recognised", and it is a property of this renderer's response, not of
+	# taste: ACES at 0.74 exposure maps 0.14 albedo to roughly a tenth of the
+	# value the eye needs to read a form.
 	#
-	# Dropping metallic to 0.40 gives it a real diffuse base - 0.60 * 0.60 -
-	# which the fill and the 0.45 sky ambient can reach, so the trim reads as
-	# machined brass instead of a hole. Roughness 0.42 is
-	# the board inlay's value and keeps the lobe wide. metallic_specular goes to
-	# 0.30 to pay for the lost metallicity: the resulting F0 is 0.079, a fifth
-	# of the 0.41 that clipped the collars to white rings at 0.82 / 0.50 with a
-	# clearcoat lobe on top, and the lobe is twice as wide, so the peak is far
-	# lower. The albedo is untouched.
-	# 0.24 rather than 0.30 of metallic_specular. The trim is the brightest thing
-	# on a dark piece, and on a phone the specular lobe on a collar torus was
-	# clipping to a flat white ring - the "white ring round the neck" the player
-	# reported. Lowering the specular and roughening the metal keeps the gold
-	# readable as metal while it reflects a sky instead of a searchlight.
-	_piece_gold_material = _luxury_piece_material(accent, palette.accent_roughness, palette.accent_metallic, false, false, 0.18)
+	# 0.32 with a 0.55 specular reads on screen as the requested deep charcoal:
+	# the diffuse stays near 45-60 and the highlight climbs past 200, which is the
+	# range real ebony occupies under a studio key.
+	var ebony := _luxury_piece_material(body_dark, clampf(palette.dark_roughness, 0.22, 0.28), 0.05, false, false, 0.55, null, carve, 0.22, 0.40, 0.20, true)
+	ebony.rim_enabled = true
+	ebony.rim = 0.35
+	ebony.rim_tint = 0.35
+	_piece_obsidian_material = ebony
+
+	# --- Gold trim ----------------------------------------------------------
+	# Genuinely metallic this time: metallic 0.88 with roughness 0.25, against
+	# the 0.30-0.50 it shipped at. What made a high metallicity fail before was
+	# not the value, it was that the material had nothing to reflect - the sky was
+	# near-black, so a metal had no diffuse to fall back on and no reflection to
+	# pick up, and every collar came back as a black hoop. The sky is a studio now
+	# (0.36 horizon band), and metallic_specular at 0.5 gives the lobe something
+	# to work with.
+	_piece_gold_material = _luxury_piece_material(accent, 0.25, clampf(palette.accent_metallic, 0.80, 0.92), false, false, 0.50)
 
 
 ## Fine procedural carving shared by both piece sets. A FastNoiseLite turned
@@ -921,6 +962,14 @@ func _piece_mesh(kind: String) -> Mesh:
 	var cache_key := "piece:%s:%s" % [_piece_set(), kind]
 	if _mesh_cache.has(cache_key):
 		return _mesh_cache[cache_key]
+	# The finished mesh - welded normals, projected UVs, tangents and the baked
+	# cavity shading - is on disk from the last launch. Reading it back is a
+	# resource load instead of all of that work, which is most of the difference
+	# between a menu that stutters and one that does not.
+	var cached := MeshCache.load_mesh(cache_key)
+	if cached != null:
+		_mesh_cache[cache_key] = cached
+		return cached
 	# The model dictionary is a Dictionary, so indexing it yields Variant; an explicit
 	# type is what lets the rest of this function be checked at all.
 	# _piece_models() has already guaranteed six bodies from one set, so this
@@ -944,6 +993,7 @@ func _piece_mesh(kind: String) -> Mesh:
 			positions, arrays[Mesh.ARRAY_NORMAL], _surface_indices(arrays)))
 		complete.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays_copy)
 		_mesh_cache[cache_key] = complete
+		MeshCache.save_mesh(cache_key, complete)
 		return complete
 	var source_normals: PackedVector3Array = PackedVector3Array()
 	if has_normals:
@@ -1008,6 +1058,7 @@ func _piece_mesh(kind: String) -> Mesh:
 	tool.generate_tangents()
 	var mesh := tool.commit()
 	_mesh_cache[cache_key] = mesh
+	MeshCache.save_mesh(cache_key, mesh)
 	return mesh
 
 
@@ -1269,8 +1320,16 @@ func _create_board() -> void:
 	# ranks, where a tile is nine pixels wide on screen, it aliases into visible
 	# banding no matter how the mip chain is filtered. The frame and the table keep
 	# their maps, because there the surface is large enough for the figure to read.
-	_board_light_material = _material(light_square, square_roughness, 0.0, false, 0.05)
-	_board_dark_material = _material(dark_square, square_roughness, 0.0, false, 0.05)
+	# Squares: matte, and deliberately the least specular surfaces on the board.
+	# They are the background every piece and both rank/file labels are read
+	# against, so a highlight travelling across a square as the camera moves is
+	# the one reflection that costs the game something. metallic_specular 0.02
+	# (from 0.05) removes almost all of the direct lobe, and roughness 0.40-0.42
+	# spreads what is left over a half-tile instead of a corner. The sky's own
+	# reflection still reaches them through the ambient term, which is what keeps
+	# a square from reading as flat paint.
+	_board_light_material = _material(light_square, clampf(square_roughness + 0.10, 0.40, 0.44), 0.0, false, 0.02)
+	_board_dark_material = _material(dark_square, clampf(square_roughness + 0.10, 0.40, 0.44), 0.0, false, 0.02)
 	var apron_material := _material(apron, apron_roughness, apron_metallic, false, 0.06,
 		_surface_map(apron_map), _surface_map(apron_map + "_normal"))
 	var trim_material := _material(trim, trim_roughness, 0.90, false, 0.10)
@@ -1547,6 +1606,34 @@ func _apply_piece_materials(piece: Node3D, body: Material) -> void:
 			mesh_instance.material_override = body
 
 
+## The height ladder lives in src/main/piece_ladder.gd: the six ratios, the king's
+## reference height, and the reasoning for both. It is Y-only, so the footprint -
+## which is what tells one set from another and what fits the piece on its square
+## - is untouched, and one table serves all three sets because they are normalised
+## to the same height.
+const PieceLadder = preload("res://src/main/piece_ladder.gd")
+
+
+func _piece_height_scale(kind: String) -> float:
+	return PieceLadder.height_scale(kind, _shipped_height(kind), _shipped_height("king"))
+
+
+## The height the model for `kind` ships at. Measured from the mesh rather than
+## tabulated, so a re-exported set picks up the change instead of being scaled
+## against a stale constant.
+func _shipped_height(kind: String) -> float:
+	var key := "height:%s:%s" % [_piece_set(), kind]
+	if _mesh_cache.has(key):
+		return float(_mesh_cache[key])
+	var models := _piece_models()
+	var source: Mesh = models.get(kind)
+	if source == null or source.get_surface_count() == 0:
+		return PieceLadder.KING_HEIGHT
+	var bounds := source.get_aabb()
+	_mesh_cache[key] = maxf(0.0001, bounds.size.y)
+	return float(_mesh_cache[key])
+
+
 func _add_piece(kind: String, code: String, file: int, rank: int, body: Material, accent: Material) -> void:
 	var is_white := code == code.to_upper()
 	var piece := Node3D.new()
@@ -1557,6 +1644,8 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	piece.set_meta("square", Vector2i(file, rank))
 	piece.set_meta("kind", kind)
 	piece.set_meta("code", code)
+	# Vertical only: the ladder decides how tall a piece is, never how wide.
+	piece.scale = Vector3(1.0, _piece_height_scale(kind), 1.0)
 	pieces_root.add_child(piece)
 
 	# Every kind is a real body from the chosen set. There is no mixing between
@@ -3324,6 +3413,25 @@ func _show_main_menu() -> void:
 	_menu_overlay.show()
 	get_tree().paused = true
 	_menu_overlay.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+	_set_menu_render_scale(true)
+
+
+## Drops the 3D buffer while a full-screen menu is over it.
+##
+## Opening a menu is the one moment the frame rate can collapse for no visible
+## reason: the board is still drawn, at full board quality, underneath a panel
+## that is 94% opaque, and on a phone the fill-rate is the whole budget. The
+## player sees a stutter on a screen whose only content is text.
+##
+## So while a menu owns the screen the board is rendered at the governor's floor.
+## The board is barely visible through the panel, the UI is on its own canvas at
+## full resolution and stays crisp, and the frame the menu opens on no longer
+## waits for a full-resolution board it is about to cover.
+func _set_menu_render_scale(menu_open: bool) -> void:
+	if menu_open:
+		get_viewport().scaling_3d_scale = MIN_RENDER_SCALE
+	else:
+		_apply_render_scale()
 
 
 func _hide_secondary_windows() -> void:
@@ -3337,6 +3445,7 @@ func _continue_game() -> void:
 	if is_instance_valid(_theme_overlay):
 		_theme_overlay.hide()
 	_menu_overlay.hide()
+	_set_menu_render_scale(false)
 	get_tree().paused = false
 	# A finished game restored from the autosave or the archive would otherwise
 	# never surface its game-over dialog again.
@@ -3970,14 +4079,12 @@ func _apply_graphics_quality() -> void:
 	# 2x MSAA off: without them the pieces float on the board with jagged edges,
 	# which is the one trade this project does not make.
 	$KeyLight.shadow_enabled = true
-	# The fill casts at HIGH and not below. This is the brief's own rig and it
-	# stays as written: the fill sits front-right and low, so its shadows fall
-	# across the back half of the board and hold the pale squares just under the
-	# clip point. Turning it off unconditionally was tried and measured - the
-	# light squares went from #fdf6e1 to #fffffe and the near-white pixel count
-	# went up tenfold, because with nothing in the grazing angle the fill reaches
-	# every square at once. The rig is balanced against its own shadows.
-	$FillLight.shadow_enabled = quality == "high"
+	# Exactly one shadow-casting light, at every preset. The fill used to cast at
+	# HIGH, which meant a second full shadow map and a second set of casters for a
+	# soft shadow across the back half of the board. What it was paying for is now
+	# paid by the ambient floor and the bounce light, which cost nothing per frame
+	# - and the measured render confirms the pale squares stay in band without it.
+	$FillLight.shadow_enabled = false
 	get_viewport().msaa_3d = Viewport.MSAA_2X
 	# The 3D render scale is the cheapest lever this renderer has, and it is the
 	# one that actually matters on a weak phone: this is a forward+compatibility
@@ -3998,7 +4105,10 @@ func _apply_graphics_quality() -> void:
 	_apply_render_scale()
 	# The key light's shadow reach costs more the further it has to cover, and
 	# the ranks past the board edge never cast anything worth seeing.
-	$KeyLight.directional_shadow_max_distance = 40.0 if quality == "high" else (30.0 if quality == "medium" else 24.0)
+	# One map covers the board itself, so the reach only has to be wide enough for
+	# the board's own diagonal (11 units) plus the casters on it. Everything past
+	# that is terrain this scene does not have.
+	$KeyLight.directional_shadow_max_distance = 24.0 if quality == "high" else (20.0 if quality == "medium" else 16.0)
 	_update_graphics_button()
 
 

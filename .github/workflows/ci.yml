@@ -160,11 +160,35 @@ jobs:
             --resolution 1536x864 --script res://tools/capture_preview.gd
           test -s "build/preview/style-picker.png"
           cp build/preview/royal_wood-classic.png build/preview/theme-showcase-preview.png
+      # The only place a frame time exists in this pipeline. It is llvmpipe, so
+      # the number is not the phone's - what it is, is comparable: same machine,
+      # same renderer, same resolution, every run. The report goes to the job
+      # summary beside the renders it was measured on.
+      - name: Benchmark load and frame time
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a -s "-screen 0 1536x864x24" \
+            godot --path . --rendering-method gl_compatibility --resolution 1536x864 \
+            --script res://tools/bench_perf.gd 2>&1 | tee build/preview/perf.log
+          status=${PIPESTATUS[0]}
+          grep '^BENCH ' build/preview/perf.log | sed 's/^BENCH //' > build/preview/perf.txt
+          if [ ! -s build/preview/perf.txt ]; then
+            echo "::error title=Benchmark produced no figures::the benchmark did not run"
+            exit 1
+          fi
+          { printf '## Performance (llvmpipe, 1536x864 - relative, not a phone)\n\n| metric | value |\n| --- | --- |\n'
+            while read -r name value; do printf '| %s | %s |\n' "$name" "$value"; done < build/preview/perf.txt; } >> "$GITHUB_STEP_SUMMARY"
+          cat build/preview/perf.txt
+          exit "$status"
+
       - name: Upload visual preview
         uses: actions/upload-artifact@v4
         with:
           name: all-theme-previews-${{ github.run_number }}
-          path: build/preview/*.png
+          path: |
+            build/preview/*.png
+            build/preview/perf.txt
           if-no-files-found: error
           retention-days: 14
 
