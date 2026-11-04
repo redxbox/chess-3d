@@ -87,7 +87,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "34.0"
+const APP_BUILD := "35.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -153,15 +153,15 @@ const BOARD_THEMES := {
 	# Maple on mahogany: the warm board, held at the same brightness band.
 	"royal_wood": {
 		"label": "MAPLE & MAHOGANY",
-		"light_square": Color(0.560, 0.478, 0.355),
-		"dark_square": Color(0.405, 0.195, 0.120),
+		"light_square": Color(0.535, 0.480, 0.385),
+		"dark_square": Color(0.330, 0.190, 0.140),
 		"square_roughness": 0.34,
-		"apron": Color(0.270, 0.140, 0.085),
+		"apron": Color(0.232, 0.160, 0.122),
 		"apron_roughness": 0.32,
 		"apron_metallic": 0.05,
-		"trim": Color(0.360, 0.285, 0.120),
+		"trim": Color(0.330, 0.275, 0.150),
 		"trim_roughness": 0.42,
-		"table": Color(0.140, 0.085, 0.058),
+		"table": Color(0.128, 0.095, 0.078),
 		"apron_map": "rosewood",
 		"label_color": Color(0.78, 0.66, 0.40),
 		"swatch_light": Color(0.70, 0.62, 0.50),
