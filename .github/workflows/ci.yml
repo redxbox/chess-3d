@@ -160,29 +160,6 @@ jobs:
             --resolution 1536x864 --script res://tools/capture_preview.gd
           test -s "build/preview/style-picker.png"
           cp build/preview/royal_wood-classic.png build/preview/theme-showcase-preview.png
-      # The albedo guard cannot see the render: exposure, ACES, the light rig and
-      # the baked vertex occlusion all sit between an albedo and a pixel. This is
-      # the end-to-end measurement - the light squares, the dark squares, both
-      # armies' bodies and the background, read off the PNGs just produced, at
-      # the coordinates the camera rig says the board is at.
-      - name: Measure the renders
-        shell: bash
-        run: |
-          set +e
-          output=$(python3 tools/measure_preview.py \
-            build/preview/classic-classic.png \
-            build/preview/royal_wood-bastani.png \
-            build/preview/royal_blue-persian.png \
-            build/preview/royal_wood-classic.png 2>&1)
-          status=$?
-          printf '%s\n' "$output"
-          printf '```text\n%s\n```\n' "$output" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$status" -ne 0 ]; then
-            printf '%s' "$output" | tail -12 | sed ':a;N;$!ba;s/\n/%0A/g' > /tmp/measure.txt
-            echo "::error title=Render outside its brightness bands::$(cat /tmp/measure.txt)"
-          fi
-          exit "$status"
-
       - name: Upload visual preview
         uses: actions/upload-artifact@v4
         with:
@@ -190,6 +167,7 @@ jobs:
           path: build/preview/*.png
           if-no-files-found: error
           retention-days: 14
+
       # Committing the per-theme renders back to the branch gives a real visual
       # feedback loop: the sandbox that edits the code has no Godot binary, so
       # without this step lighting and material changes could only be judged by
@@ -225,6 +203,31 @@ jobs:
                 ...(sha ? { sha } : {})
               });
             }
+
+      # The albedo guard cannot see the render: exposure, ACES, the light rig and
+      # the baked vertex occlusion all sit between an albedo and a pixel. This is
+      # the end-to-end measurement - the light squares, the dark squares, both
+      # armies' bodies and the background, read off the PNGs just produced, at
+      # the coordinates the camera rig says the board is at.
+      - name: Measure the renders
+        shell: bash
+        run: |
+          set +e
+          output=$(python3 tools/measure_preview.py \
+            build/preview/classic-classic.png \
+            build/preview/royal_wood-bastani.png \
+            build/preview/royal_blue-persian.png \
+            build/preview/royal_wood-classic.png 2>&1)
+          status=$?
+          printf '%s\n' "$output"
+          printf '```text\n%s\n```\n' "$output" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ]; then
+            # Only the failures, not the tail: four images of numbers is 4 000
+            # characters of annotation for four lines that matter.
+            printf '%s\n' "$output" | grep -E '^== |FAIL ' | sed ':a;N;$!ba;s/\n/%0A/g' > /tmp/measure.txt
+            echo "::error title=Render outside its brightness bands::$(cat /tmp/measure.txt)"
+          fi
+          exit "$status"
 
   android-debug:
     name: Build Android debug APK
