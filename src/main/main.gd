@@ -87,7 +87,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "29.0"
+const APP_BUILD := "30.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -2869,10 +2869,14 @@ func _theme_piece_card(id: String) -> Button:
 ## other. Four stacked rounded rectangles, because that is enough to read as a
 ## piece at this size and costs four nodes per card.
 const PIECE_CARD_PROFILES := {
-	# head width, body width, shoulder width, crown width, body height, rounded?
-	"classic": {"head": 20, "body": 12, "shoulder": 16, "crown": 0, "height": 30, "foot": 26},
-	"persian": {"head": 16, "body": 24, "shoulder": 28, "crown": 8, "height": 28, "foot": 24},
-	"bastani": {"head": 15, "body": 26, "shoulder": 30, "crown": 12, "height": 26, "foot": 24},
+	# crown, head, shoulder, body, foot - each a width in pixels, plus the body's
+	# height. A zero means "this piece has no such part".
+	#   classic  - a turned piece: a ball head on a thin stem over a wide foot.
+	#   persian  - a carved figure in a robe, narrow at the shoulders, crowned.
+	#   bastani  - a court figure in a wide robe, taller crown, smaller foot.
+	"classic": {"crown": 0, "head": 24, "shoulder": 0, "body": 11, "foot": 30, "height": 34},
+	"persian": {"crown": 15, "head": 13, "shoulder": 27, "body": 23, "foot": 27, "height": 30},
+	"bastani": {"crown": 11, "head": 15, "shoulder": 22, "body": 30, "foot": 24, "height": 28},
 }
 
 
@@ -2883,13 +2887,12 @@ func _piece_silhouette(set_id: String, colour: Color) -> Control:
 	stack.alignment = BoxContainer.ALIGNMENT_END
 	stack.add_theme_constant_override("separation", 0)
 	stack.custom_minimum_size = Vector2(46, 62)
-	var crown: int = int(profile.crown)
-	if crown > 0:
-		stack.add_child(_silhouette_bar(colour, crown, 6, 3, false))
-	stack.add_child(_silhouette_bar(colour, int(profile.head), 10, 5, true))
-	stack.add_child(_silhouette_bar(colour, int(profile.shoulder), 5, 2, false))
-	stack.add_child(_silhouette_bar(colour, int(profile.body), int(profile.height), 6, false))
-	stack.add_child(_silhouette_bar(colour, int(profile.foot), 6, 9, false))
+	for part in [["crown", 9, 2, false], ["head", 12, 6, true], ["shoulder", 6, 2, false]]:
+		var width: int = int(profile[part[0]])
+		if width > 0:
+			stack.add_child(_silhouette_bar(colour, width, int(part[1]), int(part[2]), bool(part[3])))
+	stack.add_child(_silhouette_bar(colour, int(profile.body), int(profile.height), 7, false))
+	stack.add_child(_silhouette_bar(colour, int(profile.foot), 7, 10, false))
 	return stack
 
 
