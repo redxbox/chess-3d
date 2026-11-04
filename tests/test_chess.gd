@@ -38,6 +38,7 @@ func _init() -> void:
 	_test_camera_rig()
 	_test_piece_height_ladder()
 	_test_shading_matches_reference()
+	_test_knight_facing_matches_the_meshes()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -358,8 +359,11 @@ func _test_piece_facing() -> void:
 		# Sculpted sets face +Z: White takes half a turn, Black keeps the model.
 		["persian", "king", true, PI],
 		["persian", "king", false, 0.0],
-		["persian", "knight", true, PI],
-		["persian", "knight", false, 0.0],
+		# The persian knight is cut muzzle-down -Z like the turned one, whatever
+		# the rest of its set does, so it takes the turned set's turn and not the
+		# figures'. This is the case that shipped back to front.
+		["persian", "knight", true, 0.0],
+		["persian", "knight", false, PI],
 		["bastani", "knight", true, PI],
 		["bastani", "knight", false, 0.0],
 		["bastani", "bishop", true, PI],
@@ -637,3 +641,62 @@ func _test_piece_height_ladder() -> void:
 	# ships at half scale keeps its proportions instead of doubling in size.
 	var half := PieceLadder.height_scale("pawn", 0.455, 0.810)
 	_expect(is_equal_approx(half, pawn_scale), "a set at half scale scales the same (%.4f)" % half)
+
+
+## The facing table against the meshes it describes.
+##
+## The rule a piece "faces" is a fact about its geometry, and it has now been
+## wrong twice - once for every knight, once for the persian knights only - with a
+## human seeing it in a screenshot as the only detector. So the knights are
+## measured here: the muzzle is the point furthest from the piece's own vertical
+## axis in the top fifth of its height, and its z sign is what the table has to
+## say.
+##
+## The rule is checked with the muzzle rather than with the upper body's mass
+## because a horse's head counterbalances its chest: measured on the persian
+## knight, the mass offset across the whole upper body is +0.002 - indistinguishable
+## from symmetric - while the muzzle is at -0.30.
+func _test_knight_facing_matches_the_meshes() -> void:
+	for set_name in ["staunton", "persian", "bastani"]:
+		var path := "res://assets/models/%s/knight.obj" % set_name
+		var file := FileAccess.open(path, FileAccess.READ)
+		_expect(file != null, "%s has a knight mesh" % set_name)
+		if file == null:
+			continue
+		var points: Array[Vector3] = []
+		while not file.eof_reached():
+			var line := file.get_line()
+			if not line.begins_with("v "):
+				continue
+			var parts := line.split(" ", false)
+			if parts.size() < 4:
+				continue
+			points.append(Vector3(float(parts[1]), float(parts[2]), float(parts[3])))
+		file.close()
+		_expect(points.size() > 100, "%s's knight has geometry (%d vertices)" % [set_name, points.size()])
+		var lowest := INF
+		var highest := -INF
+		for point in points:
+			lowest = minf(lowest, point.y)
+			highest = maxf(highest, point.y)
+		var height := highest - lowest
+		var furthest := 0.0
+		var muzzle_z := 0.0
+		for point in points:
+			if point.y < lowest + height * 0.80:
+				continue
+			var radius := sqrt(point.x * point.x + point.z * point.z)
+			if radius > furthest:
+				furthest = radius
+				muzzle_z = point.z
+		_expect(absf(muzzle_z) > 0.1, "%s's knight has a muzzle that sticks out (%.2f)" % [set_name, muzzle_z])
+		var measured := 1 if muzzle_z > 0.0 else -1
+		_expect(measured == PieceFacing.front_sign(set_name, "knight"),
+			"%s's knight is carved facing %s, as the table says (muzzle z %+.2f)"
+				% [set_name, "+Z" if measured > 0 else "-Z", muzzle_z])
+		# And the consequence, which is the thing the player actually sees: the two
+		# knights of a set end up facing each other.
+		var white_yaw := PieceFacing.yaw(set_name, "knight", true)
+		var black_yaw := PieceFacing.yaw(set_name, "knight", false)
+		_expect(absf(wrapf(white_yaw - black_yaw, -PI, PI)) > 3.0,
+			"%s's two knights face each other (yaws %.2f and %.2f)" % [set_name, white_yaw, black_yaw])
