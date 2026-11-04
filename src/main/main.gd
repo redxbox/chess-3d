@@ -297,6 +297,98 @@ const PIECE_THEMES := {
 }
 
 
+@onready var board: Node3D = $Board
+@onready var camera_rig: Node3D = $CameraRig
+@onready var camera: Camera3D = $CameraRig/Camera3D
+
+var game := ChessRules.new()
+var archive := ArchiveStore.new()
+var pieces_root := Node3D.new()
+var highlights_root := Node3D.new()
+var decor_root := Node3D.new()
+var coordinates_root := Node3D.new()
+var _mesh_cache: Dictionary = {}
+var _loaded_piece_models: Dictionary = {}
+var _board_light_material: StandardMaterial3D
+var _board_dark_material: StandardMaterial3D
+var _piece_ivory_material: Material
+var _piece_obsidian_material: Material
+var _piece_gold_material: StandardMaterial3D
+var selected := Vector2i(-1, -1)
+var selected_moves: Array[Dictionary] = []
+var last_move: Dictionary = {}
+var play_vs_ai := true
+var human_color := ChessRules.WHITE
+var ai_difficulty := "medium"
+var language := "en"
+var ai_thinking := false
+var ai_generation := 0
+var animating_move := false
+var _dragging := false
+var _pointer_moved := false
+var _last_pointer := Vector2.ZERO
+var _touches: Dictionary = {}
+var _pinch_distance := 0.0
+var _drag_piece_from := Vector2i(-1, -1)
+var _drag_piece_active := false
+var haptics_enabled := true
+var graphics_quality := "auto"
+var _fps_accumulator := 0.0
+var _clock_label_accumulator := 0.0
+## Multiplier on the preset's 3D render scale, moved by the frame-rate governor.
+## 1.0 means the preset is rendered as designed.
+var _render_scale_factor := 1.0
+## How long the frame rate has been below, or comfortably above, its target.
+var _slow_seconds := 0.0
+var _fast_seconds := 0.0
+var _fps_label: Label
+var capture_effects_enabled := true
+var high_contrast_enabled := false
+var reduced_motion_enabled := false
+var coordinates_enabled := true
+var colorblind_enabled := false
+var large_text_enabled := false
+var sound_enabled := true
+var sound_volume := 0.75
+var music_enabled := true
+var music_volume := 0.28
+var _sound_players: Dictionary = {}
+var _music_player: AudioStreamPlayer
+var _status_label: Label
+var _graphics_button: Button
+var _sound_button: Button
+var _music_button: Button
+var _clock_label: Label
+var _top_panel: HBoxContainer
+var _mode_button: Button
+var _menu_overlay: ColorRect
+var _continue_button: Button
+var _color_button: Button
+var _difficulty_button: Button
+var _language_button: Button
+var _ai_start_button: Button
+var _local_start_button: Button
+var _close_menu_button: Button
+var _history_label: RichTextLabel
+var _captured_label: Label
+var _game_over_dialog: AcceptDialog
+var _resign_dialog: ConfirmationDialog
+var _archive_window: Window
+var _archive_list: VBoxContainer
+var _accessibility_window: Window
+var _accessibility_buttons: Dictionary = {}
+var _tutorial_window: Window
+var _about_window: Window
+var _ui_theme := Theme.new()
+var _archived_current_game := false
+var _has_resumable_game := false
+var clock_enabled := true
+var white_time := 600.0
+var black_time := 600.0
+var _autosave_accumulator := 0.0
+## What was last written to the autosave, so an unchanged board is not rewritten.
+var _autosave_stamp := ""
+const AUTOSAVE_PATH := "user://autosave.json"
 const PIECE_THEME_PATH := "user://piece_theme.txt"
 const BOARD_THEME_PATH := "user://board_theme.txt"
 var piece_theme := DEFAULT_PIECE_THEME

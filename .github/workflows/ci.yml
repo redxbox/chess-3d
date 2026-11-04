@@ -25,6 +25,26 @@ jobs:
         uses: actions/checkout@v5
       - name: Import resources
         run: godot --headless --editor --quit-after 10
+      # Compile every script on its own, before anything is built. --check-only
+      # resolves identifiers, so it catches the class of error gdtoolkit's parser
+      # accepts: a declaration that was deleted but is still referenced, which
+      # shipped once and only surfaced in the startup log ten minutes later.
+      - name: Compile every script
+        shell: bash
+        run: |
+          set +e
+          failed=0
+          while IFS= read -r script; do
+            out=$(godot --headless --path . --check-only --script "res://$script" 2>&1)
+            code=$?
+            if [ "$code" -ne 0 ] || printf '%s' "$out" | grep -qE "SCRIPT ERROR|Parse Error|Identifier .* not declared"; then
+              failed=1
+              printf '::error title=%s::%s\n' "$script" "$(printf '%s' "$out" | tail -5 | tr '\n' ' ')"
+              printf '%s\n' "$out" | tail -20
+            fi
+          done < <(find src tools tests -name '*.gd' | sort)
+          exit "$failed"
+
       # The container image ships Godot and the Android toolchain but no Python.
       # Both size checks below are Python (they parse OBJs and read the APK's
       # zip directory), so it is installed once here rather than reimplemented
