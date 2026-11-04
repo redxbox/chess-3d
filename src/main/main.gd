@@ -87,7 +87,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "26.0"
+const APP_BUILD := "27.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -228,8 +228,8 @@ const PIECE_THEMES := {
 		"light": Color(0.800, 0.778, 0.722),
 		"dark": Color(0.150, 0.142, 0.136),
 		"accent": Color(0.70, 0.69, 0.66),
-		"light_roughness": 0.38,
-		"dark_roughness": 0.44,
+		"light_roughness": 0.44,
+		"dark_roughness": 0.52,
 		"accent_roughness": 0.46,
 		"accent_metallic": 0.30,
 		"trim_variant": "persian",
@@ -244,8 +244,8 @@ const PIECE_THEMES := {
 		"light": Color(0.830, 0.840, 0.818),
 		"dark": Color(0.138, 0.140, 0.155),
 		"accent": Color(0.70, 0.69, 0.66),
-		"light_roughness": 0.26,
-		"dark_roughness": 0.32,
+		"light_roughness": 0.36,
+		"dark_roughness": 0.46,
 		"accent_roughness": 0.30,
 		"accent_metallic": 0.55,
 		"trim_variant": "bastani",
@@ -260,8 +260,8 @@ const PIECE_THEMES := {
 		"light": Color(0.860, 0.850, 0.820),
 		"dark": Color(0.128, 0.130, 0.146),
 		"accent": Color(0.70, 0.69, 0.66),
-		"light_roughness": 0.20,
-		"dark_roughness": 0.26,
+		"light_roughness": 0.32,
+		"dark_roughness": 0.44,
 		"accent_roughness": 0.50,
 		"accent_metallic": 0.26,
 		"trim_variant": "classic",
@@ -492,7 +492,7 @@ func _setup_environment() -> void:
 	# the pale Carrara and alabaster albedoes at exposure 0.80 pushed 85% of the
 	# classic light squares past 1.0, and a clipped square is a flat white slab
 	# with no veining and no shading left anywhere on it.
-	environment.tonemap_exposure = 0.68
+	environment.tonemap_exposure = 0.62
 	var sky_material := ProceduralSkyMaterial.new()
 	# A dark studio with a warm horizon. The horizon band is what the brass and
 	# gold inlays reflect; with the old near-black sky every gold collar read as mud.
@@ -541,7 +541,7 @@ func _setup_environment() -> void:
 	# 0.73 -> 0.66 to pay for the brighter fill and ambient below: the pale armies
 	# are the ones at risk of clipping, and a clipped piece has no carving left on
 	# it at all. The exposure stays where it is.
-	$KeyLight.light_energy = 0.92
+	$KeyLight.light_energy = 0.86
 	$KeyLight.light_color = Color(1.0, 0.96, 0.90)
 	$KeyLight.rotation_degrees = Vector3(-48, -32, 0)
 	# Contact-tight shadows. The normal bias is deliberately small: a large one
@@ -576,7 +576,7 @@ func _setup_environment() -> void:
 	# body with any specular at all was enough to clip the rook's crown and the
 	# pawns' collars to white rings. 0.25 still leaves a specular edge along the
 	# silhouette, which is the whole point of a rim, without the blowout.
-	$RimLight.light_energy = 0.44
+	$RimLight.light_energy = 0.38
 	$RimLight.shadow_enabled = false
 	# Bounce: a fourth, upward-facing light that stands in for the light the pale
 	# board throws back up. It is what keeps the underside of a piece from going
@@ -792,7 +792,7 @@ func _setup_piece_materials() -> void:
 	# it climbing to 1.0 and clipping to flat white under ACES - and a clipped
 	# surface has no shading and no shadow gradient left anywhere on it to show
 	# the carving. Pure white is never a white-piece albedo.
-	_piece_ivory_material = _luxury_piece_material(body_light, palette.light_roughness, 0.05, false, false, 0.06, null, carve, 0.25, 0.40, 0.20, true)
+	_piece_ivory_material = _luxury_piece_material(body_light, palette.light_roughness, 0.05, false, false, 0.04, null, carve, 0.30, 0.40, 0.20, true)
 	# Black pieces: never pure black. A satin body with a real clearcoat lobe is
 	# what gives the camera-facing side of a dark piece a highlight, so it reads
 	# as a solid object beside the white set instead of a silhouette. The
@@ -802,7 +802,7 @@ func _setup_piece_materials() -> void:
 	# the sky reflection and the rim light's grazing lobe rode on top of the
 	# diffuse and the crown, the collars and the coronet bands all clipped to
 	# white rings wherever the light caught them.
-	_piece_obsidian_material = _luxury_piece_material(body_dark, palette.dark_roughness, 0.12, false, false, 0.35, null, carve, 0.25, 0.40, 0.20, true)
+	_piece_obsidian_material = _luxury_piece_material(body_dark, palette.dark_roughness, 0.12, false, false, 0.14, null, carve, 0.45, 0.40, 0.20, true)
 	# The trim has to be readable on the side of the piece the camera actually
 	# sees, and that decides its metallicity. The key light sits at yaw -32,
 	# i.e. it arrives from -X, so every face pointing at the camera (+X) gets
