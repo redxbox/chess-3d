@@ -87,7 +87,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "32.0"
+const APP_BUILD := "33.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -136,8 +136,8 @@ const BOARD_THEMES := {
 	# The default: warm cream marble on matte charcoal slate.
 	"classic": {
 		"label": "MARBLE & SLATE",
-		"light_square": Color(0.500, 0.485, 0.455),
-		"dark_square": Color(0.235, 0.240, 0.262),
+		"light_square": Color(0.520, 0.504, 0.473),
+		"dark_square": Color(0.252, 0.257, 0.281),
 		"square_roughness": 0.30,
 		"apron": Color(0.205, 0.212, 0.232),
 		"apron_roughness": 0.32,
@@ -153,8 +153,8 @@ const BOARD_THEMES := {
 	# Maple on mahogany: the warm board, held at the same brightness band.
 	"royal_wood": {
 		"label": "MAPLE & MAHOGANY",
-		"light_square": Color(0.545, 0.465, 0.345),
-		"dark_square": Color(0.380, 0.180, 0.110),
+		"light_square": Color(0.560, 0.478, 0.355),
+		"dark_square": Color(0.405, 0.195, 0.120),
 		"square_roughness": 0.34,
 		"apron": Color(0.270, 0.140, 0.085),
 		"apron_roughness": 0.32,
@@ -172,8 +172,8 @@ const BOARD_THEMES := {
 	# of colour vision.
 	"jade": {
 		"label": "JADE & BRONZE",
-		"light_square": Color(0.430, 0.500, 0.440),
-		"dark_square": Color(0.120, 0.240, 0.185),
+		"light_square": Color(0.450, 0.520, 0.458),
+		"dark_square": Color(0.138, 0.265, 0.205),
 		"square_roughness": 0.28,
 		"apron": Color(0.215, 0.250, 0.228),
 		"apron_roughness": 0.34,
@@ -192,8 +192,8 @@ const BOARD_THEMES := {
 	# than a paint chart, and the cream squares no longer glare next to it.
 	"royal_blue": {
 		"label": "IVORY & SLATE BLUE",
-		"light_square": Color(0.500, 0.490, 0.470),
-		"dark_square": Color(0.150, 0.225, 0.400),
+		"light_square": Color(0.520, 0.510, 0.489),
+		"dark_square": Color(0.165, 0.245, 0.430),
 		"square_roughness": 0.30,
 		"apron": Color(0.200, 0.225, 0.270),
 		"apron_roughness": 0.30,
@@ -229,8 +229,9 @@ const BOARD_THEMES := {
 ## the pale army at 0.79 and measured the render: a white pawn's head came back
 ## at 255 with 51% of its pixels clipped, a flat white blob with the collar, the
 ## beads and the whole curve of the head gone - precisely the failure this round
-## exists to fix. 0.72 renders as ivory; 0.79 renders as paper. The pale army is
-## supposed to look like ivory on screen, so 0.72 is the number, not 0.92.
+## exists to fix. Around 0.70 renders as ivory at this exposure; 0.79 renders as
+## paper. The pale army is supposed to look like ivory on screen, so 0.70 is the
+## number, not 0.92.
 ##
 ## The same measurement moved the dark army the other way, and this is the second
 ## finding of the round. The dark squares themselves sit at 0.21-0.24 luma, and an
@@ -246,8 +247,8 @@ const PIECE_THEMES := {
 	"persian": {
 		"label": "PERSIAN",
 		"model_set": "persian",
-		"light": Color(0.730, 0.715, 0.676),
-		"dark": Color(0.315, 0.303, 0.291),
+		"light": Color(0.700, 0.686, 0.648),
+		"dark": Color(0.342, 0.330, 0.317),
 		"accent": Color(0.560, 0.480, 0.300),
 		"light_roughness": 0.44,
 		"dark_roughness": 0.44,
@@ -262,8 +263,8 @@ const PIECE_THEMES := {
 	"bastani": {
 		"label": "BASTANI",
 		"model_set": "bastani",
-		"light": Color(0.712, 0.716, 0.699),
-		"dark": Color(0.300, 0.306, 0.326),
+		"light": Color(0.682, 0.686, 0.670),
+		"dark": Color(0.332, 0.338, 0.360),
 		"accent": Color(0.560, 0.480, 0.300),
 		"light_roughness": 0.40,
 		"dark_roughness": 0.38,
@@ -278,8 +279,8 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "CLASSIC",
 		"model_set": "staunton",
-		"light": Color(0.728, 0.722, 0.699),
-		"dark": Color(0.318, 0.320, 0.341),
+		"light": Color(0.698, 0.692, 0.670),
+		"dark": Color(0.342, 0.344, 0.366),
 		"accent": Color(0.560, 0.480, 0.300),
 		"light_roughness": 0.42,
 		"dark_roughness": 0.40,
@@ -546,7 +547,7 @@ func _setup_environment() -> void:
 	# standing on the far rank still has something to be seen against.
 	environment.background_color = Color(0.068, 0.072, 0.082)
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.tonemap_exposure = 0.66
+	environment.tonemap_exposure = 0.74
 	var sky_material := ProceduralSkyMaterial.new()
 	# The sky is never drawn - the background is a flat colour - it exists to give
 	# the metals something to mirror and to give the ambient term a colour. Cool
