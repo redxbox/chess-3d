@@ -87,9 +87,10 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "25.0"
+const APP_BUILD := "26.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
+const PieceShading = preload("res://src/main/piece_shading.gd")
 const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q": "queen", "k": "king"}
 
 ## ---------------------------------------------------------------------------
@@ -201,186 +202,75 @@ const BOARD_THEMES := {
 	},
 }
 
+## Two armies: white and black. Nothing else.
+##
+## The three sets differ in their carving - a turned Staunton body, carved
+## figures, glazed figures - and in their finish, not in their colour. That is a
+## deliberate reversal of the previous palettes, which gave each set its own hues
+## (boxwood and walnut, jade and lapis) and left each army a single flat wash:
+## on a phone the lapis figures read as blue shapes with no features in them, and
+## which army was which had to be worked out from the square they stood on. White
+## stone against black stone is the one pair that never needs explaining, and
+## what tells the pieces apart is the carving, which piece_shading.gd now makes
+## visible on both armies.
+##
+## "White" is never pure white and "black" is never black, for the same reason in
+## both cases: an albedo at either end of the range has no room left to shade. The
+## whites stay under 0.87 so that a robe keeps a gradient, and the blacks stay
+## near 0.14 - dark stone, not a hole - so that the folds of a drapery still have
+## somewhere to go. The first attempt this round used 0.10, which is blacker than
+## black plastic and lost the carving again on the far side of the board.
 const PIECE_THEMES := {
-	# The hand-sculpted set, painted the way a carved boxwood set is: warm ivory
-	# against dark walnut, with antique gold in the two rules at the base. Both
-	# albedos are held above the values where a phone turns a dark piece into a
-	# flat hole - see the note on the classic set below.
+	# Carved wood: matte and warm, the roughest of the three finishes.
 	"persian": {
 		"label": "PERSIAN",
 		"model_set": "persian",
-		"light": Color(0.760, 0.712, 0.610),
-		# Walnut, not tar. At 0.305 the carved drapery had no shading left once the
-		# frame was tonemapped down, and the whole army read as one dark silhouette
-		# with a few specular speckles on it - the single thing the player asked
-		# about twice. 0.40 keeps it unmistakably the dark side while giving the
-		# folds somewhere to go.
-		"dark": Color(0.400, 0.300, 0.225),
-		"accent": Color(0.76, 0.585, 0.245),
-		"light_roughness": 0.34,
+		"light": Color(0.800, 0.778, 0.722),
+		"dark": Color(0.150, 0.142, 0.136),
+		"accent": Color(0.70, 0.69, 0.66),
+		"light_roughness": 0.38,
 		"dark_roughness": 0.44,
 		"accent_roughness": 0.46,
 		"accent_metallic": 0.30,
 		"trim_variant": "persian",
-		"swatch_light": Color(0.87, 0.82, 0.71),
-		"swatch_dark": Color(0.305, 0.225, 0.165),
+		"swatch_light": Color(0.86, 0.83, 0.78),
+		"swatch_dark": Color(0.17, 0.16, 0.155),
 	},
-	# The bastani figures, glazed as carved jade is: pale celadon against deep
-	# nephrite, with gold rules on the plinths. Both albedos stay clear of the
-	# two other sets on purpose - warm ivory and walnut, cool alabaster and
-	# obsidian - so three sets reading as three different materials is a property
-	# of the colours as well as of the carving. Celadon is desaturated, not mint;
-	# a mint piece reads as plastic the moment the key light hits it.
+	# Glazed stone: the tightest lobe of the three, so the folds of the robes and
+	# the mane of the horse carry a highlight along them.
 	"bastani": {
 		"label": "BASTANI",
 		"model_set": "bastani",
-		# The two armies are told apart by hue and by value at once. The pale set
-		# is a warm carved-jade ivory - not the celadon it started as, which read
-		# as the same colour as the black set's highlights once the key light hit
-		# it - and the dark set is lapis: a blue-violet stone, near-black in the
-		# folds but never black, because a robe with no albedo has no shading on
-		# it and the figures are all robe.
-		# Jade glaze, cut a little darker and a little rougher than the ivory it
-		# replaces: at 0.78 albedo and 0.17 roughness the folded robes of the
-		# bastani figures clipped to flat white and the carving disappeared.
-		"light": Color(0.560, 0.665, 0.575),
-		# Lapis, not ink. At 0.115 the folded robes had no albedo to shade, so the
-		# army read as one dark shape with a few highlights on it; 0.19 with a
-		# little more blue gives the folds somewhere to go while staying clearly
-		# the dark side of the board.
-		# Lapis, lifted again. This set's figures are almost all robe, and a robe
-		# with no albedo shows no folds: at 0.19 the army was a navy silhouette.
-		"dark": Color(0.300, 0.345, 0.560),
-		"accent": Color(0.86, 0.68, 0.26),
-		# Glazed stone: a tight lobe, so the folds of the robes carry a highlight
-		# along them instead of a flat wash. This is the finish the figures were
-		# modelled for, and it is what makes armour and cloth read as different
-		# materials even where the mesh is one surface.
+		"light": Color(0.830, 0.840, 0.818),
+		"dark": Color(0.138, 0.140, 0.155),
+		"accent": Color(0.70, 0.69, 0.66),
 		"light_roughness": 0.26,
-		"dark_roughness": 0.34,
-		# The gold is the only colour break on a sculpted figure, so it is a real
-		# metal: rougher than a mirror so the ribbon keeps its facets, metallic
-		# enough (0.55) that it takes its colour from reflection rather than from
-		# its own albedo - which is what separates gold from yellow paint.
+		"dark_roughness": 0.32,
 		"accent_roughness": 0.30,
 		"accent_metallic": 0.55,
 		"trim_variant": "bastani",
-		"swatch_light": Color(0.66, 0.77, 0.66),
-		"swatch_dark": Color(0.19, 0.225, 0.44),
+		"swatch_light": Color(0.88, 0.89, 0.87),
+		"swatch_dark": Color(0.16, 0.165, 0.18),
 	},
+	# Alabaster against obsidian: the polished pair, and the size reference for
+	# the other two sets.
 	"classic": {
 		"label": "CLASSIC",
-		"light": Color(0.775, 0.735, 0.660),
-		# The black set used to be 0.20 / 0.21 / 0.24 at roughness 0.22, which on a
-		# phone is below the point where a dark albedo can show any shading at
-		# all: the pieces read as holes cut out of the board with a white
-		# highlight stuck on top of the crown. 0.285 at 0.30 is still unmistakably
-		# "the black pieces" - the board's dark squares are 0.22 - but the form,
-		# the fluting and the gold inlays are all visible now.
-		"dark": Color(0.360, 0.375, 0.410),
-		"accent": Color(0.62, 0.61, 0.57),
-		"light_roughness": 0.24,
-		"dark_roughness": 0.38,
+		"model_set": "staunton",
+		"light": Color(0.860, 0.850, 0.820),
+		"dark": Color(0.128, 0.130, 0.146),
+		"accent": Color(0.70, 0.69, 0.66),
+		"light_roughness": 0.20,
+		"dark_roughness": 0.26,
 		"accent_roughness": 0.50,
 		"accent_metallic": 0.26,
 		"trim_variant": "classic",
-		"swatch_light": Color(0.87, 0.83, 0.75),
-		"swatch_dark": Color(0.285, 0.30, 0.335),
+		"swatch_light": Color(0.90, 0.89, 0.86),
+		"swatch_dark": Color(0.15, 0.15, 0.17),
 	},
 }
 
-@onready var board: Node3D = $Board
-@onready var camera_rig: Node3D = $CameraRig
-@onready var camera: Camera3D = $CameraRig/Camera3D
 
-var game := ChessRules.new()
-var archive := ArchiveStore.new()
-var pieces_root := Node3D.new()
-var highlights_root := Node3D.new()
-var decor_root := Node3D.new()
-var coordinates_root := Node3D.new()
-var _mesh_cache: Dictionary = {}
-var _loaded_piece_models: Dictionary = {}
-var _board_light_material: StandardMaterial3D
-var _board_dark_material: StandardMaterial3D
-var _piece_ivory_material: Material
-var _piece_obsidian_material: Material
-var _piece_gold_material: StandardMaterial3D
-var selected := Vector2i(-1, -1)
-var selected_moves: Array[Dictionary] = []
-var last_move: Dictionary = {}
-var play_vs_ai := true
-var human_color := ChessRules.WHITE
-var ai_difficulty := "medium"
-var language := "en"
-var ai_thinking := false
-var ai_generation := 0
-var animating_move := false
-var _dragging := false
-var _pointer_moved := false
-var _last_pointer := Vector2.ZERO
-var _touches: Dictionary = {}
-var _pinch_distance := 0.0
-var _drag_piece_from := Vector2i(-1, -1)
-var _drag_piece_active := false
-var haptics_enabled := true
-var graphics_quality := "auto"
-var _fps_accumulator := 0.0
-var _clock_label_accumulator := 0.0
-## Multiplier on the preset's 3D render scale, moved by the frame-rate governor.
-## 1.0 means the preset is rendered as designed.
-var _render_scale_factor := 1.0
-## How long the frame rate has been below, or comfortably above, its target.
-var _slow_seconds := 0.0
-var _fast_seconds := 0.0
-var _fps_label: Label
-var capture_effects_enabled := true
-var high_contrast_enabled := false
-var reduced_motion_enabled := false
-var coordinates_enabled := true
-var colorblind_enabled := false
-var large_text_enabled := false
-var sound_enabled := true
-var sound_volume := 0.75
-var music_enabled := true
-var music_volume := 0.28
-var _sound_players: Dictionary = {}
-var _music_player: AudioStreamPlayer
-var _status_label: Label
-var _graphics_button: Button
-var _sound_button: Button
-var _music_button: Button
-var _clock_label: Label
-var _top_panel: HBoxContainer
-var _mode_button: Button
-var _menu_overlay: ColorRect
-var _continue_button: Button
-var _color_button: Button
-var _difficulty_button: Button
-var _language_button: Button
-var _ai_start_button: Button
-var _local_start_button: Button
-var _close_menu_button: Button
-var _history_label: RichTextLabel
-var _captured_label: Label
-var _game_over_dialog: AcceptDialog
-var _resign_dialog: ConfirmationDialog
-var _archive_window: Window
-var _archive_list: VBoxContainer
-var _accessibility_window: Window
-var _accessibility_buttons: Dictionary = {}
-var _tutorial_window: Window
-var _about_window: Window
-var _ui_theme := Theme.new()
-var _archived_current_game := false
-var _has_resumable_game := false
-var clock_enabled := true
-var white_time := 600.0
-var black_time := 600.0
-var _autosave_accumulator := 0.0
-## What was last written to the autosave, so an unchanged board is not rewritten.
-var _autosave_stamp := ""
-const AUTOSAVE_PATH := "user://autosave.json"
 const PIECE_THEME_PATH := "user://piece_theme.txt"
 const BOARD_THEME_PATH := "user://board_theme.txt"
 var piece_theme := DEFAULT_PIECE_THEME
@@ -510,7 +400,7 @@ func _setup_environment() -> void:
 	# the pale Carrara and alabaster albedoes at exposure 0.80 pushed 85% of the
 	# classic light squares past 1.0, and a clipped square is a flat white slab
 	# with no veining and no shading left anywhere on it.
-	environment.tonemap_exposure = 0.66
+	environment.tonemap_exposure = 0.68
 	var sky_material := ProceduralSkyMaterial.new()
 	# A dark studio with a warm horizon. The horizon band is what the brass and
 	# gold inlays reflect; with the old near-black sky every gold collar read as mud.
@@ -530,14 +420,20 @@ func _setup_environment() -> void:
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	environment.ambient_light_sky_contribution = 1.0
-	# Scales the sky-driven ambient. Directional lights are additive on top of
-	# it, so the sum of key + fill + rim is what decides whether a pale surface
-	# survives. The ambient is raised rather than cut whenever the frame is
-	# brought down, because it is the only term that reaches the surfaces the
-	# key light cannot see: at 0.35 every table step sitting in the board's own
-	# shadow collapsed to pure black, which is exactly the void the brief wants
-	# gone.
-	environment.ambient_light_energy = 0.55
+	# Scales the sky-driven ambient. Directional lights are additive on top of it,
+	# so the sum of key + fill + rim is what decides whether a pale surface
+	# survives.
+	#
+	# 0.55 -> 0.34, and the key raised to 0.92 to pay for it. The problem the high
+	# ambient was solving - the table steps going to pure black in the board's own
+	# shadow - is now solved by the fourth, upward-facing light and by the fact
+	# that the pieces carry their own creases (piece_shading.gd) instead of
+	# needing a flat fill to show any form at all. What the high ambient was also
+	# doing, unnoticed, was washing the carving out of every figure: a fold lit
+	# head-on and a fold lit from every direction look exactly alike. Dropping it
+	# and raising the key is what puts the light back into the sculpture, which is
+	# the difference between these pieces and the flat pastel versions.
+	environment.ambient_light_energy = 0.34
 	# A three-point studio rig, so both sets read as solid volume at once. The
 	# old single key light left the camera-facing side of every dark piece in
 	# its own shadow, which is why the black set used to collapse into
@@ -553,7 +449,7 @@ func _setup_environment() -> void:
 	# 0.73 -> 0.66 to pay for the brighter fill and ambient below: the pale armies
 	# are the ones at risk of clipping, and a clipped piece has no carving left on
 	# it at all. The exposure stays where it is.
-	$KeyLight.light_energy = 0.66
+	$KeyLight.light_energy = 0.92
 	$KeyLight.light_color = Color(1.0, 0.96, 0.90)
 	$KeyLight.rotation_degrees = Vector3(-48, -32, 0)
 	# Contact-tight shadows. The normal bias is deliberately small: a large one
@@ -573,7 +469,7 @@ func _setup_environment() -> void:
 	# of a piece, and the dark armies were being lit almost entirely by it: at
 	# 0.28 the folds of a walnut king had about three values in them and read as
 	# one shape. This is the single number that made the black pieces legible.
-	$FillLight.light_energy = 0.40
+	$FillLight.light_energy = 0.32
 	$FillLight.light_color = Color(0.88, 0.91, 0.98)
 	$FillLight.rotation_degrees = Vector3(-60, 45, 0)
 	$FillLight.shadow_enabled = false
@@ -588,7 +484,7 @@ func _setup_environment() -> void:
 	# body with any specular at all was enough to clip the rook's crown and the
 	# pawns' collars to white rings. 0.25 still leaves a specular edge along the
 	# silhouette, which is the whole point of a rim, without the blowout.
-	$RimLight.light_energy = 0.34
+	$RimLight.light_energy = 0.44
 	$RimLight.shadow_enabled = false
 	# Bounce: a fourth, upward-facing light that stands in for the light the pale
 	# board throws back up. It is what keeps the underside of a piece from going
@@ -596,7 +492,7 @@ func _setup_environment() -> void:
 	# neck, so the whole underside of the head is a crevice the three top lights
 	# cannot reach, and at full shadow it read as a hole through the piece. Warm
 	# and dim on purpose - it must lift the shadow, not add a second key.
-	$BounceLight.light_energy = 0.24
+	$BounceLight.light_energy = 0.18
 	$BounceLight.light_color = Color(0.97, 0.90, 0.80)
 	$BounceLight.rotation_degrees = Vector3(68, 12, 0)
 	$BounceLight.shadow_enabled = false
@@ -898,12 +794,18 @@ func _piece_mesh(kind: String) -> Mesh:
 	var positions: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var has_uvs: bool = arrays[Mesh.ARRAY_TEX_UV] != null
 	var has_normals: bool = arrays[Mesh.ARRAY_NORMAL] != null
-	if has_uvs and has_normals:
-		var existing_uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
-		if existing_uvs.size() == positions.size():
-			# Already complete, so there is nothing to project.
-			_mesh_cache[cache_key] = source
-			return source
+	# The shading table is measured from the geometry here, once per kind per set,
+	# and cached with the mesh: every piece on the board reuses it.
+	if has_uvs and has_normals \
+			and (arrays[Mesh.ARRAY_TEX_UV] as PackedVector2Array).size() == positions.size():
+		# Already complete apart from the shading, so only that is added.
+		var complete := ArrayMesh.new()
+		var arrays_copy := arrays.duplicate()
+		arrays_copy[Mesh.ARRAY_COLOR] = _shade_colors(PieceShading.cavity_shade(
+			positions, arrays[Mesh.ARRAY_NORMAL], _surface_indices(arrays)))
+		complete.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays_copy)
+		_mesh_cache[cache_key] = complete
+		return complete
 	var source_normals: PackedVector3Array = PackedVector3Array()
 	if has_normals:
 		source_normals = arrays[Mesh.ARRAY_NORMAL]
@@ -939,12 +841,17 @@ func _piece_mesh(kind: String) -> Mesh:
 	# the mane and the engraved plinth are all in the mesh. Their gold is in the
 	# palette - the trim colour of the accent material - not in a hoop round the
 	# base.
+	# One pass over the geometry, one grey value per vertex: the creases and the
+	# folds of the carving, which is what makes a single-colour piece read as a
+	# carved figure instead of a silhouette. See piece_shading.gd.
+	var shade := PieceShading.cavity_shade(positions, source_normals if has_normals else smoothed, indices)
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in positions.size():
 		var vertex: Vector3 = positions[i]
 		var angle := atan2(vertex.z, vertex.x)
-		tool.set_color(Color(1.0, 1.0, 1.0))
+		var lit: float = shade[i] if shade.size() == positions.size() else 1.0
+		tool.set_color(Color(lit, lit, lit))
 		# Two wraps around the piece keeps the carving fine enough to read as
 		# detail rather than as one big smear.
 		if has_normals:
@@ -963,6 +870,23 @@ func _piece_mesh(kind: String) -> Mesh:
 	var mesh := tool.commit()
 	_mesh_cache[cache_key] = mesh
 	return mesh
+
+
+## The index array of a surface, as an array rather than as a nullable Variant.
+func _surface_indices(arrays: Array) -> PackedInt32Array:
+	if arrays[Mesh.ARRAY_INDEX] == null:
+		return PackedInt32Array()
+	return arrays[Mesh.ARRAY_INDEX]
+
+
+## A shading table as vertex colours. Greyscale on purpose: it multiplies the
+## body's albedo, so it darkens a crease without tinting the stone.
+func _shade_colors(shade: PackedFloat32Array) -> PackedColorArray:
+	var colors := PackedColorArray()
+	colors.resize(shade.size())
+	for i in shade.size():
+		colors[i] = Color(shade[i], shade[i], shade[i])
+	return colors
 
 
 ## Where the plinth ends, as a fraction of each piece's own height. Read off the
@@ -2819,21 +2743,14 @@ func _theme_piece_card(id: String) -> Button:
 	armies.alignment = BoxContainer.ALIGNMENT_CENTER
 	armies.add_theme_constant_override("separation", 0)
 	box.add_child(armies)
-	# Two tall rectangles read as the two armies at thumbnail size, and the
-	# rounded top edge is what makes them read as pieces rather than as swatches.
+	# Two silhouettes read as the two armies at thumbnail size. They are drawn as
+	# a silhouette rather than as a plain swatch of the body colour, and that is
+	# not decoration: with both armies now white against black, three sets whose
+	# cards showed the same two rectangles would be three identical thumbnails
+	# with three different names under them. The profile is what tells a turned
+	# piece from a carved figure at 46 by 62 pixels.
 	for colour in [data.light, data.dark]:
-		var swatch := PanelContainer.new()
-		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var swatch_style := StyleBoxFlat.new()
-		swatch_style.bg_color = colour
-		swatch_style.set_corner_radius_all(9)
-		swatch_style.corner_radius_top_left = 22
-		swatch_style.corner_radius_top_right = 22
-		swatch_style.set_border_width_all(1)
-		swatch_style.border_color = Color(0, 0, 0, 0.25)
-		swatch.add_theme_stylebox_override("panel", swatch_style)
-		swatch.custom_minimum_size = Vector2(46, 62)
-		armies.add_child(swatch)
+		armies.add_child(_piece_silhouette(id, colour))
 	var inlay := ColorRect.new()
 	inlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	inlay.color = data.accent
@@ -2848,6 +2765,55 @@ func _theme_piece_card(id: String) -> Button:
 	name.add_theme_color_override("font_color", Color(0.84, 0.86, 0.9))
 	box.add_child(name)
 	return card
+
+
+## A piece as a flat profile in one colour: crown, head, body, foot.
+##
+## The proportions come from the set, not from the card: the turned set is a slim
+## stem under a ball head on a wide foot, the carved sets are figures with
+## shoulders under a crown, and one of them wears a taller headpiece than the
+## other. Four stacked rounded rectangles, because that is enough to read as a
+## piece at this size and costs four nodes per card.
+const PIECE_CARD_PROFILES := {
+	# head width, body width, shoulder width, crown width, body height, rounded?
+	"classic": {"head": 20, "body": 12, "shoulder": 16, "crown": 0, "height": 30, "foot": 26},
+	"persian": {"head": 16, "body": 24, "shoulder": 28, "crown": 8, "height": 28, "foot": 24},
+	"bastani": {"head": 15, "body": 26, "shoulder": 30, "crown": 12, "height": 26, "foot": 24},
+}
+
+
+func _piece_silhouette(set_id: String, colour: Color) -> Control:
+	var profile: Dictionary = PIECE_CARD_PROFILES.get(set_id, PIECE_CARD_PROFILES["classic"])
+	var stack := VBoxContainer.new()
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.alignment = BoxContainer.ALIGNMENT_END
+	stack.add_theme_constant_override("separation", 0)
+	stack.custom_minimum_size = Vector2(46, 62)
+	var crown: int = int(profile.crown)
+	if crown > 0:
+		stack.add_child(_silhouette_bar(colour, crown, 6, 3, false))
+	stack.add_child(_silhouette_bar(colour, int(profile.head), 10, 5, true))
+	stack.add_child(_silhouette_bar(colour, int(profile.shoulder), 5, 2, false))
+	stack.add_child(_silhouette_bar(colour, int(profile.body), int(profile.height), 6, false))
+	stack.add_child(_silhouette_bar(colour, int(profile.foot), 6, 9, false))
+	return stack
+
+
+func _silhouette_bar(colour: Color, width: int, height: int, radius: int, round_top: bool) -> Control:
+	var bar := PanelContainer.new()
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = colour
+	style.set_corner_radius_all(radius)
+	if round_top:
+		style.corner_radius_top_left = int(width * 0.5)
+		style.corner_radius_top_right = int(width * 0.5)
+	style.set_border_width_all(1)
+	style.border_color = Color(0, 0, 0, 0.25)
+	bar.add_theme_stylebox_override("panel", style)
+	bar.custom_minimum_size = Vector2(width, height)
+	bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	return bar
 
 
 func _on_board_card_pressed(id: String) -> void:

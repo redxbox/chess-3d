@@ -5,6 +5,7 @@ const OfflineAI = preload("res://src/ai/offline_ai.gd")
 const GameArchive = preload("res://src/storage/game_archive.gd")
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
+const PieceShading = preload("res://src/main/piece_shading.gd")
 var passed := 0
 var failed := 0
 
@@ -31,6 +32,7 @@ func _init() -> void:
 	_test_game_archive()
 	_test_piece_facing()
 	_test_piece_layout()
+	_test_piece_shading()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -469,3 +471,78 @@ func _blank_board() -> Array:
 		row.fill("")
 		board.append(row)
 	return board
+
+
+## The carving has to show up as shading, on both armies, from geometry alone.
+## The shapes are analytic so that "concave" and "convex" are not a matter of
+## getting a winding order right in a test: a paraboloid y = +-(x^2 + z^2) / 2
+## with its exact surface normal is either a bowl or a dome, and nothing else.
+func _test_piece_shading() -> void:
+	# A dome: nothing on it may be darkened, or every collar and crown on the
+	# board would get a grey line down it.
+	var dome := _paraboloid(-1.0, 12)
+	var shade := PieceShading.cavity_shade(dome.positions, dome.normals, dome.indices)
+	var dome_min := 1.0
+	for value in shade:
+		dome_min = minf(dome_min, value)
+	_expect(shade.size() == dome.positions.size() and dome_min > 0.95,
+		"a convex surface is left alone (darkest %.2f)" % dome_min)
+
+	# A bowl: the folds of a robe, the inside of a crown. It must darken, and it
+	# must stay stone-coloured rather than going to black.
+	var bowl := _paraboloid(1.0, 12)
+	shade = PieceShading.cavity_shade(bowl.positions, bowl.normals, bowl.indices)
+	var bowl_total := 0.0
+	var bowl_min := 1.0
+	for value in shade:
+		bowl_total += value
+		bowl_min = minf(bowl_min, value)
+	var bowl_mean := bowl_total / float(shade.size())
+	_expect(bowl_mean < 0.80, "a concave surface is darkened (mean %.2f)" % bowl_mean)
+	_expect(bowl_min > 0.30, "and it stays stone rather than going black (%.2f)" % bowl_min)
+
+	# The two must be far enough apart to read as light and shadow at phone size.
+	_expect(dome_min - bowl_mean > 0.20,
+		"convex and concave differ by enough to see (%.2f against %.2f)" % [dome_min, bowl_mean])
+
+	# A flat face carries no shading at all: the turned pieces are all convex and
+	# flat, and greying them over would read as dirt.
+	var plate := PieceShading.cavity_shade(
+		PackedVector3Array([Vector3(0, 0, 0), Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(1, 0, 1)]),
+		PackedVector3Array([Vector3.UP, Vector3.UP, Vector3.UP, Vector3.UP]),
+		PackedInt32Array([0, 1, 2, 2, 1, 3]))
+	var plate_min := 1.0
+	for value in plate:
+		plate_min = minf(plate_min, value)
+	_expect(plate.size() == 4 and plate_min > 0.999, "a flat face carries no shading")
+
+	# Degenerate inputs come back as "no shading", never as a table the wrong
+	# size for the mesh it is about to be applied to.
+	shade = PieceShading.cavity_shade(PackedVector3Array(), PackedVector3Array(), PackedInt32Array())
+	_expect(shade.is_empty(), "an empty mesh shades to nothing")
+	shade = PieceShading.cavity_shade(PackedVector3Array([Vector3.UP]),
+		PackedVector3Array([Vector3.UP]), PackedInt32Array())
+	_expect(shade.size() == 1 and shade[0] > 0.999, "a lone vertex has nothing to curve against")
+
+
+## A grid sampling y = +-(x*x + z*z) / 2 over [-1, 1]^2, with the exact analytic
+## normal, as (positions, normals, indices).
+func _paraboloid(sign: float, steps: int) -> Dictionary:
+	var positions := PackedVector3Array()
+	var normals := PackedVector3Array()
+	for i in steps + 1:
+		for j in steps + 1:
+			var x := -1.0 + 2.0 * float(i) / float(steps)
+			var z := -1.0 + 2.0 * float(j) / float(steps)
+			positions.append(Vector3(x, sign * (x * x + z * z) * 0.5, z))
+			normals.append(Vector3(-sign * x, 1.0, -sign * z).normalized())
+	var indices := PackedInt32Array()
+	for i in steps:
+		for j in steps:
+			var a := i * (steps + 1) + j
+			var b := a + 1
+			var c := a + steps + 1
+			var d := c + 1
+			for index in [a, b, d, a, d, c]:
+				indices.append(index)
+	return {"positions": positions, "normals": normals, "indices": indices}
