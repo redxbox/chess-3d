@@ -243,6 +243,36 @@ jobs:
               });
             }
 
+      # The benchmark figures are committed back to the branch, so the next
+      # performance change has something to be compared against that is not
+      # "someone remembers the old number".
+      - name: Publish the performance baseline
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/arena/')
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const content = fs.readFileSync('build/preview/perf.txt', 'utf8');
+            const path = 'docs/perf/latest.txt';
+            let sha;
+            try {
+              const current = await github.rest.repos.getContent({
+                owner: context.repo.owner, repo: context.repo.repo, path, ref: context.ref
+              });
+              sha = current.data.sha;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path,
+              branch: context.ref.replace('refs/heads/', ''),
+              message: 'Update the performance baseline [skip ci]',
+              content: Buffer.from(content).toString('base64'),
+              ...(sha ? { sha } : {})
+            });
+
       # The albedo guard cannot see the render: exposure, ACES, the light rig and
       # the baked vertex occlusion all sit between an albedo and a pixel. This is
       # the end-to-end measurement - the light squares, the dark squares, both

@@ -225,3 +225,93 @@ static func cavity_shade(positions: PackedVector3Array, normals: PackedVector3Ar
 	for i in count:
 		shade[i] = clampf(1.0 - DEPTH * concavity[weld_of[i]], 1.0 - DEPTH, 1.0)
 	return shade
+
+
+## The first implementation of the bake, kept as a reference.
+##
+## It computes the same thing by the same definition - welded positions, a
+## two-ring neighbourhood, the same two smoothing passes, the same linear remap -
+## but with a Dictionary per vertex, a Dictionary per ring and a string key per
+## welded point. It cost several hundred milliseconds per set, which is what the
+## style screen's stutter was.
+##
+## It is not dead code: tests/test_chess.gd checks that the shipped fast version
+## produces the same shading on the same mesh, and tools/bench_perf.gd times both
+## so the speed-up is a measured number rather than a claim.
+static func cavity_shade_reference(positions: PackedVector3Array, normals: PackedVector3Array, indices: PackedInt32Array) -> PackedFloat32Array:
+	var count := positions.size()
+	var shade := PackedFloat32Array()
+	shade.resize(count)
+	shade.fill(1.0)
+	if count == 0 or normals.size() != count or indices.size() < 3:
+		return shade
+	var welded := {}
+	var weld_of := PackedInt32Array()
+	weld_of.resize(count)
+	var weld_positions := PackedVector3Array()
+	for i in count:
+		var point := positions[i]
+		var key := "%d,%d,%d" % [roundi(point.x * WELD_STEPS), roundi(point.y * WELD_STEPS), roundi(point.z * WELD_STEPS)]
+		if not welded.has(key):
+			welded[key] = weld_positions.size()
+			weld_positions.append(point)
+		weld_of[i] = welded[key]
+	var neighbours: Array = []
+	neighbours.resize(weld_positions.size())
+	for i in neighbours.size():
+		neighbours[i] = {}
+	for triangle in range(0, indices.size() - 2, 3):
+		var a := weld_of[indices[triangle]]
+		var b := weld_of[indices[triangle + 1]]
+		var c := weld_of[indices[triangle + 2]]
+		(neighbours[a] as Dictionary)[b] = true
+		(neighbours[a] as Dictionary)[c] = true
+		(neighbours[b] as Dictionary)[a] = true
+		(neighbours[b] as Dictionary)[c] = true
+		(neighbours[c] as Dictionary)[a] = true
+		(neighbours[c] as Dictionary)[b] = true
+	var weld_normals := PackedVector3Array()
+	weld_normals.resize(weld_positions.size())
+	for i in count:
+		weld_normals[weld_of[i]] += normals[i]
+	for w in weld_positions.size():
+		weld_normals[w] = weld_normals[w].normalized() if weld_normals[w].length_squared() > 0.0000001 else Vector3.UP
+	var ring: Array = []
+	ring.resize(weld_positions.size())
+	for w in weld_positions.size():
+		var first: Dictionary = neighbours[w]
+		var extended := {}
+		for other in first:
+			extended[other] = true
+			for second in (neighbours[other] as Dictionary):
+				extended[second] = true
+		extended.erase(w)
+		ring[w] = extended
+	var concavity := PackedFloat32Array()
+	concavity.resize(weld_positions.size())
+	for w in weld_positions.size():
+		var list: Array = (ring[w] as Dictionary).keys()
+		if list.is_empty():
+			continue
+		var away := Vector3.ZERO
+		for other in list:
+			var delta: Vector3 = weld_positions[other] - weld_positions[w]
+			if delta.length_squared() > 0.0000000001:
+				away += delta.normalized()
+		if away.length_squared() < 0.0000000001:
+			continue
+		concavity[w] = clampf(float(away.normalized().dot(weld_normals[w])), 0.0, 1.0)
+	for pass_index in 2:
+		var smoothed := concavity.duplicate()
+		for w in weld_positions.size():
+			var list: Array = (neighbours[w] as Dictionary).keys()
+			if list.is_empty():
+				continue
+			var total := 0.0
+			for other in list:
+				total += concavity[other]
+			smoothed[w] = (concavity[w] * 2.0 + total / float(list.size())) / 3.0
+		concavity = smoothed
+	for i in count:
+		shade[i] = clampf(1.0 - DEPTH * concavity[weld_of[i]], 1.0 - DEPTH, 1.0)
+	return shade

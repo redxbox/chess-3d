@@ -107,6 +107,20 @@ func _measure(scene_started: int) -> void:
 	_results["mesh_warm_ms"] = Time.get_ticks_msec() - warm_started
 	_results["mesh_cache_bytes"] = MeshCache.size_bytes()
 
+	# --- the bake itself, against the implementation it replaced --------------
+	var shading: GDScript = load("res://src/main/piece_shading.gd")
+	var king_arrays: Array = _main.call("_piece_models")["king"].surface_get_arrays(0)
+	var king_positions: PackedVector3Array = king_arrays[Mesh.ARRAY_VERTEX]
+	var king_normals: PackedVector3Array = king_arrays[Mesh.ARRAY_NORMAL]
+	var king_indices: PackedInt32Array = king_arrays[Mesh.ARRAY_INDEX] if king_arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	_results["king_vertices"] = king_positions.size()
+	var fast_started := Time.get_ticks_msec()
+	shading.cavity_shade(king_positions, king_normals, king_indices)
+	_results["bake_fast_ms"] = Time.get_ticks_msec() - fast_started
+	var reference_started := Time.get_ticks_msec()
+	shading.cavity_shade_reference(king_positions, king_normals, king_indices)
+	_results["bake_reference_ms"] = Time.get_ticks_msec() - reference_started
+
 	for name in _results:
 		print("BENCH %s %s" % [name, _results[name]])
 	quit()

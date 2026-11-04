@@ -37,6 +37,7 @@ func _init() -> void:
 	_test_piece_shading()
 	_test_camera_rig()
 	_test_piece_height_ladder()
+	_test_shading_matches_reference()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -586,6 +587,30 @@ func _test_camera_rig() -> void:
 ##
 ## This is a test rather than a comment because the previous ladder had the two
 ## within 1.5% of each other, which on a phone is the same height.
+## The fast bake against the reference one, on the same geometry.
+##
+## The rewrite replaced dictionaries with flat arrays; the shading it produces
+## must be the same shading, or every piece on the board changed appearance in a
+## commit that was supposed to be about frame time.
+func _test_shading_matches_reference() -> void:
+	var mesh := _paraboloid(1.0, 12)
+	var positions: PackedVector3Array = mesh["positions"]
+	var normals: PackedVector3Array = mesh["normals"]
+	var indices: PackedInt32Array = mesh["indices"]
+	var fast := PieceShading.cavity_shade(positions, normals, indices)
+	var reference := PieceShading.cavity_shade_reference(positions, normals, indices)
+	_expect(fast.size() == reference.size(), "both bakes cover every vertex")
+	var worst := 0.0
+	for i in fast.size():
+		worst = maxf(worst, absf(fast[i] - reference[i]))
+	# The two build their neighbour sets in different orders, so the float sums
+	# are not bit-identical; a thousandth of a value is below one step of an
+	# 8-bit vertex colour.
+	_expect(worst < 0.001, "the fast bake matches the reference one (worst %.5f)" % worst)
+	_expect(PieceShading.cavity_shade_reference(positions, normals, indices).size() == positions.size(),
+		"the reference bake is still callable")
+
+
 func _test_piece_height_ladder() -> void:
 	var order := ["pawn", "rook", "knight", "bishop", "queen", "king"]
 	for index in order.size():
