@@ -87,7 +87,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "37.0"
+const APP_BUILD := "38.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -665,13 +665,14 @@ func _setup_environment() -> void:
 	# most expensive thing a directional light can be asked to do on mobile.
 	environment.fog_enabled = false
 	environment.volumetric_fog_enabled = false
-	# No depth of field, no motion blur, no auto exposure: the camera is fixed and
-	# the whole board should be equally sharp.
-	environment.dof_blur_far_enabled = false
-	environment.dof_blur_near_enabled = false
+	# Colour adjustments off: another full-screen pass, for a look that is already
+	# baked into the palettes. It is off by default, and it is set anyway so the
+	# setting is visible to whoever changes it next.
 	environment.adjustment_enabled = false
-	# Colour adjustments are off because they are another full-screen pass for a
-	# look that is already baked into the palettes.
+	#
+	# Depth of field is not set here at all - it is a CameraAttributes property,
+	# not an Environment one - and the camera carries no attributes on this
+	# renderer, so there is none. The board is fixed and evenly sharp.
 	if str(ProjectSettings.get_setting("rendering/renderer/rendering_method")) != "gl_compatibility":
 		# The Forward+ path the project may move to one day. Kept behind the same
 		# guard so it can never light up on the renderer this game ships on.

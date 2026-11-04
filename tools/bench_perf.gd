@@ -32,7 +32,7 @@ var _results: Dictionary = {}
 func _initialize() -> void:
 	# The cold measurement has to happen before the first launch reads the cache,
 	# so the cache is cleared at the start of every benchmark run.
-	var cache := load("res://src/main/mesh_cache.gd")
+	var cache: GDScript = load("res://src/main/mesh_cache.gd")
 	cache.clear()
 
 	var started := Time.get_ticks_msec()
@@ -88,7 +88,7 @@ func _measure(scene_started: int) -> void:
 
 	# --- mesh build cost ----------------------------------------------------
 	# One set, cleared from memory and from disk, then the same set read back.
-	var MeshCache = load("res://src/main/mesh_cache.gd")
+	var MeshCache: GDScript = load("res://src/main/mesh_cache.gd")
 	var set_id := String(_main.get("piece_theme"))
 	_main.set("piece_theme", set_id)
 	var cache_backup: Dictionary = _main.get("_mesh_cache")
