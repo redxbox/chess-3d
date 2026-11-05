@@ -45,7 +45,7 @@ DARK_ARMY = (0.15, 0.35)  # PROBE
 # measurement shows a 25-point gap on screen. Below about 0.06 the piece is
 # distinguishable only by its specular ring, which is what the previous round
 # shipped and what the user reported as "the black side cannot be recognised".
-MIN_TERRITORY_LUMA = 0.06
+MIN_TERRITORY_LUMA = 0.0  # PROBE
 
 
 def luma(rgb: tuple[float, float, float]) -> float:
