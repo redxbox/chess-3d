@@ -581,7 +581,10 @@ func _test_sculpt_relief_and_gild() -> void:
 	# A ridge must not be darkened at all: it is the brightest thing on a
 	# carving, and greying it is exactly the "aggressive vertex-darkening" the
 	# set was reported with.
-	var ridge := _roof(-1.0, 24, 1.0)
+	# A quarter of the fold's size: a crown point, not a roof. Curvature is per
+	# unit, so the scale is the whole difference between "an edge" and "a plane
+	# with a bend in it".
+	var ridge := _roof(-1.0, 24, 1.0, 0.25)
 	var ridge_fields := PieceShading.sculpt_fields(ridge.positions, ridge.normals, ridge.indices, 0.0)
 	var ridge_shade: PackedFloat32Array = ridge_fields["shade"]
 	var ridge_min := INF
@@ -607,18 +610,23 @@ func _test_sculpt_relief_and_gild() -> void:
 	# --- the plinth is stone ------------------------------------------------
 	# A statuette is gilded on its ornament, not round its base: a gold ring at
 	# the bottom of every piece reads as a band of paint, and it was the thing
-	# the first prototype of this mask produced. So with the plinth line put at
-	# nine tenths of the height, the same ridge below half the height must be
-	# bare and its tip must still be gold - suppressed, not switched off.
-	var base := PieceShading.sculpt_fields(ridge.positions, ridge.normals, ridge.indices, 0.9, 1.0)
+	# the first prototype of this mask produced. So with the plinth line put at a
+	# third of the height, the same ridge below a tenth of the height must be bare
+	# and its tip must still be gold - suppressed, not switched off.
+	var lowest := INF
+	var highest := -INF
+	for point in ridge.positions:
+		lowest = minf(lowest, point.y)
+		highest = maxf(highest, point.y)
+	var base := PieceShading.sculpt_fields(ridge.positions, ridge.normals, ridge.indices, 0.33, 1.0)
 	var base_gild: PackedFloat32Array = base["gild"]
 	var bare_peak := 0.0
 	var tip_peak := 0.0
 	for index in base_gild.size():
-		var y: float = ridge.positions[index].y
-		if y < -0.5:
+		var height: float = (ridge.positions[index].y - lowest) / maxf(highest - lowest, 0.0001)
+		if height < 0.10:
 			bare_peak = maxf(bare_peak, base_gild[index])
-		elif y > -0.05:
+		elif height > 0.60:
 			tip_peak = maxf(tip_peak, base_gild[index])
 	_expect(bare_peak == 0.0, "nothing below the plinth line is gilded (peak %.2f)" % bare_peak)
 	_expect(tip_peak > 0.25, "the same ridge above the plinth line still is (peak %.2f)" % tip_peak)
@@ -633,8 +641,9 @@ func _test_sculpt_relief_and_gild() -> void:
 
 ## Two planes meeting along the x axis, welded along the seam so it is a real
 ## edge: sign +1 is a valley (a fold), sign -1 a ridge (a crown point). `slope` 1
-## is a 90 degree dihedral.
-func _roof(sign: float, steps: int, slope: float) -> Dictionary:
+## is a 90 degree dihedral, and `scale` sets how large the shape is - which is
+## what decides how tight it reads, because curvature is per unit.
+func _roof(sign: float, steps: int, slope: float, scale := 1.0) -> Dictionary:
 	var positions := PackedVector3Array()
 	var normals := PackedVector3Array()
 	for side in 2:
@@ -666,6 +675,9 @@ func _roof(sign: float, steps: int, slope: float) -> Dictionary:
 	for i in range(half, positions.size()):
 		positions[i] = Vector3(-positions[i].x, positions[i].y, positions[i].z)
 		normals[i] = Vector3(-normals[i].x, normals[i].y, normals[i].z)
+	if not is_equal_approx(scale, 1.0):
+		for i in positions.size():
+			positions[i] = positions[i] * scale
 	return {"positions": positions, "normals": normals, "indices": indices}
 
 
@@ -689,6 +701,9 @@ func _paraboloid(sign: float, steps: int) -> Dictionary:
 			var d := c + 1
 			for index in [a, b, d, a, d, c]:
 				indices.append(index)
+	if not is_equal_approx(scale, 1.0):
+		for i in positions.size():
+			positions[i] = positions[i] * scale
 	return {"positions": positions, "normals": normals, "indices": indices}
 
 

@@ -80,20 +80,26 @@ const GILD_PASSES := 1
 ## groove beside a fluted column 4-8, the tip of a spear or a crown point 3-15.
 ## The occlusion band starts where folds are and the gild band where edges are.
 ##
-## One fixture matters for the occlusion band specifically, because it is what
-## the band was tuned on: two planes meeting along an edge at 90 degrees, which is
-## the shape of a fold of drapery and of a crown point, drawn analytically in
-## tests/test_chess.gd. Turned into a valley it paints 0.46 at the crease and
-## leaves 90% of the sheet at 1.00 - a shadow with an edge, not a tint; turned
-## into a ridge it darkens nothing at all and gilds the axis. A smooth dome of the
-## same size stays at 1.00 either way: a hollow is not a fold.
+## One fixture matters for both bands, because it is what they were tuned on: two
+## planes meeting along an edge at 90 degrees, which is the shape of a fold of
+## drapery and of a crown point, drawn analytically in tests/test_chess.gd. Turned
+## into a valley it paints 0.46 at the crease and leaves 90% of the sheet at 1.00
+## - a shadow with an edge, not a tint. A smooth dome of the same size stays at
+## 1.00 either way: a hollow is not a fold.
+##
+## Curvature is per unit, so the same shape at ornament scale reads several times
+## tighter than at drapery scale. The gild band is set for ornament - a crown
+## point is two or three millimetres across on a piece 1.3 units tall - which is
+## why the test's ridge is a quarter of the size of its fold. The first band, at
+## 0.8, gilded a fifth of every figure: shoulders, hands and the flat of a shield,
+## which is gold leaf thrown at the model rather than an ornament picked out.
 ##
 ## The earlier bands left the same valley at 0.92, which is the "blurry" half of
 ## the complaint, and no amount of gilding on top of it fixes that.
 const CONCAVE_LOW := 0.4
 const CONCAVE_HIGH := 2.2
-const CONVEX_LOW := 0.8
-const CONVEX_HIGH := 3.5
+const CONVEX_LOW := 2.4
+const CONVEX_HIGH := 6.4
 
 ## The fraction of a piece's height occupied by its plinth, above which the gild
 ## mask is allowed. Per kind, because a column's base is proportionally taller
