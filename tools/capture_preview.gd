@@ -99,19 +99,20 @@ func capture_when_ready() -> void:
 			# Global rather than local: the camera hangs off a rig node that the
 			# scene rotates to face the near army, and a local transform typed
 			# here would depend on that rotation.
-			camera.fov = 26.0
+			camera.fov = 32.0
 			# The white army stands on the +z half of the board, so the camera
 			# stands off that side and looks back at its back rank; the first
 			# attempt was written from memory of the board render, where the pale
 			# army is at the bottom of the frame, and came back a portrait of the
 			# far army's backs.
-			camera.global_position = Vector3(0.62, 3.00, 7.40)
-			camera.look_at(Vector3(0.00, 0.60, 3.30), Vector3.UP)
+			camera.global_position = Vector3(3.40, 1.55, 1.55)
+			camera.look_at(Vector3(0.20, 0.58, 3.25), Vector3.UP)
 			# The HUD is not part of what the close-up is for, and the moves panel
-			# sits over the pieces at this distance.
-			var hud := main.get_node_or_null("UI") as CanvasItem
+			# sits over the pieces at this distance. UI is a CanvasLayer in the
+			# scene, not a CanvasItem, so it is cast as one and not the other.
+			var hud := main.get_node_or_null("UI") as CanvasLayer
 			if is_instance_valid(hud):
-				hud.hide()
+				hud.visible = false
 			for frame in 4:
 				await process_frame
 
