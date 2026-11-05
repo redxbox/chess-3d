@@ -7,7 +7,7 @@ config/name="Chess 3D"
 config/icon="res://assets/icon.svg"
 run/main_scene="res://src/main/main.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
-config/version="0.16.0"
+config/version="0.16.1"
 config/quit_on_go_back=false
 boot_splash/bg_color=Color(0.035, 0.045, 0.06, 1)
 

@@ -25,6 +25,82 @@ jobs:
         uses: actions/checkout@v5
       - name: Import resources
         run: godot --headless --editor --quit-after 10
+      # GDScript resolves property assignment at run time, so `Viewport.
+      # shadow_atlas_size` and `Environment.dof_blur_far_enabled` both parsed,
+      # both passed --check-only, and both failed the startup check ten minutes
+      # later. The property lists come from Godot's own class reference at the tag
+      # this project builds against. See tools/check_engine_properties.py.
+      # The container image ships Godot and the Android toolchain but no Python.
+      # Both size checks below are Python (they parse OBJs and read the APK's
+      # zip directory), so it is installed once here rather than reimplemented
+      # in awk.
+      - name: Ensure python3
+        shell: bash
+        run: |
+          if ! command -v python3 >/dev/null; then
+            apt-get update && apt-get install -y --no-install-recommends python3
+            rm -rf /var/lib/apt/lists/*
+          fi
+
+      - name: Check engine properties exist
+        shell: bash
+        run: python3 tools/check_engine_properties.py
+
+      # Compile every script on its own, before anything is built. --check-only
+      # resolves identifiers, so it catches the class of error gdtoolkit's parser
+      # accepts: a declaration that was deleted but is still referenced, which
+      # shipped once and only surfaced in the startup log ten minutes later.
+      - name: Compile every script
+        shell: bash
+        run: |
+          set +e
+          failed=0
+          while IFS= read -r script; do
+            out=$(godot --headless --path . --check-only --script "res://$script" 2>&1)
+            code=$?
+            if [ "$code" -ne 0 ] || printf '%s' "$out" | grep -qE "SCRIPT ERROR|Parse Error|Identifier .* not declared"; then
+              failed=1
+              printf '::error title=%s::%s\n' "$script" "$(printf '%s' "$out" | tail -5 | tr '\n' ' ')"
+              printf '%s\n' "$out" | tail -20
+            fi
+          done < <(find src tools tests -name '*.gd' | sort)
+          exit "$failed"
+
+
+      # The package budget is enforced before anything is built. It measures the
+      # part of the APK this repository decides - meshes, audio, scripts - and
+      # warns about files under assets/ that Godot has no importer for, which is
+      # how a multi-megabyte source export once came within one extension of
+      # shipping.
+      - name: Check packaged content budget
+        shell: bash
+        run: |
+          set +e
+          output=$(python3 tools/export_budget.py -v 2>&1 | head -30)
+          status=$?
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            encoded=$(printf '%s' "$output" | tail -20 | base64 -w0 | cut -c1-4000)
+            echo "::error title=Content budget base64::$encoded"
+          fi
+          exit "$status"
+
+      # Nothing that is not a runtime asset may sit under assets/. A 36 MB folder
+      # of raw sculpts got packed into the APK that way once; see
+      # tools/check_shipped_assets.py.
+      # The board and the two armies must stay in separate brightness bands.
+      # Two complaints in a row were really one arithmetic failure - an army and
+      # a square landing on the same value, or a piece landing on 255 - so the
+      # relationship is measured here on every push instead of being eyeballed in
+      # a render review. See tools/check_visual_balance.py.
+      - name: Check board and armies stay in separate brightness bands
+        shell: bash
+        run: python3 tools/check_visual_balance.py
+
+      - name: Check nothing unshippable is in assets
+        shell: bash
+        run: python3 tools/check_shipped_assets.py
+
       - name: Run chess rules tests
         shell: bash
         run: |
@@ -32,8 +108,19 @@ jobs:
           godot --headless --path . --script res://tests/test_chess.gd 2>&1 | tee /tmp/chess-tests.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            encoded_log=$(base64 -w0 /tmp/chess-tests.log | cut -c1-6000)
-            echo "::error title=Chess tests log base64::$encoded_log"
+            # The failures first: the full log is a hundred and forty passing
+            # lines, and an annotation is cut at about 4 000 characters, so the
+            # tail of the log is nearly all passes and the one failing case - the
+            # only thing anyone needs - fell off the end. The failing lines go in
+            # first, then as much of the tail as still fits.
+            {
+              echo "Failing cases:"
+              grep -E "FAIL|SCRIPT ERROR|Parse Error" /tmp/chess-tests.log | head -20
+              echo "--- end of log ---"
+              tail -20 /tmp/chess-tests.log
+            } | sed ':a;N;$!ba;s/\n/%0A/g' > /tmp/tail.txt
+            head -c 3800 /tmp/tail.txt > /tmp/tail-cut.txt
+            echo "::error title=Chess tests failed::$(cat /tmp/tail-cut.txt)"
           fi
           exit "$status"
       - name: Validate startup scene
@@ -41,7 +128,7 @@ jobs:
         run: |
           godot --headless --path . --quit-after 2 2>&1 | tee /tmp/godot-startup.log
           if grep -E "SCRIPT ERROR|Parse Error|Invalid call|Invalid set index" /tmp/godot-startup.log; then
-            encoded_log=$(base64 -w0 /tmp/godot-startup.log | cut -c1-6000)
+            encoded_log=$(base64 -w0 /tmp/godot-startup.log | cut -c1-24000)
             echo "::error title=Godot startup log base64::$encoded_log"
             echo "Godot reported a runtime error during startup"
             exit 1
@@ -56,22 +143,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-      - name: Install virtual display
+      - name: Install virtual display and the measurement tools
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends xvfb
+          # Pillow and numpy are for tools/measure_preview.py, which measures the
+          # renders this job produces; the image ships no Python at all.
+          apt-get install -y --no-install-recommends xvfb python3 python3-pil python3-numpy
           rm -rf /var/lib/apt/lists/*
       - name: Import resources
         run: godot --headless --editor --path . --quit-after 20
       - name: Render real Godot screenshot
         run: |
           mkdir -p build/preview
-          # Four combinations rather than one, because there are now four board
-          # themes and four piece sets and each of the two axes has to be seen
-          # working: the diagonal shows all four boards and all four sets in the
-          # smallest number of renders. classic-royal_wood is kept because the
-          # published showcase image is that pairing.
-          for pair in medieval-medieval persian-persian medieval-classic classic-classic classic-royal_wood jade-marble royal_blue-baroque royal_wood-classic; do
+          # One render per board/piece combination, over the diagonal of the two
+          # axes plus one cross pairing: there are three boards and three sets,
+          # and the diagonal proves all six are wired up in three renders.
+          # royal_wood-classic is kept as the fourth because the published
+          # showcase image is that pairing - the turned set on the wood board.
+          for pair in classic-classic royal_wood-bastani royal_blue-persian royal_wood-classic; do
             board="${pair%%-*}"
             pieces="${pair#*-}"
             name="${pair}.png"
@@ -81,48 +170,58 @@ jobs:
               --resolution 1536x864 --script res://tools/capture_preview.gd
             test -s "build/preview/$name"
           done
+          # And one close-up of the near army, because at board scale a crown is
+          # three pixels and no judgement about the carving can be made on it.
+          CHESS_PREVIEW_DETAIL=1 CHESS_BOARD_THEME=royal_wood CHESS_PIECE_THEME=bastani \
+            CHESS_PREVIEW_NAME=bastani-detail.png \
+            xvfb-run -a -s "-screen 0 1536x864x24" \
+            godot --path . --rendering-method gl_compatibility \
+            --resolution 1536x864 --script res://tools/capture_preview.gd
+          test -s "build/preview/bastani-detail.png"
           # And the style screen itself, so the picker is reviewed in CI too.
           CHESS_PREVIEW_PICKER=1 CHESS_PREVIEW_NAME=style-picker.png \
             xvfb-run -a -s "-screen 0 1536x864x24" \
             godot --path . --rendering-method gl_compatibility \
             --resolution 1536x864 --script res://tools/capture_preview.gd
           test -s "build/preview/style-picker.png"
-          cp build/preview/classic-royal_wood.png build/preview/theme-showcase-preview.png
+          cp build/preview/royal_wood-classic.png build/preview/theme-showcase-preview.png
+      # The only place a frame time exists in this pipeline. It is llvmpipe, so
+      # the number is not the phone's - what it is, is comparable: same machine,
+      # same renderer, same resolution, every run. The report goes to the job
+      # summary beside the renders it was measured on.
+      - name: Benchmark load and frame time
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a -s "-screen 0 1536x864x24" \
+            godot --path . --rendering-method gl_compatibility --resolution 1536x864 \
+            --script res://tools/bench_perf.gd 2>&1 | tee build/preview/perf.log
+          status=${PIPESTATUS[0]}
+          grep '^BENCH ' build/preview/perf.log | sed 's/^BENCH //' > build/preview/perf.txt
+          if [ ! -s build/preview/perf.txt ]; then
+            echo "::error title=Benchmark produced no figures::the benchmark did not run"
+            exit 1
+          fi
+          { printf '## Performance (llvmpipe, 1536x864 - relative, not a phone)\n\n| metric | value |\n| --- | --- |\n'
+            while read -r name value; do printf '| %s | %s |\n' "$name" "$value"; done < build/preview/perf.txt; } >> "$GITHUB_STEP_SUMMARY"
+          # Also as a step annotation, because the artifact is not always
+          # downloadable and these are the numbers every performance change in
+          # this project is judged against.
+          compact=$(paste -sd' ' build/preview/perf.txt)
+          echo "::notice title=Performance::$compact"
+          cat build/preview/perf.txt
+          exit "$status"
+
       - name: Upload visual preview
         uses: actions/upload-artifact@v4
         with:
           name: all-theme-previews-${{ github.run_number }}
-          path: build/preview/*.png
+          path: |
+            build/preview/*.png
+            build/preview/perf.txt
           if-no-files-found: error
           retention-days: 14
-      - name: Publish latest preview on session branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/arena/01a0dc2e-chess-3d'
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const fs = require('fs');
-            const path = 'docs/previews/theme-showcase-preview.png';
-            let sha;
-            try {
-              const current = await github.rest.repos.getContent({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                path,
-                ref: context.ref
-              });
-              sha = current.data.sha;
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
-            await github.rest.repos.createOrUpdateFileContents({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              path,
-              branch: 'arena/01a0dc2e-chess-3d',
-              message: 'Update rendered Persian preview [skip ci]',
-              content: fs.readFileSync('build/preview/theme-showcase-preview.png').toString('base64'),
-              ...(sha ? { sha } : {})
-            });
+
       # Committing the per-theme renders back to the branch gives a real visual
       # feedback loop: the sandbox that edits the code has no Godot binary, so
       # without this step lighting and material changes could only be judged by
@@ -134,7 +233,7 @@ jobs:
           script: |
             const fs = require('fs');
             const branch = context.ref.replace('refs/heads/', '');
-            for (const name of ['medieval-medieval.png', 'persian-persian.png', 'medieval-classic.png', 'classic-classic.png', 'classic-royal_wood.png', 'jade-marble.png', 'royal_blue-baroque.png', 'royal_wood-classic.png', 'style-picker.png']) {
+            for (const name of ['classic-classic.png', 'royal_wood-bastani.png', 'royal_blue-persian.png', 'royal_wood-classic.png', 'bastani-detail.png', 'style-picker.png']) {
               const path = `docs/previews/${name}`;
               let sha;
               try {
@@ -158,6 +257,61 @@ jobs:
                 ...(sha ? { sha } : {})
               });
             }
+
+      # The benchmark figures are committed back to the branch, so the next
+      # performance change has something to be compared against that is not
+      # "someone remembers the old number".
+      - name: Publish the performance baseline
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/arena/')
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const content = fs.readFileSync('build/preview/perf.txt', 'utf8');
+            const path = 'docs/perf/latest.txt';
+            let sha;
+            try {
+              const current = await github.rest.repos.getContent({
+                owner: context.repo.owner, repo: context.repo.repo, path, ref: context.ref
+              });
+              sha = current.data.sha;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path,
+              branch: context.ref.replace('refs/heads/', ''),
+              message: 'Update the performance baseline [skip ci]',
+              content: Buffer.from(content).toString('base64'),
+              ...(sha ? { sha } : {})
+            });
+
+      # The albedo guard cannot see the render: exposure, ACES, the light rig and
+      # the baked vertex occlusion all sit between an albedo and a pixel. This is
+      # the end-to-end measurement - the light squares, the dark squares, both
+      # armies' bodies and the background, read off the PNGs just produced, at
+      # the coordinates the camera rig says the board is at.
+      - name: Measure the renders
+        shell: bash
+        run: |
+          set +e
+          output=$(python3 tools/measure_preview.py \
+            build/preview/classic-classic.png \
+            build/preview/royal_wood-bastani.png \
+            build/preview/royal_blue-persian.png \
+            build/preview/royal_wood-classic.png 2>&1)
+          status=$?
+          printf '%s\n' "$output"
+          printf '```text\n%s\n```\n' "$output" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ]; then
+            # Only the failures, not the tail: four images of numbers is 4 000
+            # characters of annotation for four lines that matter.
+            printf '%s\n' "$output" | grep -E '^== |FAIL ' | sed ':a;N;$!ba;s/\n/%0A/g' > /tmp/measure.txt
+            echo "::error title=Render outside its brightness bands::$(cat /tmp/measure.txt)"
+          fi
+          exit "$status"
 
   android-debug:
     name: Build Android debug APK
@@ -210,7 +364,7 @@ jobs:
           tail -120 build/android/export.log >> "$GITHUB_STEP_SUMMARY"
           printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
           if [ "$status" -ne 0 ]; then
-            encoded_log=$(base64 -w0 build/android/export.log | cut -c1-6000)
+            encoded_log=$(base64 -w0 build/android/export.log | cut -c1-24000)
             echo "::error title=Godot export log base64::$encoded_log"
             tail -12 build/android/export.log | while IFS= read -r line; do
               echo "::error title=Godot Android export::$line"
@@ -246,6 +400,33 @@ jobs:
             exit 1
           fi
           printf '## APK identity\n\n| field | value |\n| --- | --- |\n| version name | `%s` |\n| version code | `%s` |\n\nInstall this build; **About** reports `%s`.\n' "$got_name" "$got_code" "$got_name" >> "$GITHUB_STEP_SUMMARY"
+      # The container image ships Godot and the Android toolchain but no Python.
+      # Both size checks below are Python (they parse OBJs and read the APK's
+      # zip directory), so it is installed once here rather than reimplemented
+      # in awk.
+      - name: Ensure python3
+        shell: bash
+        run: |
+          if ! command -v python3 >/dev/null; then
+            apt-get update && apt-get install -y --no-install-recommends python3
+            rm -rf /var/lib/apt/lists/*
+          fi
+
+      # The APK's own file list, not a guess: this is the only place the real
+      # number exists. The table goes into the job summary and the total into a
+      # step annotation, which the API can read, so a size change is visible on
+      # the pull request that caused it instead of only on a phone.
+      - name: Report package size
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=build/android/chess-3d.apk
+          total=$(stat -c %s "$APK")
+          python3 tools/apk_size_report.py "$APK" --annotate > build/android/size-report.md
+          echo "::notice title=APK size::$total bytes"
+          { printf '## APK size\n\n`%s` - %s\n\n' "$APK" "$(numfmt --to=iec "$total")"
+            cat build/android/size-report.md; } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

@@ -1,0 +1,14 @@
+load_ready_ms 7931
+shadow_casters 1
+draw_calls 173
+triangles 651156
+objects 290
+frames_avg_ms 133.31
+fps_equivalent 7.5
+mesh_cold_ms 959
+mesh_warm_ms 2
+mesh_cache_bytes 1322408
+king_vertices 4979
+bake_fast_ms 144
+bake_sculpt_ms 143
+gild_triangles 72

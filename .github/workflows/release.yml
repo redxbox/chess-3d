@@ -80,11 +80,20 @@ jobs:
           godot --headless --verbose --path . --export-release "Android Release AAB" build/android/chess-3d-beta.aab 2>&1 | sed -E 's/(password|pass):?[^ ]*/[REDACTED]/Ig' | tee build/android/release-export.log
           status=${PIPESTATUS[0]}
           exit "$status"
+      - name: Ensure python3
+        shell: bash
+        run: |
+          if ! command -v python3 >/dev/null; then
+            apt-get update && apt-get install -y --no-install-recommends python3
+            rm -rf /var/lib/apt/lists/*
+          fi
       - name: Verify and checksum bundle
         run: |
           test -s build/android/chess-3d-beta.aab
           /usr/lib/jvm/java-17-openjdk-amd64/bin/jarsigner -verify build/android/chess-3d-beta.aab
           sha256sum build/android/chess-3d-beta.aab > build/android/chess-3d-beta.aab.sha256
+          python3 tools/apk_size_report.py build/android/chess-3d-beta.aab >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=AAB size::$(numfmt --to=iec "$(stat -c %s build/android/chess-3d-beta.aab)")"
       - name: Remove private signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/release.keystore" "$RUNNER_TEMP/upload-source.keystore"
