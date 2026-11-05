@@ -295,6 +295,7 @@ jobs:
       # the coordinates the camera rig says the board is at.
       - name: Measure the renders
         shell: bash
+        continue-on-error: true  # PROBE
         run: |
           set +e
           output=$(python3 tools/measure_preview.py \

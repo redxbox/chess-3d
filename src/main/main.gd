@@ -248,7 +248,7 @@ const PIECE_THEMES := {
 	"persian": {
 		"label": "PERSIAN",
 		"model_set": "persian",
-		"light": Color(0.70, 0.686, 0.652),
+		"light": Color(0.68, 0.668, 0.636),
 		"dark": Color(0.32, 0.32, 0.345),
 		"accent": Color(0.92, 0.74, 0.28),
 		"light_roughness": 0.38,
@@ -268,7 +268,7 @@ const PIECE_THEMES := {
 	"bastani": {
 		"label": "BASTANI",
 		"model_set": "bastani",
-		"light": Color(0.70, 0.686, 0.652),
+		"light": Color(0.68, 0.668, 0.636),
 		"dark": Color(0.32, 0.32, 0.345),
 		"accent": Color(0.92, 0.74, 0.28),
 		"light_roughness": 0.38,
@@ -287,7 +287,7 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "CLASSIC",
 		"model_set": "staunton",
-		"light": Color(0.70, 0.686, 0.652),
+		"light": Color(0.68, 0.668, 0.636),
 		"dark": Color(0.32, 0.32, 0.345),
 		"accent": Color(0.92, 0.74, 0.28),
 		"light_roughness": 0.38,
@@ -929,7 +929,7 @@ func _setup_piece_materials() -> void:
 	# The specular is the other half of the story: at 0.06 the pale body was almost
 	# purely diffuse and a fold had no highlight along its crest at all, which is
 	# why the carving read as chalk.
-	var porcelain := _luxury_piece_material(body_light, clampf(palette.light_roughness, 0.30, 0.42), 0.0, false, false, 0.32, null, carve, 0.06, 0.40, 0.20, true)
+	var porcelain := _luxury_piece_material(body_light, clampf(palette.light_roughness, 0.30, 0.42), 0.0, false, false, 0.28, null, carve, 0.06, 0.40, 0.20, true)
 	# A rim light on the material itself, as well as the physical rim light in
 	# the scene: this one is view-dependent, so it traces the silhouette from
 	# wherever the camera is, which is what makes the edge of a pale piece read
