@@ -124,7 +124,7 @@ func _measure(scene_started: int) -> void:
 	var sculpt_started := Time.get_ticks_msec()
 	var fields: Dictionary = shading.sculpt_fields(king_positions, king_normals, king_indices, 0.25, 1.0)
 	var gild: PackedFloat32Array = fields["gild"]
-	var gilded := shading.gilded_indices(king_indices, gild, 0.55)
+	var gilded: PackedInt32Array = shading.gilded_indices(king_indices, gild, 0.55)
 	_results["bake_sculpt_ms"] = Time.get_ticks_msec() - sculpt_started
 	_results["gild_triangles"] = gilded.size() / 3
 
