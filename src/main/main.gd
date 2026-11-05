@@ -584,9 +584,17 @@ func _setup_environment() -> void:
 	# Ambient is a colour now, not the sky. A studio sky this dark contributes
 	# almost nothing to the term, and what it did contribute was tinted toward the
 	# cool horizon band - which is why the shadow side of a piece read as cold grey
-	# mud. A warm light grey at 0.45 fills the underside of a shield, the inside of
-	# a crown and the gap between an arm and a body without touching the direction
-	# the key already establishes, so the carving keeps a lit side and a dark side.
+	# mud. A warm light grey fills the underside of a shield, the inside of a crown
+	# and the gap between an arm and a body without touching the direction the key
+	# already establishes, so the carving keeps a lit side and a dark side.
+	#
+	# 0.42 rather than the 0.45 asked for, and it is the last three hundredths of a
+	# budget: at 0.45, with the ivory albedo high enough to be a lift on what
+	# shipped before, the blue board's pale army sat at 15.6% clipped - a third of a
+	# point over the line, on the brightest board, on the pieces nearest the key.
+	# Lowering the albedo instead would have taken the pale and dark armies under
+	# the 2x separation the guard requires, which is the "two armies read as one
+	# colour" failure.
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.85, 0.85, 0.88)
 	environment.ambient_light_sky_contribution = 0.0
@@ -597,7 +605,7 @@ func _setup_environment() -> void:
 	# the side facing the camera, collapses into the near-black background and the
 	# army reads as holes in the picture. 0.36 with a 1.12 key is the point where
 	# both armies hold their form and neither washes out.
-	environment.ambient_light_energy = 0.45
+	environment.ambient_light_energy = 0.42
 	# Key: front-left, above, warm, and the only light that casts. 1.12 against a
 	# 0.36 ambient is what gives a fold a lit face and a dark face; a strong
 	# ambient with a weak key gives every face the same value.
