@@ -10,15 +10,15 @@ script = ExtResource("1_main")
 [node name="Board" type="Node3D" parent="."]
 
 [node name="KeyLight" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-50, 35, 0)
+rotation_degrees = Vector3(-48, 32, 0)
 light_color = Color(1, 0.965, 0.915, 1)
-light_energy = 1.12
+light_energy = 1.0
 shadow_enabled = true
 shadow_bias = 0.01
 shadow_normal_bias = 0.25
-shadow_opacity = 0.48
-shadow_blur = 1.2
-directional_shadow_max_distance = 22.0
+shadow_opacity = 0.9
+shadow_blur = 1.75
+directional_shadow_max_distance = 24.0
 
 [node name="FillLight" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-58, 45, 0)

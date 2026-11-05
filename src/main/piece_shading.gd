@@ -94,12 +94,16 @@ const GILD_PASSES := 1
 ## 0.8, gilded a fifth of every figure: shoulders, hands and the flat of a shield,
 ## which is gold leaf thrown at the model rather than an ornament picked out.
 ##
+## It is 3.0 now, which on the shipped meshes is 4% of a guard's triangles and
+## under 1% of a king's - a rim on a shield, a spearhead, a crown's points and a
+## sceptre's head, with nothing on a flat panel or a shoulder.
+##
 ## The earlier bands left the same valley at 0.92, which is the "blurry" half of
 ## the complaint, and no amount of gilding on top of it fixes that.
 const CONCAVE_LOW := 0.4
 const CONCAVE_HIGH := 2.2
-const CONVEX_LOW := 2.4
-const CONVEX_HIGH := 6.4
+const CONVEX_LOW := 3.0
+const CONVEX_HIGH := 7.2
 
 ## The fraction of a piece's height occupied by its plinth, above which the gild
 ## mask is allowed. Per kind, because a column's base is proportionally taller

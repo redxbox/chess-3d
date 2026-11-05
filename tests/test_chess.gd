@@ -821,3 +821,14 @@ func _test_knight_facing_matches_the_meshes() -> void:
 		var black_yaw := PieceFacing.yaw(set_name, "knight", false)
 		_expect(absf(wrapf(white_yaw - black_yaw, -PI, PI)) > 3.0,
 			"%s's two knights face each other (yaws %.2f and %.2f)" % [set_name, white_yaw, black_yaw])
+		# The rule stated the other way round, because this is the form the bug
+		# was reported in and the form a future reader will check: after the turn,
+		# White's knight holds its muzzle toward rank 8 (-Z) and Black's toward
+		# rank 1 (+Z). A half turn reverses a muzzle, so the world direction is the
+		# carved direction times the turn.
+		var white_world: int = measured * (1 if is_zero_approx(white_yaw) else -1)
+		var black_world: int = measured * (1 if is_zero_approx(black_yaw) else -1)
+		_expect(white_world == -1,
+			"%s: White's knight looks toward rank 8" % set_name)
+		_expect(black_world == 1,
+			"%s: Black's knight looks toward rank 1" % set_name)

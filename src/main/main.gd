@@ -248,13 +248,13 @@ const PIECE_THEMES := {
 	"persian": {
 		"label": "PERSIAN",
 		"model_set": "persian",
-		"light": Color(0.700, 0.686, 0.648),
-		"dark": Color(0.342, 0.330, 0.317),
-		"accent": Color(0.880, 0.720, 0.300),
-		"light_roughness": 0.35,
-		"dark_roughness": 0.28,
-		"accent_roughness": 0.30,
-		"accent_metallic": 0.75,
+		"light": Color(0.88, 0.86, 0.82),
+		"dark": Color(0.20, 0.20, 0.22),
+		"accent": Color(0.92, 0.74, 0.28),
+		"light_roughness": 0.38,
+		"dark_roughness": 0.26,
+		"accent_roughness": 0.28,
+		"accent_metallic": 0.85,
 		# The carved set asks for the gilded-ornament pass: its figures carry
 		# crowns, staves, a horse's bridle and a column capital that are all
 		# convex edges, which is what the mask finds.
@@ -268,13 +268,13 @@ const PIECE_THEMES := {
 	"bastani": {
 		"label": "BASTANI",
 		"model_set": "bastani",
-		"light": Color(0.682, 0.686, 0.670),
-		"dark": Color(0.332, 0.338, 0.360),
-		"accent": Color(0.880, 0.720, 0.300),
-		"light_roughness": 0.30,
-		"dark_roughness": 0.23,
-		"accent_roughness": 0.30,
-		"accent_metallic": 0.75,
+		"light": Color(0.88, 0.86, 0.82),
+		"dark": Color(0.20, 0.20, 0.22),
+		"accent": Color(0.92, 0.74, 0.28),
+		"light_roughness": 0.38,
+		"dark_roughness": 0.26,
+		"accent_roughness": 0.28,
+		"accent_metallic": 0.85,
 		# The court figures: the guard's spear and shield rim, the griffin capital,
 		# the elephant's howdah, the queen's coronet and the king's sceptre.
 		"gild": 1.0,
@@ -287,13 +287,13 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "CLASSIC",
 		"model_set": "staunton",
-		"light": Color(0.672, 0.666, 0.645),
-		"dark": Color(0.328, 0.330, 0.352),
-		"accent": Color(0.880, 0.720, 0.300),
-		"light_roughness": 0.28,
-		"dark_roughness": 0.22,
-		"accent_roughness": 0.25,
-		"accent_metallic": 0.92,
+		"light": Color(0.88, 0.86, 0.82),
+		"dark": Color(0.20, 0.20, 0.22),
+		"accent": Color(0.92, 0.74, 0.28),
+		"light_roughness": 0.38,
+		"dark_roughness": 0.26,
+		"accent_roughness": 0.28,
+		"accent_metallic": 0.85,
 		# None: the turned set's ornament is the generated trim mesh, which is
 		# metal already. A gild mask on a surface of revolution would put a ring
 		# round every stem - see _gild_strength().
@@ -574,8 +574,15 @@ func _setup_environment() -> void:
 	studio_sky.sky_material = sky_material
 	environment.sky = studio_sky
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_sky_contribution = 1.0
+	# Ambient is a colour now, not the sky. A studio sky this dark contributes
+	# almost nothing to the term, and what it did contribute was tinted toward the
+	# cool horizon band - which is why the shadow side of a piece read as cold grey
+	# mud. A warm light grey at 0.45 fills the underside of a shield, the inside of
+	# a crown and the gap between an arm and a body without touching the direction
+	# the key already establishes, so the carving keeps a lit side and a dark side.
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color(0.85, 0.85, 0.88)
+	environment.ambient_light_sky_contribution = 0.0
 	# The ambient floor, and it is a compromise between two failures that pull in
 	# opposite directions. Too high and every face of a piece receives the same
 	# light, so a carved fold and a flat panel come out the same value and the
@@ -583,7 +590,7 @@ func _setup_environment() -> void:
 	# the side facing the camera, collapses into the near-black background and the
 	# army reads as holes in the picture. 0.36 with a 1.12 key is the point where
 	# both armies hold their form and neither washes out.
-	environment.ambient_light_energy = 0.35
+	environment.ambient_light_energy = 0.45
 	# Key: front-left, above, warm, and the only light that casts. 1.12 against a
 	# 0.36 ambient is what gives a fold a lit face and a dark face; a strong
 	# ambient with a weak key gives every face the same value.
@@ -591,9 +598,9 @@ func _setup_environment() -> void:
 	# -55 / 35 puts the light behind the board from the camera, so the near faces
 	# of the black army are lit rather than silhouetted, and the shadows fall
 	# diagonally across a piece instead of straight down behind it.
-	$KeyLight.light_energy = 1.12
+	$KeyLight.light_energy = 1.00
 	$KeyLight.light_color = Color(1.0, 0.965, 0.915)
-	$KeyLight.rotation_degrees = Vector3(-50, 35, 0)
+	$KeyLight.rotation_degrees = Vector3(-48, 32, 0)
 	# Contact-tight shadows. The normal bias is deliberately small: a large one
 	# displaces the shadow lookup a long way along the surface normal, and a flat
 	# face can end up sampling the wrong part of the shadow map and dropping into
@@ -602,7 +609,12 @@ func _setup_environment() -> void:
 	$KeyLight.shadow_enabled = true
 	$KeyLight.shadow_bias = 0.01
 	$KeyLight.shadow_normal_bias = 0.25
-	$KeyLight.shadow_blur = 1.2
+	# 1.75 rather than 1.2: at 1.2 a pawn's shadow on the board was a hard-edged
+	# silhouette with stair-stepped pixels along one side, which at this texel
+	# density reads as a scratch rather than as a shadow. The blur is the cheap
+	# half of soft shadows on this renderer (there is no PCSS here), and 1.75 is
+	# as far as it can go before the contact point starts to detach from the piece.
+	$KeyLight.shadow_blur = 1.75
 	# Orthographic, not PSSM. The board is eleven units across and always the same
 	# size on screen, so four cascades split a shadow map that was never going to
 	# run out of resolution, and every cascade is a draw of every caster: on the
@@ -892,7 +904,12 @@ func _setup_piece_materials() -> void:
 	# at or above 250 with the collar, the beads and the whole curve of the head
 	# gone. Porcelain is what it *measures* as on screen, not what its albedo
 	# says: 0.70 here lands at the 200-215 the eye reads as ivory.
-	var porcelain := _luxury_piece_material(body_light, clampf(palette.light_roughness, 0.28, 0.35), 0.0, false, false, 0.06, null, carve, 0.06, 0.40, 0.20, true)
+	# Albedo, roughness and specular are now the calibrated values rather than
+	# clamps around them: warm bone ivory at 0.88/0.86/0.82, roughness 0.38,
+	# specular 0.45. The specular lobe is the part that had to move most - at 0.06
+	# the pale body was almost purely diffuse and a fold had no highlight along its
+	# crest at all, which is half of why the carving read as chalk.
+	var porcelain := _luxury_piece_material(body_light, clampf(palette.light_roughness, 0.30, 0.42), 0.0, false, false, 0.45, null, carve, 0.06, 0.40, 0.20, true)
 	# A rim light on the material itself, as well as the physical rim light in
 	# the scene: this one is view-dependent, so it traces the silhouette from
 	# wherever the camera is, which is what makes the edge of a pale piece read
@@ -916,7 +933,11 @@ func _setup_piece_materials() -> void:
 	# 0.32 with a 0.55 specular reads on screen as the requested deep charcoal:
 	# the diffuse stays near 45-60 and the highlight climbs past 200, which is the
 	# range real ebony occupies under a studio key.
-	var ebony := _luxury_piece_material(body_dark, clampf(palette.dark_roughness, 0.22, 0.28), 0.05, false, false, 0.55, null, carve, 0.22, 0.40, 0.20, true)
+	# Charcoal graphite rather than deep black: albedo 0.20/0.20/0.22, roughness
+	# 0.26, specular 0.65. The tight lobe is doing the work here - it is what draws
+	# a highlight along a mane, a shield rim and the fold of a robe on an army that
+	# would otherwise be a silhouette against dark squares.
+	var ebony := _luxury_piece_material(body_dark, clampf(palette.dark_roughness, 0.22, 0.30), 0.05, false, false, 0.65, null, carve, 0.22, 0.40, 0.20, true)
 	ebony.rim_enabled = true
 	ebony.rim = 0.35
 	ebony.rim_tint = 0.35
@@ -930,7 +951,7 @@ func _setup_piece_materials() -> void:
 	# pick up, and every collar came back as a black hoop. The sky is a studio now
 	# (0.36 horizon band), and metallic_specular at 0.5 gives the lobe something
 	# to work with.
-	_piece_gold_material = _luxury_piece_material(accent, 0.25, clampf(palette.accent_metallic, 0.80, 0.92), false, false, 0.50)
+	_piece_gold_material = _luxury_piece_material(accent, clampf(palette.accent_roughness, 0.22, 0.34), clampf(palette.accent_metallic, 0.80, 0.92), false, false, 0.50)
 
 
 ## Fine procedural carving shared by both piece sets. A FastNoiseLite turned
@@ -1131,7 +1152,10 @@ func _piece_gild_mesh(kind: String) -> Mesh:
 	if normals.size() != positions.size():
 		normals = _smoothed_normals(positions, indices)
 	var fields := _sculpt_fields(kind, positions, normals, indices)
-	var gilded := PieceShading.gilded_indices(indices, fields["gild"], 0.55)
+	# 0.58 rather than 0.55: at 0.55 a triangle whose three vertices average just
+	# over half coverage was taken whole, and on a coarse sculpt that is a triangle
+	# straddling the edge of a rim - gold spilling a facet onto the stone beside it.
+	var gilded := PieceShading.gilded_indices(indices, fields["gild"], 0.58)
 	if gilded.is_empty():
 		_mesh_cache[cache_key] = null
 		return null
