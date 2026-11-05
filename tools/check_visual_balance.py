@@ -29,13 +29,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MAIN_GD = ROOT / "src" / "main" / "main.gd"
 
-# Albedo bands. These are linear-space albedoes, not screen values - see the
-# comment in main.gd for why the shipped ivory is 0.72 and not the 0.92 the
-# brief asked for.
+# Albedo bands. These are the colour components as written in PIECE_THEMES, which
+# the renderer converts from sRGB to linear - see the comment in main.gd for why
+# the shipped ivory is 0.72 and not the 0.88 a brief asked for. The upper edge is
+# where the measured render clips: 0.88 put 30% of the pale army at 250+, 0.72
+# keeps it near 10%, and this band is what stops the next albedo bump walking back
+# into it.
 LIGHT_SQUARE = (0.42, 0.58)
 DARK_SQUARE = (0.10, 0.27)
-PALE_ARMY = (0.55, 0.95)  # PROBE
-DARK_ARMY = (0.15, 0.35)  # PROBE
+PALE_ARMY = (0.55, 0.78)
+DARK_ARMY = (0.28, 0.35)
 
 # How far apart an army and the square it can stand on have to be, in luma.
 #
@@ -45,7 +48,7 @@ DARK_ARMY = (0.15, 0.35)  # PROBE
 # measurement shows a 25-point gap on screen. Below about 0.06 the piece is
 # distinguishable only by its specular ring, which is what the previous round
 # shipped and what the user reported as "the black side cannot be recognised".
-MIN_TERRITORY_LUMA = 0.0  # PROBE
+MIN_TERRITORY_LUMA = 0.06
 
 
 def luma(rgb: tuple[float, float, float]) -> float:

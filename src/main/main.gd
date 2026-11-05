@@ -248,8 +248,8 @@ const PIECE_THEMES := {
 	"persian": {
 		"label": "PERSIAN",
 		"model_set": "persian",
-		"light": Color(0.88, 0.86, 0.82),
-		"dark": Color(0.20, 0.20, 0.22),
+		"light": Color(0.72, 0.705, 0.672),
+		"dark": Color(0.32, 0.32, 0.345),
 		"accent": Color(0.92, 0.74, 0.28),
 		"light_roughness": 0.38,
 		"dark_roughness": 0.26,
@@ -268,8 +268,8 @@ const PIECE_THEMES := {
 	"bastani": {
 		"label": "BASTANI",
 		"model_set": "bastani",
-		"light": Color(0.88, 0.86, 0.82),
-		"dark": Color(0.20, 0.20, 0.22),
+		"light": Color(0.72, 0.705, 0.672),
+		"dark": Color(0.32, 0.32, 0.345),
 		"accent": Color(0.92, 0.74, 0.28),
 		"light_roughness": 0.38,
 		"dark_roughness": 0.26,
@@ -287,8 +287,8 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "CLASSIC",
 		"model_set": "staunton",
-		"light": Color(0.88, 0.86, 0.82),
-		"dark": Color(0.20, 0.20, 0.22),
+		"light": Color(0.72, 0.705, 0.672),
+		"dark": Color(0.32, 0.32, 0.345),
 		"accent": Color(0.92, 0.74, 0.28),
 		"light_roughness": 0.38,
 		"dark_roughness": 0.26,
@@ -911,11 +911,20 @@ func _setup_piece_materials() -> void:
 	# at or above 250 with the collar, the beads and the whole curve of the head
 	# gone. Porcelain is what it *measures* as on screen, not what its albedo
 	# says: 0.70 here lands at the 200-215 the eye reads as ivory.
-	# Albedo, roughness and specular are now the calibrated values rather than
-	# clamps around them: warm bone ivory at 0.88/0.86/0.82, roughness 0.38,
-	# specular 0.45. The specular lobe is the part that had to move most - at 0.06
-	# the pale body was almost purely diffuse and a fold had no highlight along its
-	# crest at all, which is half of why the carving read as chalk.
+	# Warm bone ivory, roughness 0.38, specular 0.45. The roughness and the
+	# specular are the requested values; the albedo is 0.72 rather than 0.88, and
+	# that is a measurement. Colour components are sRGB and the renderer converts
+	# them to linear, so 0.88 is 0.75 linear against the 0.42 this replaced - a
+	# 1.8x brighter body under a light rig that is itself brighter than before.
+	# Rendered, it put the whole lit half of every pale piece at 250+: 30% of the
+	# army clipped, measured on all four boards, with the pawns as white blobs and
+	# no carving on them at all. 0.72 is the brightest warm ivory that keeps the
+	# clipped share under the 15% the check allows while still being a visible lift
+	# on the 0.67 it shipped with.
+	#
+	# The specular is the other half of the story: at 0.06 the pale body was almost
+	# purely diffuse and a fold had no highlight along its crest at all, which is
+	# why the carving read as chalk.
 	var porcelain := _luxury_piece_material(body_light, clampf(palette.light_roughness, 0.30, 0.42), 0.0, false, false, 0.45, null, carve, 0.06, 0.40, 0.20, true)
 	# A rim light on the material itself, as well as the physical rim light in
 	# the scene: this one is view-dependent, so it traces the silhouette from
@@ -940,10 +949,17 @@ func _setup_piece_materials() -> void:
 	# 0.32 with a 0.55 specular reads on screen as the requested deep charcoal:
 	# the diffuse stays near 45-60 and the highlight climbs past 200, which is the
 	# range real ebony occupies under a studio key.
-	# Charcoal graphite rather than deep black: albedo 0.20/0.20/0.22, roughness
-	# 0.26, specular 0.65. The tight lobe is doing the work here - it is what draws
-	# a highlight along a mane, a shield rim and the fold of a robe on an army that
-	# would otherwise be a silhouette against dark squares.
+	# Charcoal graphite: roughness 0.26 and specular 0.65 as requested. The albedo
+	# is 0.32/0.32/0.345 rather than 0.20/0.20/0.22, again by measurement: at 0.20
+	# the army rendered at a median of 35 against a dark mahogany square at 41 -
+	# below the square it stands on, which is the "the black side cannot be
+	# recognised" failure from two rounds ago, and it is a property of the
+	# tonemapper rather than of taste. 0.32 puts the body above the square while
+	# keeping it clearly the dark army.
+	#
+	# The tight lobe is doing the work here: it is what draws a highlight along a
+	# mane, a shield rim and the fold of a robe on an army that would otherwise be
+	# a silhouette against dark squares.
 	var ebony := _luxury_piece_material(body_dark, clampf(palette.dark_roughness, 0.22, 0.30), 0.05, false, false, 0.65, null, carve, 0.22, 0.40, 0.20, true)
 	ebony.rim_enabled = true
 	ebony.rim = 0.35
