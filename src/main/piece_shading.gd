@@ -206,9 +206,17 @@ static func sculpt_fields(positions: PackedVector3Array, normals: PackedVector3A
 	queue.resize(welded_count)
 	var curvature := PackedFloat32Array()
 	curvature.resize(welded_count)
+	var here := Vector3.ZERO
 	for w in welded_count:
 		var token := w
+		here = weld_positions[w]
 		stamp[w] = token
+		# The offsets are accumulated as the patch grows rather than in a second
+		# pass over the queue: this runs for every vertex of every piece of every
+		# set, and the second pass over a patch of a hundred was a measurable
+		# fraction of the whole bake.
+		var away := Vector3.ZERO
+		var reach := 0.0
 		var size := 0
 		for first in range(offsets[w], offsets[w + 1]):
 			var other := adjacency[first]
@@ -217,6 +225,11 @@ static func sculpt_fields(positions: PackedVector3Array, normals: PackedVector3A
 			stamp[other] = token
 			queue[size] = other
 			size += 1
+			var away_delta := weld_positions[other] - here
+			var length := away_delta.length()
+			if length > 0.0000001:
+				away += away_delta / length
+				reach += length
 		var head := 0
 		for depth in range(1, RINGS):
 			var boundary := size
@@ -230,9 +243,14 @@ static func sculpt_fields(positions: PackedVector3Array, normals: PackedVector3A
 					stamp[far] = token
 					queue[size] = far
 					size += 1
+					var far_delta := weld_positions[far] - here
+					var far_length := far_delta.length()
+					if far_length > 0.0000001:
+						away += far_delta / far_length
+						reach += far_length
 			if size == boundary:
 				break
-		if size == 0:
+		if size == 0 or reach <= 0.0000001:
 			continue
 		# The mean of the unit vectors to the patch, projected on the normal, is
 		# the sine of the mean slope of the patch; dividing by the patch's own
@@ -240,16 +258,11 @@ static func sculpt_fields(positions: PackedVector3Array, normals: PackedVector3A
 		# positive number, a ridge a negative one - and the division is what keeps
 		# the value comparable between a wide robe and a narrow spear, which a
 		# normalised dot product cannot do.
-		var away := Vector3.ZERO
-		var reach := 0.0
-		for index in size:
-			var delta := weld_positions[queue[index]] - weld_positions[w]
-			var length := delta.length()
-			if length > 0.0000001:
-				away += delta / length
-				reach += length
-		if reach <= 0.0000001:
-			continue
+		#
+		# `size` counts every vertex in the patch, but only those with a real
+		# offset contributed to the two sums. They are the same set in practice (a
+		# zero-length edge is a degenerate triangle), and using `size` keeps the
+		# normalisation honest if one appears.
 		away /= float(size)
 		reach /= float(size)
 		curvature[w] = away.dot(weld_normals[w]) / reach

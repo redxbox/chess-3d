@@ -23,7 +23,7 @@ they are close to what a phone pays.
 | metric | meaning |
 | --- | --- |
 | `load_ready_ms` | scene instantiation to interactive, including the first board |
-| `mesh_cold_ms` | six bodies built from OBJ: parse, welded normals, UVs, tangents, cavity bake |
+| `mesh_cold_ms` | six bodies built from OBJ: parse, welded normals, UVs, tangents, cavity bake. Since the sculpt-fields rewrite this includes a three-ring patch walk per vertex - the expensive half - and it is paid once per install because the result is cached |
 | `mesh_warm_ms` | the same six read back from the mesh cache on disk |
 | `bake_fast_ms` | the shipped cavity bake on the king mesh |
 | `bake_sculpt_ms` | the full two-field carve on the king, occlusion and gild together |
