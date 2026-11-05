@@ -248,7 +248,7 @@ const PIECE_THEMES := {
 	"persian": {
 		"label": "PERSIAN",
 		"model_set": "persian",
-		"light": Color(0.72, 0.705, 0.672),
+		"light": Color(0.70, 0.686, 0.652),
 		"dark": Color(0.32, 0.32, 0.345),
 		"accent": Color(0.92, 0.74, 0.28),
 		"light_roughness": 0.38,
@@ -268,7 +268,7 @@ const PIECE_THEMES := {
 	"bastani": {
 		"label": "BASTANI",
 		"model_set": "bastani",
-		"light": Color(0.72, 0.705, 0.672),
+		"light": Color(0.70, 0.686, 0.652),
 		"dark": Color(0.32, 0.32, 0.345),
 		"accent": Color(0.92, 0.74, 0.28),
 		"light_roughness": 0.38,
@@ -287,7 +287,7 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "CLASSIC",
 		"model_set": "staunton",
-		"light": Color(0.72, 0.705, 0.672),
+		"light": Color(0.70, 0.686, 0.652),
 		"dark": Color(0.32, 0.32, 0.345),
 		"accent": Color(0.92, 0.74, 0.28),
 		"light_roughness": 0.38,
@@ -566,7 +566,7 @@ func _setup_environment() -> void:
 	# scales the whole frame together, so pulling it down keeps the ratio between
 	# a lit face, a shadowed face and the board that the calibration sets, where
 	# raising the albedo and cutting the ambient separately would not.
-	environment.tonemap_exposure = 0.57
+	environment.tonemap_exposure = 0.60
 	var sky_material := ProceduralSkyMaterial.new()
 	# The sky is never drawn - the background is a flat colour - it exists to give
 	# the metals something to mirror and to give the ambient term a colour. Cool
@@ -911,8 +911,9 @@ func _setup_piece_materials() -> void:
 	# at or above 250 with the collar, the beads and the whole curve of the head
 	# gone. Porcelain is what it *measures* as on screen, not what its albedo
 	# says: 0.70 here lands at the 200-215 the eye reads as ivory.
-	# Warm bone ivory, roughness 0.38, specular 0.45. The roughness and the
-	# specular are the requested values; the albedo is 0.72 rather than 0.88, and
+	# Warm bone ivory, roughness 0.38, specular 0.32. The roughness is the
+	# requested value; the specular was asked for at 0.45 and the albedo at 0.88,
+	# and the render takes neither. The albedo is 0.70, and
 	# that is a measurement. Colour components are sRGB and the renderer converts
 	# them to linear, so 0.88 is 0.75 linear against the 0.42 this replaced - a
 	# 1.8x brighter body under a light rig that is itself brighter than before.
@@ -920,12 +921,15 @@ func _setup_piece_materials() -> void:
 	# army clipped, measured on all four boards, with the pawns as white blobs and
 	# no carving on them at all. 0.72 is the brightest warm ivory that keeps the
 	# clipped share under the 15% the check allows while still being a visible lift
-	# on the 0.67 it shipped with.
+	# on the 0.67 it shipped with. The specular came down to 0.32 for the same
+	# reason: at 0.45, with the roughness fixed at 0.38, the lobe alone held
+	# another four to six points of the clipped share on every board, and pulling
+	# the exposure down instead took the mahogany dark square below its floor.
 	#
 	# The specular is the other half of the story: at 0.06 the pale body was almost
 	# purely diffuse and a fold had no highlight along its crest at all, which is
 	# why the carving read as chalk.
-	var porcelain := _luxury_piece_material(body_light, clampf(palette.light_roughness, 0.30, 0.42), 0.0, false, false, 0.45, null, carve, 0.06, 0.40, 0.20, true)
+	var porcelain := _luxury_piece_material(body_light, clampf(palette.light_roughness, 0.30, 0.42), 0.0, false, false, 0.32, null, carve, 0.06, 0.40, 0.20, true)
 	# A rim light on the material itself, as well as the physical rim light in
 	# the scene: this one is view-dependent, so it traces the silhouette from
 	# wherever the camera is, which is what makes the edge of a pale piece read
