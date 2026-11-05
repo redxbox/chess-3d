@@ -108,12 +108,19 @@ jobs:
           godot --headless --path . --script res://tests/test_chess.gd 2>&1 | tee /tmp/chess-tests.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            # The tail, as plain text with GitHub's newline escape. base64 in an
-            # annotation gets cut at about 4 000 characters, which twice lopped
-            # the log off in the middle of the passing run before the failing
-            # case; the last lines of the log are the ones that matter.
-            tail -40 /tmp/chess-tests.log | sed ':a;N;$!ba;s/\n/%0A/g' > /tmp/tail.txt
-            echo "::error title=Chess tests failed::$(cat /tmp/tail.txt)"
+            # The failures first: the full log is a hundred and forty passing
+            # lines, and an annotation is cut at about 4 000 characters, so the
+            # tail of the log is nearly all passes and the one failing case - the
+            # only thing anyone needs - fell off the end. The failing lines go in
+            # first, then as much of the tail as still fits.
+            {
+              echo "Failing cases:"
+              grep -E "FAIL|SCRIPT ERROR|Parse Error" /tmp/chess-tests.log | head -20
+              echo "--- end of log ---"
+              tail -20 /tmp/chess-tests.log
+            } | sed ':a;N;$!ba;s/\n/%0A/g' > /tmp/tail.txt
+            head -c 3800 /tmp/tail.txt > /tmp/tail-cut.txt
+            echo "::error title=Chess tests failed::$(cat /tmp/tail-cut.txt)"
           fi
           exit "$status"
       - name: Validate startup scene
