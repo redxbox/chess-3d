@@ -559,7 +559,14 @@ func _setup_environment() -> void:
 	# standing on the far rank still has something to be seen against.
 	environment.background_color = Color(0.068, 0.072, 0.082)
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.tonemap_exposure = 0.74
+	# 0.60, down from 0.74, because the material and ambient calibration above is
+	# brighter than what it replaced: warm ivory at 0.88 albedo and a 0.45 colour
+	# ambient at a 1.0 key put 25-32% of the pale army at 250+ and the light
+	# squares over 230 - measured, not predicted. Exposure is the one knob that
+	# scales the whole frame together, so pulling it down keeps the ratio between
+	# a lit face, a shadowed face and the board that the calibration sets, where
+	# raising the albedo and cutting the ambient separately would not.
+	environment.tonemap_exposure = 0.60
 	var sky_material := ProceduralSkyMaterial.new()
 	# The sky is never drawn - the background is a flat colour - it exists to give
 	# the metals something to mirror and to give the ambient term a colour. Cool
