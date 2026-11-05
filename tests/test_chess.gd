@@ -611,7 +611,7 @@ func _test_sculpt_relief_and_gild() -> void:
 	var bare_peak := 0.0
 	var tip_peak := 0.0
 	for index in base_gild.size():
-		var y := ridge.positions[index].y
+		var y: float = ridge.positions[index].y
 		if y < -0.5:
 			bare_peak = maxf(bare_peak, base_gild[index])
 		elif y > -0.05:
