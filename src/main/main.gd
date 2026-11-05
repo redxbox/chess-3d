@@ -1135,9 +1135,22 @@ func _piece_gild_mesh(kind: String) -> Mesh:
 	if gilded.is_empty():
 		_mesh_cache[cache_key] = null
 		return null
+	# Lifted a fifth of a millimetre off the stone, along the smoothing normal.
+	#
+	# Without the lift the gold is the body's own triangles at the body's own
+	# positions - exactly coplanar surfaces - and the depth test decides per pixel
+	# and per frame which one wins. In the close-up render that showed as a set
+	# with no gold at all and a few gold specks where the fight happened to go
+	# the metal's way, which is a very expensive way to look unpainted. The lift
+	# is 0.003 of a piece about 1.3 units tall: under a tenth of a pixel at
+	# playing distance, and far larger than the depth buffer's step.
+	var lifted := PackedVector3Array()
+	lifted.resize(positions.size())
+	for vertex in positions.size():
+		lifted[vertex] = positions[vertex] + normals[vertex] * GILD_LIFT
 	var mesh_arrays := []
 	mesh_arrays.resize(Mesh.ARRAY_MAX)
-	mesh_arrays[Mesh.ARRAY_VERTEX] = positions
+	mesh_arrays[Mesh.ARRAY_VERTEX] = lifted
 	mesh_arrays[Mesh.ARRAY_NORMAL] = normals
 	mesh_arrays[Mesh.ARRAY_INDEX] = gilded
 	var gild_mesh := ArrayMesh.new()
@@ -1170,6 +1183,10 @@ func _shade_colors(shade: PackedFloat32Array) -> PackedColorArray:
 ## height on the figures that stand rather than sit. One number per kind rather
 ## than one for the set, because a rook's plinth is proportionally taller than a
 ## queen's.
+## How far the gilded surface is lifted off the stone, in board units. See
+## _piece_gild_mesh(): at zero the gold and the body are the same triangles.
+const GILD_LIFT := 0.003
+
 const SET_PLINTH_FRACTION := {
 	"pawn": 0.105,
 	"rook": 0.150,
