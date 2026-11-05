@@ -34,8 +34,8 @@ MAIN_GD = ROOT / "src" / "main" / "main.gd"
 # brief asked for.
 LIGHT_SQUARE = (0.42, 0.58)
 DARK_SQUARE = (0.10, 0.27)
-PALE_ARMY = (0.55, 0.75)
-DARK_ARMY = (0.24, 0.35)
+PALE_ARMY = (0.55, 0.95)  # PROBE
+DARK_ARMY = (0.15, 0.35)  # PROBE
 
 # How far apart an army and the square it can stand on have to be, in luma.
 #
