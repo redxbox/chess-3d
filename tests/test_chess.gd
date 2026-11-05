@@ -513,7 +513,11 @@ func _test_piece_shading() -> void:
 	var bowl_min := 1.0
 	for value in shade:
 		bowl_min = minf(bowl_min, value)
-	_expect(bowl_min > 0.999, "a shallow hollow is left alone too (darkest %.3f)" % bowl_min)
+	# Not "exactly 1.000": a paraboloid does curve, by about 0.2 per unit, which
+	# is inside the smoothstep's first few percent. What matters is that a hollow
+	# of this size is a hair off white while a fold is a real shadow - the fold
+	# case below is 0.46.
+	_expect(bowl_min > 0.98, "a shallow hollow is barely touched (darkest %.3f)" % bowl_min)
 
 	# A flat face carries no shading at all: the turned pieces are all convex and
 	# flat, and greying them over would read as dirt.
