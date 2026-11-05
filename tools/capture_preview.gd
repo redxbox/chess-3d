@@ -81,6 +81,30 @@ func capture_when_ready() -> void:
 		await process_frame
 	await create_timer(2.0).timeout
 
+	# One capture mode stands four units from the near army instead of thirteen.
+	#
+	# This exists because the board render cannot answer the question it is
+	# published for. At 1536x864 a figure is about sixty pixels tall, so a crown,
+	# a spearhead, a griffin's beak and a robe fold are three or four pixels each
+	# - which is enough to see that *something* is there and not enough to tell
+	# whether it reads as what it is. Every judgement about the figurative set's
+	# carving was being made on that, so the close-up is rendered by CI next to
+	# the board rather than being taken on trust.
+	#
+	# After the settle loop, because the rig writes the camera in
+	# _apply_camera_rig() and would overwrite anything set before it.
+	if OS.get_environment("CHESS_PREVIEW_DETAIL") == "1":
+		var camera := main.get("camera") as Camera3D
+		if is_instance_valid(camera):
+			# Global rather than local: the camera hangs off a rig node that the
+			# scene rotates to face the near army, and a local transform typed
+			# here would depend on that rotation.
+			camera.fov = float(OS.get_environment("CHESS_PREVIEW_DETAIL_FOV")) if OS.get_environment("CHESS_PREVIEW_DETAIL_FOV") != "" else 24.0
+			camera.global_position = Vector3(-1.05, 2.30, -6.00)
+			camera.look_at(Vector3(-0.15, 0.62, -2.45), Vector3.UP)
+			for frame in 4:
+				await process_frame
+
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://build/preview"))
 	var image := root.get_texture().get_image()
 	if image == null or image.is_empty():
