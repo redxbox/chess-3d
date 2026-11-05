@@ -566,7 +566,7 @@ func _setup_environment() -> void:
 	# scales the whole frame together, so pulling it down keeps the ratio between
 	# a lit face, a shadowed face and the board that the calibration sets, where
 	# raising the albedo and cutting the ambient separately would not.
-	environment.tonemap_exposure = 0.60
+	environment.tonemap_exposure = 0.57
 	var sky_material := ProceduralSkyMaterial.new()
 	# The sky is never drawn - the background is a flat colour - it exists to give
 	# the metals something to mirror and to give the ambient term a colour. Cool
@@ -930,8 +930,12 @@ func _setup_piece_materials() -> void:
 	# the scene: this one is view-dependent, so it traces the silhouette from
 	# wherever the camera is, which is what makes the edge of a pale piece read
 	# against a pale square. Small on purpose - a strong rim on white is a glow.
+	# 0.25, not 0.40. The view-dependent rim traces the silhouette wherever the
+	# camera is, and on an ivory body under this ambient it was adding a blown
+	# outline to the same pixels the key light already had at 250+. What the pale
+	# army needs from a rim is an edge against a pale square, not a halo.
 	porcelain.rim_enabled = true
-	porcelain.rim = 0.4
+	porcelain.rim = 0.25
 	porcelain.rim_tint = 0.2
 	_piece_ivory_material = porcelain
 
