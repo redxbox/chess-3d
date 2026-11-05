@@ -701,9 +701,6 @@ func _paraboloid(sign: float, steps: int) -> Dictionary:
 			var d := c + 1
 			for index in [a, b, d, a, d, c]:
 				indices.append(index)
-	if not is_equal_approx(scale, 1.0):
-		for i in positions.size():
-			positions[i] = positions[i] * scale
 	return {"positions": positions, "normals": normals, "indices": indices}
 
 
