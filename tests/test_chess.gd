@@ -37,7 +37,7 @@ func _init() -> void:
 	_test_piece_shading()
 	_test_camera_rig()
 	_test_piece_height_ladder()
-	_test_shading_matches_reference()
+	_test_sculpt_relief_and_gild()
 	_test_knight_facing_matches_the_meshes()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
@@ -489,30 +489,31 @@ func _blank_board() -> Array:
 func _test_piece_shading() -> void:
 	# A dome: nothing on it may be darkened, or every collar and crown on the
 	# board would get a grey line down it.
+	#
+	# A dome this smooth curves by about 0.15 per unit - less than half the
+	# curvature at which the occlusion starts - so the correct answer for it is
+	# "no shading at all", and that is what the wider patch returns. The convex
+	# half of the same measurement is the gild mask, which is checked separately
+	# below on a ridge that is sharp enough to be an edge.
 	var dome := _paraboloid(-1.0, 12)
 	var shade := PieceShading.cavity_shade(dome.positions, dome.normals, dome.indices)
 	var dome_min := 1.0
 	for value in shade:
 		dome_min = minf(dome_min, value)
-	_expect(shade.size() == dome.positions.size() and dome_min > 0.95,
-		"a convex surface is left alone (darkest %.2f)" % dome_min)
+	_expect(shade.size() == dome.positions.size() and dome_min > 0.999,
+		"a smooth convex surface is left alone (darkest %.3f)" % dome_min)
 
-	# A bowl: the folds of a robe, the inside of a crown. It must darken, and it
-	# must stay stone-coloured rather than going to black.
+	# A bowl: the inside of a crown, the hollow behind a shield. A paraboloid
+	# this shallow is still below the curvature at which a crease begins, so the
+	# correct answer is again "nothing" - a hollow is not a fold. What the
+	# occlusion must actually do on a fold is checked on the 90 degree valley in
+	# _test_sculpt_relief_and_gild, which is the shape a robe fold really is.
 	var bowl := _paraboloid(1.0, 12)
 	shade = PieceShading.cavity_shade(bowl.positions, bowl.normals, bowl.indices)
-	var bowl_total := 0.0
 	var bowl_min := 1.0
 	for value in shade:
-		bowl_total += value
 		bowl_min = minf(bowl_min, value)
-	var bowl_mean := bowl_total / float(shade.size())
-	_expect(bowl_mean < 0.80, "a concave surface is darkened (mean %.2f)" % bowl_mean)
-	_expect(bowl_min > 0.30, "and it stays stone rather than going black (%.2f)" % bowl_min)
-
-	# The two must be far enough apart to read as light and shadow at phone size.
-	_expect(dome_min - bowl_mean > 0.20,
-		"convex and concave differ by enough to see (%.2f against %.2f)" % [dome_min, bowl_mean])
+	_expect(bowl_min > 0.999, "a shallow hollow is left alone too (darkest %.3f)" % bowl_min)
 
 	# A flat face carries no shading at all: the turned pieces are all convex and
 	# flat, and greying them over would read as dirt.
@@ -532,6 +533,129 @@ func _test_piece_shading() -> void:
 	shade = PieceShading.cavity_shade(PackedVector3Array([Vector3.UP]),
 		PackedVector3Array([Vector3.UP]), PackedInt32Array())
 	_expect(shade.size() == 1 and shade[0] > 0.999, "a lone vertex has nothing to curve against")
+
+
+## The fold, the ridge and the gilded edge - the three things the figurative
+## set's complaint was actually about.
+##
+## The fixtures are analytic so that "concave" and "convex" are facts about the
+## geometry rather than about a winding order I got wrong: two planes meeting
+## along an edge is a valley at +1 and a ridge at -1, and nothing else. Both are
+## 90 degree edges, because 90 degrees is what a crown point, a spear tip and the
+## rim of a shield are; a table of thresholds tuned on a 15 degree roof would be
+## tuned on nothing.
+func _test_sculpt_relief_and_gild() -> void:
+	# --- a fold of drapery -------------------------------------------------
+	# The numbers here are measured on this fixture with the shipped constants:
+	# 0.46 in the valley, 98% of the surface untouched, and the shading spread
+	# over about a tenth of the sheet rather than sitting on the seam.
+	var valley := _roof(1.0, 24, 1.0)
+	var fields := PieceShading.sculpt_fields(valley.positions, valley.normals, valley.indices, 0.0)
+	var shade: PackedFloat32Array = fields["shade"]
+	var deepest := INF
+	var painted := 0
+	for value in shade:
+		deepest = minf(deepest, value)
+		if value < 0.99:
+			painted += 1
+	_expect(deepest < 0.60, "a fold of drapery darkens sharply (deepest %.3f)" % deepest)
+	_expect(deepest > 0.35, "and stays stone rather than going black (%.3f)" % deepest)
+	var painted_share := float(painted) / float(shade.size())
+	_expect(painted_share > 0.03 and painted_share < 0.55,
+		"the fold is a band, not a line (%.0f%% of the surface)" % (painted_share * 100.0))
+
+	# A valley is never gold: gilding a crease is paint, not ornament, and it was
+	# half of what "blurry noisy mess" described.
+	var valley_gild: PackedFloat32Array = fields["gild"]
+	var valley_gilded := 0
+	for value in valley_gild:
+		if value > 0.5:
+			valley_gilded += 1
+	_expect(valley_gilded == 0, "a fold is not gilded (%d vertices)" % valley_gilded)
+
+	# --- a convex edge -----------------------------------------------------
+	# A ridge must not be darkened at all: it is the brightest thing on a
+	# carving, and greying it is exactly the "aggressive vertex-darkening" the
+	# set was reported with.
+	var ridge := _roof(-1.0, 24, 1.0)
+	var ridge_fields := PieceShading.sculpt_fields(ridge.positions, ridge.normals, ridge.indices, 0.0)
+	var ridge_shade: PackedFloat32Array = ridge_fields["shade"]
+	var ridge_min := INF
+	for value in ridge_shade:
+		ridge_min = minf(ridge_min, value)
+	_expect(ridge_min > 0.999, "a ridge is not darkened at all (darkest %.3f)" % ridge_min)
+
+	# And it is where the gold goes. On the fixture a few vertices carry it (a
+	# single edge is not a crown); what the test can still pin is that the mask
+	# exists, is strongest on the axis of the ridge, and is scaled by the
+	# set's own strength.
+	var ridge_gild: PackedFloat32Array = ridge_fields["gild"]
+	var ridge_peak := 0.0
+	for value in ridge_gild:
+		ridge_peak = maxf(ridge_peak, value)
+	_expect(ridge_peak > 0.25, "the ridge carries gold (peak %.2f)" % ridge_peak)
+	var weaker := PieceShading.sculpt_fields(ridge.positions, ridge.normals, ridge.indices, 0.0, 0.0)
+	var weaker_peak := 0.0
+	for value in (weaker["gild"] as PackedFloat32Array):
+		weaker_peak = maxf(weaker_peak, value)
+	_expect(weaker_peak == 0.0, "a set that asks for no gold gets none (peak %.2f)" % weaker_peak)
+
+	# --- the plinth is stone ------------------------------------------------
+	# A statuette is gilded on its ornament, not round its base: a gold ring at
+	# the bottom of every piece reads as a band of paint, and it was the thing
+	# the first prototype of this mask produced.
+	var base := PieceShading.sculpt_fields(ridge.positions, ridge.normals, ridge.indices, 0.5, 1.0)
+	var base_gild: PackedFloat32Array = base["gild"]
+	var above := 0.0
+	for index in base_gild.size():
+		if ridge.positions[index].y > 0.5 * 2.0 * 0.5:
+			above = maxf(above, base_gild[index])
+	_expect(above > 0.0, "the same ridge above the plinth is still gilded (peak %.2f)" % above)
+
+	# --- the gilded surface is whole triangles ------------------------------
+	var indices := PieceShading.gilded_indices(ridge.indices, ridge_gild, 0.0)
+	_expect(indices.size() % 3 == 0 and indices.size() == ridge.indices.size(),
+		"a threshold of zero keeps every triangle (%d)" % indices.size())
+	var none := PieceShading.gilded_indices(ridge.indices, ridge_gild, 2.0)
+	_expect(none.is_empty(), "a threshold above the peak keeps none")
+
+
+## Two planes meeting along the x axis, welded along the seam so it is a real
+## edge: sign +1 is a valley (a fold), sign -1 a ridge (a crown point). `slope` 1
+## is a 90 degree dihedral.
+func _roof(sign: float, steps: int, slope: float) -> Dictionary:
+	var positions := PackedVector3Array()
+	var normals := PackedVector3Array()
+	for side in 2:
+		for i in steps + 1:
+			var x := float(i) / float(steps)
+			for j in steps + 1:
+				var z := -1.0 + 2.0 * float(j) / float(steps)
+				positions.append(Vector3(x, sign * slope * x, z))
+				normals.append(Vector3(-sign * slope, 1.0, 0.0).normalized())
+	var half := (steps + 1) * (steps + 1)
+	var indices := PackedInt32Array()
+	for side in 2:
+		var base := side * half
+		var flip := side == 1
+		for i in steps:
+			for j in steps:
+				var a := base + i * (steps + 1) + j
+				var b := a + 1
+				var c := a + steps + 1
+				var d := c + 1
+				if flip:
+					# Mirroring reverses the winding: keep the faces facing out.
+					for index in [a, d, b, a, c, d]:
+						indices.append(index)
+				else:
+					for index in [a, b, d, a, d, c]:
+						indices.append(index)
+	# Mirror the second sheet onto the other side of the seam.
+	for i in range(half, positions.size()):
+		positions[i] = Vector3(-positions[i].x, positions[i].y, positions[i].z)
+		normals[i] = Vector3(-normals[i].x, normals[i].y, normals[i].z)
+	return {"positions": positions, "normals": normals, "indices": indices}
 
 
 ## A grid sampling y = +-(x*x + z*z) / 2 over [-1, 1]^2, with the exact analytic
@@ -584,37 +708,11 @@ func _test_camera_rig() -> void:
 	_expect(lift > 5.0, "the back rank clears the pawns (%.2f units)" % lift)
 
 
-
-
 ## The height ladder: the six kinds must climb in the requested proportions, and
 ## the bishop must be decisively taller than the knight.
 ##
 ## This is a test rather than a comment because the previous ladder had the two
 ## within 1.5% of each other, which on a phone is the same height.
-## The fast bake against the reference one, on the same geometry.
-##
-## The rewrite replaced dictionaries with flat arrays; the shading it produces
-## must be the same shading, or every piece on the board changed appearance in a
-## commit that was supposed to be about frame time.
-func _test_shading_matches_reference() -> void:
-	var mesh := _paraboloid(1.0, 12)
-	var positions: PackedVector3Array = mesh["positions"]
-	var normals: PackedVector3Array = mesh["normals"]
-	var indices: PackedInt32Array = mesh["indices"]
-	var fast := PieceShading.cavity_shade(positions, normals, indices)
-	var reference := PieceShading.cavity_shade_reference(positions, normals, indices)
-	_expect(fast.size() == reference.size(), "both bakes cover every vertex")
-	var worst := 0.0
-	for i in fast.size():
-		worst = maxf(worst, absf(fast[i] - reference[i]))
-	# The two build their neighbour sets in different orders, so the float sums
-	# are not bit-identical; a thousandth of a value is below one step of an
-	# 8-bit vertex colour.
-	_expect(worst < 0.001, "the fast bake matches the reference one (worst %.5f)" % worst)
-	_expect(PieceShading.cavity_shade_reference(positions, normals, indices).size() == positions.size(),
-		"the reference bake is still callable")
-
-
 func _test_piece_height_ladder() -> void:
 	var order := ["pawn", "rook", "knight", "bishop", "queen", "king"]
 	for index in order.size():

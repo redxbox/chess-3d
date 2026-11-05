@@ -26,7 +26,8 @@ they are close to what a phone pays.
 | `mesh_cold_ms` | six bodies built from OBJ: parse, welded normals, UVs, tangents, cavity bake |
 | `mesh_warm_ms` | the same six read back from the mesh cache on disk |
 | `bake_fast_ms` | the shipped cavity bake on the king mesh |
-| `bake_reference_ms` | the implementation it replaced, for the ratio |
+| `bake_sculpt_ms` | the full two-field carve on the king, occlusion and gild together |
+| `gild_triangles` | how many faces the gild surface covers on the king |
 | `frames_avg_ms` | mean frame time over 120 frames, software rendering |
 | `draw_calls`, `triangles`, `objects` | what the frame costs the GPU |
 | `shadow_casters` | lights that still cast a shadow; this must be 1 |

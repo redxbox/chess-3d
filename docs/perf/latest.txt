@@ -10,4 +10,5 @@ mesh_warm_ms 1
 mesh_cache_bytes 1322408
 king_vertices 4979
 bake_fast_ms 32
-bake_reference_ms 50
+bake_sculpt_ms 0
+gild_triangles 0

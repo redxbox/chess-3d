@@ -114,12 +114,19 @@ func _measure(scene_started: int) -> void:
 	var king_normals: PackedVector3Array = king_arrays[Mesh.ARRAY_NORMAL]
 	var king_indices: PackedInt32Array = king_arrays[Mesh.ARRAY_INDEX] if king_arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
 	_results["king_vertices"] = king_positions.size()
+	# The bake the figures are actually carved with: the two fields in one pass,
+	# plus the second pass that turns faces into gilded triangles. The occlusion
+	# alone is timed as well, because on the flat sets that is all that runs.
 	var fast_started := Time.get_ticks_msec()
 	shading.cavity_shade(king_positions, king_normals, king_indices)
 	_results["bake_fast_ms"] = Time.get_ticks_msec() - fast_started
-	var reference_started := Time.get_ticks_msec()
-	shading.cavity_shade_reference(king_positions, king_normals, king_indices)
-	_results["bake_reference_ms"] = Time.get_ticks_msec() - reference_started
+
+	var sculpt_started := Time.get_ticks_msec()
+	var fields: Dictionary = shading.sculpt_fields(king_positions, king_normals, king_indices, 0.25, 1.0)
+	var gild: PackedFloat32Array = fields["gild"]
+	var gilded := shading.gilded_indices(king_indices, gild, 0.55)
+	_results["bake_sculpt_ms"] = Time.get_ticks_msec() - sculpt_started
+	_results["gild_triangles"] = gilded.size() / 3
 
 	for name in _results:
 		print("BENCH %s %s" % [name, _results[name]])

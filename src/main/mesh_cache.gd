@@ -23,7 +23,11 @@ extends RefCounted
 ##
 ## `user://` is not a build artefact and never ships: the cache is per install.
 
-const FORMAT := 3
+## Bumped to 4 with the sculpt fields rewrite: the cavity bake is now measured
+## over a three-ring patch and thresholded instead of stretched, so a mesh cached
+## by 3 carries the blotched shading the rewrite was written to remove. A cache
+## is per install and free to rebuild; keeping a stale one is not.
+const FORMAT := 4
 const ROOT := "user://mesh_cache"
 
 

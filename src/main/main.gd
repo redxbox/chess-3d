@@ -87,7 +87,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "41.0"
+const APP_BUILD := "42.0"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -250,11 +250,15 @@ const PIECE_THEMES := {
 		"model_set": "persian",
 		"light": Color(0.700, 0.686, 0.648),
 		"dark": Color(0.342, 0.330, 0.317),
-		"accent": Color(0.760, 0.600, 0.230),
+		"accent": Color(0.880, 0.720, 0.300),
 		"light_roughness": 0.35,
 		"dark_roughness": 0.28,
-		"accent_roughness": 0.25,
-		"accent_metallic": 0.88,
+		"accent_roughness": 0.30,
+		"accent_metallic": 0.75,
+		# The carved set asks for the gilded-ornament pass: its figures carry
+		# crowns, staves, a horse's bridle and a column capital that are all
+		# convex edges, which is what the mask finds.
+		"gild": 1.0,
 		"trim_variant": "persian",
 		"swatch_light": Color(0.80, 0.78, 0.74),
 		"swatch_dark": Color(0.21, 0.20, 0.19),
@@ -266,11 +270,14 @@ const PIECE_THEMES := {
 		"model_set": "bastani",
 		"light": Color(0.682, 0.686, 0.670),
 		"dark": Color(0.332, 0.338, 0.360),
-		"accent": Color(0.760, 0.600, 0.230),
+		"accent": Color(0.880, 0.720, 0.300),
 		"light_roughness": 0.30,
 		"dark_roughness": 0.23,
-		"accent_roughness": 0.25,
-		"accent_metallic": 0.90,
+		"accent_roughness": 0.30,
+		"accent_metallic": 0.75,
+		# The court figures: the guard's spear and shield rim, the griffin capital,
+		# the elephant's howdah, the queen's coronet and the king's sceptre.
+		"gild": 1.0,
 		"trim_variant": "bastani",
 		"swatch_light": Color(0.80, 0.81, 0.79),
 		"swatch_dark": Color(0.20, 0.205, 0.215),
@@ -282,11 +289,15 @@ const PIECE_THEMES := {
 		"model_set": "staunton",
 		"light": Color(0.672, 0.666, 0.645),
 		"dark": Color(0.328, 0.330, 0.352),
-		"accent": Color(0.760, 0.600, 0.230),
+		"accent": Color(0.880, 0.720, 0.300),
 		"light_roughness": 0.28,
 		"dark_roughness": 0.22,
 		"accent_roughness": 0.25,
 		"accent_metallic": 0.92,
+		# None: the turned set's ornament is the generated trim mesh, which is
+		# metal already. A gild mask on a surface of revolution would put a ring
+		# round every stem - see _gild_strength().
+		"gild": 0.0,
 		"trim_variant": "classic",
 		"swatch_light": Color(0.82, 0.81, 0.79),
 		"swatch_dark": Color(0.21, 0.21, 0.22),
@@ -572,7 +583,7 @@ func _setup_environment() -> void:
 	# the side facing the camera, collapses into the near-black background and the
 	# army reads as holes in the picture. 0.36 with a 1.12 key is the point where
 	# both armies hold their form and neither washes out.
-	environment.ambient_light_energy = 0.34
+	environment.ambient_light_energy = 0.35
 	# Key: front-left, above, warm, and the only light that casts. 1.12 against a
 	# 0.36 ambient is what gives a fold a lit face and a dark face; a strong
 	# ambient with a weak key gives every face the same value.
@@ -582,7 +593,7 @@ func _setup_environment() -> void:
 	# diagonally across a piece instead of straight down behind it.
 	$KeyLight.light_energy = 1.12
 	$KeyLight.light_color = Color(1.0, 0.965, 0.915)
-	$KeyLight.rotation_degrees = Vector3(-55, 35, 0)
+	$KeyLight.rotation_degrees = Vector3(-50, 35, 0)
 	# Contact-tight shadows. The normal bias is deliberately small: a large one
 	# displaces the shadow lookup a long way along the surface normal, and a flat
 	# face can end up sampling the wrong part of the shadow map and dropping into
@@ -995,8 +1006,8 @@ func _piece_mesh(kind: String) -> Mesh:
 		# Already complete apart from the shading, so only that is added.
 		var complete := ArrayMesh.new()
 		var arrays_copy := arrays.duplicate()
-		arrays_copy[Mesh.ARRAY_COLOR] = _shade_colors(PieceShading.cavity_shade(
-			positions, arrays[Mesh.ARRAY_NORMAL], _surface_indices(arrays)))
+		var fields := _sculpt_fields(kind, positions, arrays[Mesh.ARRAY_NORMAL], _surface_indices(arrays))
+		arrays_copy[Mesh.ARRAY_COLOR] = _shade_colors(fields["shade"])
 		complete.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays_copy)
 		_mesh_cache[cache_key] = complete
 		MeshCache.save_mesh(cache_key, complete)
@@ -1039,7 +1050,8 @@ func _piece_mesh(kind: String) -> Mesh:
 	# One pass over the geometry, one grey value per vertex: the creases and the
 	# folds of the carving, which is what makes a single-colour piece read as a
 	# carved figure instead of a silhouette. See piece_shading.gd.
-	var shade := PieceShading.cavity_shade(positions, source_normals if has_normals else smoothed, indices)
+	var fields := _sculpt_fields(kind, positions, source_normals if has_normals else smoothed, indices)
+	var shade: PackedFloat32Array = fields["shade"]
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in positions.size():
@@ -1066,6 +1078,73 @@ func _piece_mesh(kind: String) -> Mesh:
 	_mesh_cache[cache_key] = mesh
 	MeshCache.save_mesh(cache_key, mesh)
 	return mesh
+
+
+## The sculpt fields for one body, memoised. `_piece_mesh()` and
+## `_piece_gild_mesh()` need the same table, and measuring it twice would double
+## the only per-vertex cost in the project.
+func _sculpt_fields(kind: String, positions: PackedVector3Array, normals: PackedVector3Array, indices: PackedInt32Array) -> Dictionary:
+	var key := "sculpt:%s:%s" % [_piece_set(), kind]
+	if _mesh_cache.has(key):
+		return _mesh_cache[key]
+	var fields: Dictionary = PieceShading.sculpt_fields(
+		positions, normals, indices,
+		float(SET_PLINTH_FRACTION.get(kind, 0.12)),
+		_gild_strength())
+	_mesh_cache[key] = fields
+	return fields
+
+
+## How much of the gild mask this set asks for. The turned set asks for none:
+## its ornament is the generated trim mesh, which is metal already, and a gild
+## mask over a surface of revolution would put a gold ring round every stem.
+func _gild_strength() -> float:
+	var palette: Dictionary = PIECE_THEMES.get(piece_theme, PIECE_THEMES["classic"])
+	return float(palette.get("gild", 0.0))
+
+
+## The gilded ornaments of one body, as their own mesh: the triangles whose
+## vertices are on a convex ridge - the crown of a king, the head of a sceptre,
+## the tip of a spear, the beak of a griffin.
+##
+## A separate MeshInstance3D rather than a second surface on the body, because
+## the mask is per vertex and the two materials differ (stone: diffuse and rough;
+## gold: metallic and tight). It costs one draw call per piece and only on the
+## sets that ask for it, and it is null - free - on the turned set.
+func _piece_gild_mesh(kind: String) -> Mesh:
+	if _gild_strength() <= 0.0:
+		return null
+	var cache_key := "gild:%s:%s" % [_piece_set(), kind]
+	if _mesh_cache.has(cache_key):
+		return _mesh_cache[cache_key]
+	var cached := MeshCache.load_mesh(cache_key)
+	if cached != null:
+		_mesh_cache[cache_key] = cached
+		return cached
+	var source: Mesh = _piece_models().get(kind)
+	if source == null or source.get_surface_count() == 0:
+		return null
+	var arrays := source.surface_get_arrays(0)
+	var positions: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = _surface_indices(arrays)
+	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	if normals.size() != positions.size():
+		normals = _smoothed_normals(positions, indices)
+	var fields := _sculpt_fields(kind, positions, normals, indices)
+	var gilded := PieceShading.gilded_indices(indices, fields["gild"], 0.55)
+	if gilded.is_empty():
+		_mesh_cache[cache_key] = null
+		return null
+	var mesh_arrays := []
+	mesh_arrays.resize(Mesh.ARRAY_MAX)
+	mesh_arrays[Mesh.ARRAY_VERTEX] = positions
+	mesh_arrays[Mesh.ARRAY_NORMAL] = normals
+	mesh_arrays[Mesh.ARRAY_INDEX] = gilded
+	var gild_mesh := ArrayMesh.new()
+	gild_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, mesh_arrays)
+	_mesh_cache[cache_key] = gild_mesh
+	MeshCache.save_mesh(cache_key, gild_mesh)
+	return gild_mesh
 
 
 ## The index array of a surface, as an array rather than as a nullable Variant.
@@ -1606,7 +1685,7 @@ func _apply_piece_materials(piece: Node3D, body: Material) -> void:
 		var mesh_instance := child as MeshInstance3D
 		if mesh_instance == null:
 			continue
-		if mesh_instance.name == "OrnateTrim":
+		if mesh_instance.name == "OrnateTrim" or mesh_instance.name == "GildedOrnaments":
 			continue
 		if mesh_instance.material_override == null:
 			mesh_instance.material_override = body
@@ -1665,6 +1744,20 @@ func _add_piece(kind: String, code: String, file: int, rank: int, body: Material
 	model.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	model.rotation.y = _piece_yaw(kind, file, is_white)
 	piece.add_child(model)
+	# The gilded ornaments ride on the body's own transform, so the yaw above
+	# turns the gold with the piece and the two can never separate.
+	var gild_mesh := _piece_gild_mesh(kind)
+	if gild_mesh != null:
+		var gild := MeshInstance3D.new()
+		gild.name = "GildedOrnaments"
+		gild.mesh = gild_mesh
+		gild.material_override = _piece_gold_material
+		# Gold does not need to cast: it sits on the surface of a body that
+		# already casts, and a second shadow map entry per piece is a per-frame
+		# cost for a shadow the eye cannot attribute.
+		gild.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		gild.rotation.y = model.rotation.y
+		piece.add_child(gild)
 	# The Staunton bodies are deliberately plain, so all the carving - tiered
 	# foot, filigree, fluting, collars and the crowns - lives in this one merged
 	# trim mesh rather than in a swarm of child nodes. How much carving there is
