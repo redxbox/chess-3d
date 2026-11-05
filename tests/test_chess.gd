@@ -603,14 +603,21 @@ func _test_sculpt_relief_and_gild() -> void:
 	# --- the plinth is stone ------------------------------------------------
 	# A statuette is gilded on its ornament, not round its base: a gold ring at
 	# the bottom of every piece reads as a band of paint, and it was the thing
-	# the first prototype of this mask produced.
-	var base := PieceShading.sculpt_fields(ridge.positions, ridge.normals, ridge.indices, 0.5, 1.0)
+	# the first prototype of this mask produced. So with the plinth line put at
+	# nine tenths of the height, the same ridge below half the height must be
+	# bare and its tip must still be gold - suppressed, not switched off.
+	var base := PieceShading.sculpt_fields(ridge.positions, ridge.normals, ridge.indices, 0.9, 1.0)
 	var base_gild: PackedFloat32Array = base["gild"]
-	var above := 0.0
+	var bare_peak := 0.0
+	var tip_peak := 0.0
 	for index in base_gild.size():
-		if ridge.positions[index].y > 0.5 * 2.0 * 0.5:
-			above = maxf(above, base_gild[index])
-	_expect(above > 0.0, "the same ridge above the plinth is still gilded (peak %.2f)" % above)
+		var y := ridge.positions[index].y
+		if y < -0.5:
+			bare_peak = maxf(bare_peak, base_gild[index])
+		elif y > -0.05:
+			tip_peak = maxf(tip_peak, base_gild[index])
+	_expect(bare_peak == 0.0, "nothing below the plinth line is gilded (peak %.2f)" % bare_peak)
+	_expect(tip_peak > 0.25, "the same ridge above the plinth line still is (peak %.2f)" % tip_peak)
 
 	# --- the gilded surface is whole triangles ------------------------------
 	var indices := PieceShading.gilded_indices(ridge.indices, ridge_gild, 0.0)
