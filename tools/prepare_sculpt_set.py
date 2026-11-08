@@ -63,6 +63,9 @@ from __future__ import annotations
 import os
 import sys
 
+import json
+import struct
+
 import numpy as np
 import trimesh
 from fast_simplification import simplify
@@ -117,6 +120,132 @@ def load_colours(path: str) -> tuple[np.ndarray, np.ndarray]:
     if colours.dtype != np.uint8:
         colours = np.clip(colours * 255.0, 0, 255).astype(np.uint8)
     return (np.asarray(mesh.vertices, dtype=np.float32), colours[:, :3])
+
+
+def _glb_json_and_binary(path: str) -> tuple[dict, bytes]:
+    """The two chunks of a GLB: the JSON document and the binary buffer."""
+    with open(path, "rb") as handle:
+        magic, _version, _length = struct.unpack("<4sII", handle.read(12))
+        if magic != b"glTF":
+            raise ValueError("not a GLB")
+        document = b""
+        binary = b""
+        while True:
+            header = handle.read(8)
+            if len(header) < 8:
+                break
+            chunk_length, chunk_type = struct.unpack("<II", header)
+            payload = handle.read(chunk_length)
+            if chunk_type == 0x4E4F534A:      # 'JSON'
+                document = payload
+            elif chunk_type == 0x004E4942:    # 'BIN'
+                binary = payload
+    return json.loads(document.decode("utf-8")), binary
+
+
+def _accessor(js: dict, binary: bytes, index: int) -> np.ndarray:
+    """Read one accessor as a numpy array, honouring its stride if it has one."""
+    accessor = js["accessors"][index]
+    view = js["bufferViews"][accessor["bufferView"]]
+    kind = {5120: "i1", 5121: "u1", 5122: "i2", 5123: "u2",
+            5125: "u4", 5126: "f4"}[accessor["componentType"]]
+    width = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}[accessor["type"]]
+    item = np.dtype(kind).itemsize
+    start = view.get("byteOffset", 0) + accessor.get("byteOffset", 0)
+    stride = view.get("byteStride") or (item * width)
+    count = int(accessor["count"])
+    span = stride * (count - 1) + item * width
+    raw = np.frombuffer(binary, dtype=np.uint8, count=span, offset=start)
+    if stride == item * width:
+        return raw.view(np.dtype(kind)).reshape(count, width).astype(np.float32)
+    # Interleaved: take a window of one element every `stride` bytes. Kept as a
+    # sliding window over the byte buffer rather than a manual offset loop, so a
+    # 300 000-vertex accessor costs one copy rather than 300 000.
+    windows = np.lib.stride_tricks.sliding_window_view(raw, item * width)[::stride][:count]
+    return np.ascontiguousarray(windows).view(np.dtype(kind)).reshape(count, width).astype(np.float32)
+
+
+def _atlas_image(js: dict, binary: bytes) -> "Image.Image | None":
+    """The base-colour texture of the first material, decoded.
+
+    Read by hand rather than through trimesh for a specific reason: these
+    uploads carry their atlas as **WebP** under `EXT_texture_webp`, and trimesh
+    does not decode that extension - `to_color()` returns black for most of the
+    mesh. Measured on the November upload: 85% of the vertices came out (0,0,0),
+    which renders as a black chess set. Pillow reads WebP directly, and is
+    already a build-time dependency of tools/measure_preview.py.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    materials = js.get("materials") or []
+    if not materials:
+        return None
+    pbr = materials[0].get("pbrMetallicRoughness", {})
+    texture_index = pbr.get("baseColorTexture", {}).get("index")
+    if texture_index is None:
+        return None
+    textures = js.get("textures") or []
+    if texture_index >= len(textures):
+        return None
+    texture = textures[texture_index]
+    source = texture.get("source")
+    webp = texture.get("extensions", {}).get("EXT_texture_webp", {})
+    if "source" in webp:
+        source = webp["source"]
+    images = js.get("images") or []
+    if source is None or source >= len(images):
+        return None
+    view = js["bufferViews"][images[source]["bufferView"]]
+    start = view.get("byteOffset", 0)
+    payload = binary[start:start + view["byteLength"]]
+    import io
+    return Image.open(io.BytesIO(payload)).convert("RGB")
+
+
+def baked_colours(path: str, count: int) -> "np.ndarray | None":
+    """One RGB per vertex of `path`, sampled from its own atlas.
+
+    Handles the two ways a coloured upload arrives: a base-colour texture with
+    UVs (sampled here), or per-vertex colour already in the file (taken as-is).
+    Returns None when the model has neither, which is the normal case for a
+    geometry-only sculpt and is not an error.
+    """
+    suffix = os.path.splitext(path)[1].lower()
+    if suffix in (".glb", ".gltf") and suffix == ".glb":
+        try:
+            js, binary = _glb_json_and_binary(path)
+        except Exception:
+            return None
+        for mesh in js.get("meshes", []):
+            for primitive in mesh.get("primitives", []):
+                attributes = primitive.get("attributes", {})
+                if "COLOR_0" in attributes:
+                    colours = _accessor(js, binary, attributes["COLOR_0"])
+                    if colours.max() <= 1.0:
+                        colours = colours * 255.0
+                    return np.clip(colours[:, :3], 0, 255).astype(np.uint8)
+                if "TEXCOORD_0" not in attributes:
+                    continue
+                image = _atlas_image(js, binary)
+                if image is None:
+                    continue
+                uvs = _accessor(js, binary, attributes["TEXCOORD_0"])
+                pixels = np.asarray(image, dtype=np.uint8)
+                height, width = pixels.shape[:2]
+                u = np.mod(uvs[:, 0], 1.0)
+                v = np.mod(uvs[:, 1], 1.0)
+                x = np.clip((u * (width - 1)).astype(np.int64), 0, width - 1)
+                # glTF puts (0,0) at the top-left of the image.
+                y = np.clip((v * (height - 1)).astype(np.int64), 0, height - 1)
+                return pixels[y, x]
+        return None
+    # Any other format: whatever trimesh can read, minus the WebP gap above.
+    try:
+        return np.asarray(trimesh.load(path, force="mesh").visual.to_color().vertex_colors)[:, :3]
+    except Exception:
+        return None
 
 
 class _NearestVertex:
@@ -176,10 +305,17 @@ def prepare(kind: str, path: str, keep_colour: bool = False):
     vertices, faces = load(path)
     source_vertices = source_colours = None
     if keep_colour:
-        try:
-            source_vertices, source_colours = load_colours(path)
-        except Exception as error:  # noqa: BLE001 - a colourless upload is normal
-            print(f"{kind}: no colour to carry over ({error})", file=sys.stderr)
+        source_vertices = np.asarray(vertices, dtype=np.float64)
+        source_colours = baked_colours(path, len(vertices))
+        if source_colours is None:
+            print(f"{kind}: the model carries no colour of its own", file=sys.stderr)
+            source_vertices = None
+        elif float(np.asarray(source_colours, dtype=float).mean()) < 4.0:
+            # All black is what a failed texture decode looks like, and shipping
+            # it would be worse than shipping no colour at all.
+            print(f"{kind}: the model's colour reads as black - the atlas probably "
+                  f"did not decode; importing it without colour", file=sys.stderr)
+            source_vertices = source_colours = None
     # The two sets are not equally dense: the persian pieces arrive already
     # decimated (6k-26k triangles) while the persian ones arrive at 370k-650k.
     # Only decimate downwards, never upwards, and never re-simplify a piece
@@ -189,18 +325,21 @@ def prepare(kind: str, path: str, keep_colour: bool = False):
     # far less than the ratio asked for, because the simplifier will not collapse
     # across a boundary. So it is run again on what came out, up to four times,
     # and the result is reported if it still misses the budget.
-    for _attempt in range(4):
+    # A piece can also arrive as several disconnected shells - a figure plus its
+    # plinth plus the spear it holds - and the simplifier will not collapse across
+    # the seam, so the last pass is allowed to ask for everything that is left.
+    for _attempt in range(6):
         if len(faces) <= TARGET_TRIANGLES:
             break
         reduction = 1.0 - TARGET_TRIANGLES / float(len(faces))
-        vertices, faces = simplify(vertices, faces, target_reduction=max(0.001, reduction))
+        vertices, faces = simplify(vertices, faces, target_reduction=min(0.99, max(0.001, reduction)))
         vertices = np.asarray(vertices, dtype=np.float64)
         faces = np.asarray(faces, dtype=np.int64)
     if len(faces) > TARGET_TRIANGLES * 1.25:
-        print(f"{kind}: still {len(faces)} triangles after four passes "
+        print(f"{kind}: still {len(faces)} triangles after six passes "
               f"(budget {TARGET_TRIANGLES}); the source is too fragmented to decimate further",
               file=sys.stderr)
-    vertices, faces = _normalise(kind, vertices, faces)
+    vertices, faces = _normalise(kind, vertices, faces, extra=source_vertices)
     colours = None
     if source_colours is not None:
         # Carried across *after* decimation, by nearest original vertex: the
@@ -215,7 +354,8 @@ def prepare(kind: str, path: str, keep_colour: bool = False):
     return vertices, faces, colours
 
 
-def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_plinth: bool = False) -> tuple[np.ndarray, np.ndarray]:
+def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_plinth: bool = False,
+               extra: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Put a piece on the board's scale: target height, feet on y = 0, centred."""
     low = vertices.min(axis=0)
     high = vertices.max(axis=0)
@@ -236,6 +376,15 @@ def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_pli
     vertices[:, 0] -= centre_x
     vertices[:, 2] -= centre_z
     vertices[:, 1] -= vertices[:, 1].min()
+    if extra is not None:
+        # A point set that has to stay aligned with the mesh - the original
+        # sculpture's vertices, whose colours are being carried over. It has to
+        # see exactly the same scale and the same offsets, or the nearest-vertex
+        # lookup afterwards points at the wrong part of the model.
+        extra *= scale
+        extra[:, 0] -= centre_x
+        extra[:, 2] -= centre_z
+        extra[:, 1] -= extra[:, 1].min()
     return vertices, faces
 
 
