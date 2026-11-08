@@ -463,34 +463,49 @@ def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_pli
 ## sat 0.05 from the light squares and 0.01 from the dark ones, i.e. a gold piece
 ## vanished into a gold-adjacent square; the second was 1.9x apart when the rule
 ## wants 2x. Both were caught by that checker, not by the eye.
-PALE_TARGET = 0.70
-PALE_GAMMA = 0.62
-PALE_CEILING = 0.84
-INK_MEDIAN = 0.345
+PALE_TARGET = 0.672     # linear luma; the other sets' ivory is 0.668
+PALE_GAMMA = 0.90
+PALE_CEILING = 0.80     # linear, where this rig's key light begins to clip
+INK_MEDIAN = 0.325      # linear luma; the other sets' charcoal is 0.322
 INK_GAMMA = 1.6
-INK_LIFT = np.array([0.006, 0.007, 0.010])
+INK_LIFT = np.array([0.02, 0.022, 0.03])   # linear; keeps the blacks off the floor
+
+
+def srgb_to_linear(rgb: np.ndarray) -> np.ndarray:
+    rgb = np.asarray(rgb, dtype=np.float64)
+    return np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
+
+
+def linear_to_srgb(rgb: np.ndarray) -> np.ndarray:
+    rgb = np.clip(np.asarray(rgb, dtype=np.float64), 0.0, 1.0)
+    return np.where(rgb <= 0.0031308, rgb * 12.92, 1.055 * np.power(rgb, 1.0 / 2.4) - 0.055)
 
 
 def luma(rgb: np.ndarray) -> np.ndarray:
     return 0.2126 * rgb[:, 0] + 0.7152 * rgb[:, 1] + 0.0722 * rgb[:, 2]
 
 
-def pale_army(colours: np.ndarray) -> np.ndarray:
-    """The uploaded colours (sRGB 0-1), squeezed into the brightness band the render can use.
+def pale_army(linear: np.ndarray) -> np.ndarray:
+    """The uploaded colours (linear light), squeezed into the band the render can use.
 
-    The squeeze is a uniform multiply per vertex, so it cannot change a hue: the
-    red of the plume stays red at every brightness. That property is the whole
-    reason it is written this way - the first version mapped each piece's colours
-    onto their percentile ranks instead, which preserves contrast but not hue, and
-    the set came out orange plastic: the dark pixels got multiplied far harder
-    than the bright ones, so every channel that was already warm clipped first.
+    Two properties are load-bearing:
+
+      * one multiplier per vertex, so a hue cannot change - the red of the plume
+        stays red at every brightness. Mapping each piece onto its percentile
+        ranks instead (the first attempt) preserves contrast but not hue, and the
+        set came out orange plastic;
+      * the multiplier is solved for, not computed. The ceiling clips the
+        brightest gilding, so the median of what comes out is not the median that
+        went in and one division lands short. Six rounds of measure-and-correct
+        converge to a thousandth.
     """
-    values = np.maximum(luma(colours), 1e-4)
-    median = float(np.median(values))
-    target = np.minimum(PALE_TARGET * np.power(values / median, PALE_GAMMA), PALE_CEILING)
-    out = colours * (target / values)[:, None]
-    high = out.max(axis=1, keepdims=True)
-    return np.clip(np.where(high > 1.0, out / np.maximum(high, 1e-6), out), 0.0, 1.0)
+    values = np.maximum(luma(linear), 1e-5)
+    shaped = np.power(values, PALE_GAMMA - 1.0)
+    gain = 1.0
+    for _ in range(6):
+        out = np.minimum(linear * (gain * shaped)[:, None], PALE_CEILING)
+        gain *= PALE_TARGET / max(float(np.median(luma(out))), 1e-5)
+    return np.minimum(linear * (gain * shaped)[:, None], PALE_CEILING)
 
 
 def ink_gain(pale: np.ndarray) -> float:
@@ -504,17 +519,23 @@ def ink_gain(pale: np.ndarray) -> float:
     sets' charcoal is.
     """
     median = float(np.median(luma(ink_army(pale, 1.0))))
-    return float(np.clip(INK_MEDIAN / max(median, 1e-4), 0.05, 2.0))
+    return float(np.clip(INK_MEDIAN / max(median, 1e-5), 0.02, 4.0))
 
 
 def ink_army(pale: np.ndarray, gain: float) -> np.ndarray:
-    """The same piece in dark armour: the gold stays the brightest thing on it."""
+    """The same piece in dark armour: the gold stays the brightest thing on it.
+
+    The gamma is what puts the contrast back. A plain multiply darkens the gold
+    and the silver by the same factor and the piece reads as a brown version of
+    itself - measured, the gold ended up only 1.35x the body, where the reference
+    photograph is nearer 2.5x.
+    """
     curved = np.power(np.clip(pale, 0.0, 1.0), INK_GAMMA) * gain
     return np.clip(curved + INK_LIFT, 0.0, 1.0)
 
 
 def tint_luma(colours_srgb: np.ndarray) -> float:
-    return float(np.median(luma(np.asarray(colours_srgb, dtype=np.float64) / 255.0)))
+    return float(np.median(luma(srgb_to_linear(np.asarray(colours_srgb, dtype=np.float64) / 255.0))))
 
 
 def write_tint(path: str, colours: np.ndarray) -> None:
@@ -526,11 +547,12 @@ def write_tint(path: str, colours: np.ndarray) -> None:
         float32 ink_gain, ink_gamma, ink_r, ink_g, ink_b    <- the ink army's rule
         count x RGB, one sRGB byte triple per vertex
 
-    Only the pale army is stored. The ink army is `pale ** ink_gamma * ink_gain
-    + ink` in sRGB, and those five numbers travel in the header rather than being
-    written out as a second colour per vertex: that would put the packaged
-    content over its budget for data the game can compute for the cost of one
-    power. main.gd's `_read_tint()` is the other end of this file, and
+    Only the pale army is stored, and it is stored as sRGB bytes because that is
+    what a byte can hold without banding the dark end. The ink army is
+    `pale ** ink_gamma * ink_gain + ink` in LINEAR light, and those five numbers
+    travel in the header rather than as a second colour per vertex: a second
+    colour would put the packaged content over its budget for data the game can
+    compute for the cost of one power. main.gd's `_read_tint()` is the other end of this file, and
     tools/check_visual_balance.py reads it too - the numbers in docs are the
     numbers the game draws.
 
@@ -539,9 +561,10 @@ def write_tint(path: str, colours: np.ndarray) -> None:
     vertex is 15 KB for a whole piece, against 1.3 MB for the atlas it was
     sampled from.
     """
-    pale = pale_army(np.asarray(colours, dtype=np.float64) / 255.0)
+    linear = srgb_to_linear(np.asarray(colours, dtype=np.float64) / 255.0)
+    pale = pale_army(linear)
     gain = ink_gain(pale)
-    stored = np.clip(np.round(pale * 255.0), 0, 255).astype(np.uint8)
+    stored = np.clip(np.round(linear_to_srgb(pale) * 255.0), 0, 255).astype(np.uint8)
     with open(path, "wb") as handle:
         handle.write(b"TINT")
         handle.write(bytes([3]))

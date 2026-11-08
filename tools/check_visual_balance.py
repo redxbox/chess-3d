@@ -95,6 +95,10 @@ def parse_theme_table(source: str, name: str) -> dict[str, dict[str, tuple[float
     return entries
 
 
+def srgb_to_linear(value: float) -> float:
+    return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+
+
 def tinted_armies(palette: dict[str, tuple[float, ...]]) -> tuple[float, float] | None:
     """The pale/ink albedos of a set whose colours are baked into the mesh.
 
@@ -124,10 +128,10 @@ def tinted_armies(palette: dict[str, tuple[float, ...]]) -> tuple[float, float] 
         lift = struct.unpack("<fff", raw[17:29])
         for i in range(count):
             r, g, b = raw[29 + i * 3: 32 + i * 3]
-            # sRGB, like the palette values for the other two sets: the bands in
-            # this file are written in the space PIECE_THEMES is written in, and
-            # the bake does its arithmetic there too.
-            pale = (r / 255.0, g / 255.0, b / 255.0)
+            # Linear, like the palette values of the other two sets: the bands in
+            # this file are linear luma, and Godot treats an albedo as linear, so
+            # the sidecar's bytes are read back through sRGB first.
+            pale = tuple(srgb_to_linear(c / 255.0) for c in (r, g, b))
             pale_values.append(luma(pale))
             ink_values.append(luma(tuple(min(1.0, pow(c, gamma) * gain + l) for c, l in zip(pale, lift))))
     if not pale_values:

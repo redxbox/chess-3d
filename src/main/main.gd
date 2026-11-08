@@ -117,7 +117,7 @@ const PIECE_KINDS := {"p": "pawn", "r": "rook", "n": "knight", "b": "bishop", "q
 ## was eight things that all looked alike. What is left is three genuinely
 ## different boards and three genuinely different sets of pieces.
 const BOARD_THEME_ORDER := ["classic", "royal_wood", "jade", "royal_blue"]
-const PIECE_THEME_ORDER := ["classic", "pars", "bastani"]
+const PIECE_THEME_ORDER := ["classic", "bastani", "pars"]
 ## What a fresh install wears. The hand-sculpted set is the one that reads best
 ## on a phone: a carved pawn is legible at the size a phone actually shows it,
 ## where a turned one is a silhouette.
@@ -1259,14 +1259,16 @@ func _read_tint(kind: String, is_white: bool) -> PackedColorArray:
 		if is_white:
 			colours[i] = pale
 		else:
-			# The ink army. The bake does its arithmetic in sRGB - that is the
-			# space main.gd's palette and tools/check_visual_balance.py are
-			# written in - so the gamma and the gain are applied to the sRGB
-			# byte and the result converted once, here.
+			# The ink army: the pale colour, gammared and gained in LINEAR light -
+			# Godot treats an albedo and a vertex colour as linear, which is why
+			# the byte is converted first and the rule applied after. Doing it the
+			# other way round (the first version) makes the "dark" army three
+			# times darker than the palette it was matched to, and the render
+			# measured its pawns at 26 of 255 against the other sets' 53-60.
 			colours[i] = Color(
-				_srgb_to_linear(clampf(pow(srgb.r, ink_gamma) * ink_gain + ink_lift.r, 0.0, 1.0)),
-				_srgb_to_linear(clampf(pow(srgb.g, ink_gamma) * ink_gain + ink_lift.g, 0.0, 1.0)),
-				_srgb_to_linear(clampf(pow(srgb.b, ink_gamma) * ink_gain + ink_lift.b, 0.0, 1.0)))
+				clampf(pow(pale.r, ink_gamma) * ink_gain + ink_lift.r, 0.0, 1.0),
+				clampf(pow(pale.g, ink_gamma) * ink_gain + ink_lift.g, 0.0, 1.0),
+				clampf(pow(pale.b, ink_gamma) * ink_gain + ink_lift.b, 0.0, 1.0))
 	return colours
 
 
