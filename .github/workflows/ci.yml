@@ -393,6 +393,15 @@ jobs:
             tail -12 build/android/export.log | while IFS= read -r line; do
               echo "::error title=Godot Android export::$line"
             done
+            # The last twelve lines of an Android export are Godot shutting
+            # down; the reason the export failed is Gradle's, and it is a few
+            # hundred lines earlier. Those lines are the only thing worth
+            # reading, so they go into annotations of their own instead of
+            # staying buried in a job summary nobody can open from a phone.
+            grep -aE "FAILURE:|Execution failed|Caused by:|error:|ERROR:|Failed to|What went wrong" \
+              build/android/export.log | head -12 | while IFS= read -r line; do
+              echo "::error title=Android export reason::${line:0:900}"
+            done
           fi
           exit "$status"
       - name: Verify Android permissions
