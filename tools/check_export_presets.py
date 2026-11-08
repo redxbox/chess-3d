@@ -51,6 +51,14 @@ IMPORTED = {
 # Documentation and the like: never read at runtime, never shipped.
 IGNORED = {".md", ".txt"}
 
+# Godot writes these next to a source file when it imports it, and they are
+# editor bookkeeping rather than content: `foo.obj.import` describes how `foo.obj`
+# is imported, and the export packs the imported resource, not the sidecar. They
+# are not in the repository, so they only show up where the project has actually
+# been imported - which is every CI run, and how this check failed the first time
+# it ran: twelve `.obj.import` files, freshly written by the import step above.
+EDITOR_SIDECARS = (".import", ".uid", ".remap")
+
 
 def read_presets() -> list[dict[str, str]]:
     """The export presets, as `{name, include_filter, exclude_filter}` dicts.
@@ -109,6 +117,8 @@ def main() -> int:
             extension = os.path.splitext(name)[1].lower()
             if extension in IGNORED or extension in IMPORTED:
                 continue
+            if name.endswith(EDITOR_SIDECARS) or name.startswith("."):
+                continue
             relative = os.path.relpath(os.path.join(directory, name), ROOT).replace(os.sep, "/")
             wanted.append(relative)
     wanted.sort()
@@ -127,6 +137,10 @@ def main() -> int:
                     f"{label}: {relative} has no Godot importer and include_filter is "
                     f"'{include}' - it will not be in the APK")
     if problems:
+        # A step annotation, because the job log is not always readable from
+        # the API and "exit code 1" says nothing about which file is missing.
+        print("::error title=Runtime file would miss the package::"
+              + "%0A".join(problems[:6]))
         print("export packaging check failed:", file=sys.stderr)
         for problem in problems:
             print("  - " + problem, file=sys.stderr)

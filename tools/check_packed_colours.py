@@ -78,6 +78,11 @@ def main(argv):
             print("missing from the package: " + name)
         return 1
 
+    # A notice as well as a line: the artefact check is the one that decides
+    # whether a build is installable, and the job log is not always readable
+    # back, so its verdict is left where the API can find it.
+    print("::notice title=Colour sidecars in the package::"
+          "all %d pars sidecars are inside %s" % (len(wanted), path))
     print("package carries all %d colour sidecars" % len(wanted))
     return 0
 
