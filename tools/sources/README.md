@@ -30,6 +30,9 @@ library, so it runs in CI as well as on a laptop.
 `prepare_sculpt_set.py` decides which file is which piece from the piece name
 inside the filename (`tools/piece_names.py`, English and Persian names), in any
 format `trimesh` opens - so an upload does not have to be renamed first. It
-decimates each body to 10 000 triangles, puts it on the height ladder the other
-sets use, centres it and writes OBJ. The result is about 230 KB per piece, so a
+decimates each body towards 10 000 triangles (repeating the pass while the
+simplifier is still above budget - a mesh of many disconnected islands will not
+collapse across its boundaries in one go), puts it on the height ladder the other
+sets use, centres it and writes OBJ. With `--colours` it also bakes the model's
+own texture into a per-vertex `.tint` sidecar, about 90 KB a piece. The result is about 230 KB per piece, so a
 whole set is 1.4 MB - roughly 25 times smaller than the upload it came from.

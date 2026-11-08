@@ -45,6 +45,13 @@ DEPENDENCIES (build-time only; the generated OBJs are committed)
 Files are found by the piece name inside them (`tools/piece_names.py`), in any
 format `trimesh` opens, so an upload does not have to be renamed first.
 
+`--colours` additionally bakes the model's own colour - a texture atlas, vertex
+colours or a flat material colour, whichever it arrived as - down to one RGB per
+vertex and writes it beside the OBJ as `<kind>.tint`. The game does not read it
+yet; it exists so a coloured upload survives the pipeline at 90 KB a piece
+instead of shipping its 1.3 MB atlas, and so the decision to use it can be taken
+later without asking for the upload again.
+
 Run:  python3 tools/prepare_sculpt_set.py [source_dir] [output_dir]
 
     python3 tools/prepare_sculpt_set.py tools/sources/incoming assets/models/newwhite
@@ -89,6 +96,65 @@ def load(path: str) -> tuple[np.ndarray, np.ndarray]:
             np.asarray(mesh.faces, dtype=np.int64))
 
 
+def load_colours(path: str) -> tuple[np.ndarray, np.ndarray]:
+    """The mesh's own per-vertex colour, sampled from whatever it arrives as.
+
+    A GLB can carry its colour three ways - a baked texture atlas with UVs, a
+    colour per vertex, or a single flat material colour - and `trimesh` will
+    flatten all three into vertex colours with `visual.to_color()`. Sampling the
+    atlas per vertex is what makes a coloured upload survive decimation: the
+    texture is a few megabytes of image that would have to be shipped and UV'd,
+    while 3 bytes per vertex costs 30 KB and needs no texture unit at all.
+    """
+    mesh = trimesh.load(path, force="mesh")
+    visual = mesh.visual
+    if visual is None or visual.kind is None:
+        raise ValueError("no colour")
+    colours = visual.to_color().vertex_colors
+    if colours is None or len(colours) == 0:
+        raise ValueError("no vertex colours")
+    colours = np.asarray(colours)
+    if colours.dtype != np.uint8:
+        colours = np.clip(colours * 255.0, 0, 255).astype(np.uint8)
+    return (np.asarray(mesh.vertices, dtype=np.float32), colours[:, :3])
+
+
+class _NearestVertex:
+    """Nearest-vertex lookup over the *original* sculpture, without scipy.
+
+    Decimation replaces the vertex list, so the colours sampled on the original
+    mesh have to be carried across to whatever vertices the simplified mesh kept.
+    A KD-tree would do it, but scipy is another build-time dependency for a
+    lookup that a uniform grid answers in constant time: with 31 mm between
+    vertices on these meshes, a one-centimetre cell puts the nearest original
+    vertex within one cell of any simplified one, and the 3x3x3 neighbourhood is
+    a safety margin.
+    """
+
+    def __init__(self, points: np.ndarray, cell: float):
+        self.points = points
+        self.cell = cell
+        self.buckets: dict[tuple[int, int, int], list[int]] = {}
+        keys = np.floor(points / cell).astype(np.int64)
+        for index, key in enumerate(map(tuple, keys)):
+            self.buckets.setdefault(key, []).append(index)
+
+    def nearest(self, point: np.ndarray) -> int:
+        centre = tuple(np.floor(point / self.cell).astype(np.int64))
+        best = -1
+        best_distance = float("inf")
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    for index in self.buckets.get((centre[0] + dx, centre[1] + dy, centre[2] + dz), ()):
+                        delta = self.points[index] - point
+                        distance = float(delta @ delta)
+                        if distance < best_distance:
+                            best_distance = distance
+                            best = index
+        return best
+
+
 # The plinth is the bottom tenth of a figure. Centring a piece on its *plinths*
 # rather than on its bounding box matters for anything holding a spear, a
 # standard or a raised arm: the arm pushes the box sideways, so a box-centred
@@ -106,19 +172,47 @@ def _plinth_centre(vertices: np.ndarray) -> tuple[float, float]:
     return float(base[:, 0].mean()), float(base[:, 2].mean())
 
 
-def prepare(kind: str, path: str) -> tuple[np.ndarray, np.ndarray]:
+def prepare(kind: str, path: str, keep_colour: bool = False):
     vertices, faces = load(path)
+    source_vertices = source_colours = None
+    if keep_colour:
+        try:
+            source_vertices, source_colours = load_colours(path)
+        except Exception as error:  # noqa: BLE001 - a colourless upload is normal
+            print(f"{kind}: no colour to carry over ({error})", file=sys.stderr)
     # The two sets are not equally dense: the persian pieces arrive already
     # decimated (6k-26k triangles) while the persian ones arrive at 370k-650k.
     # Only decimate downwards, never upwards, and never re-simplify a piece
     # that is already under budget - it would only cost detail.
-    if len(faces) <= TARGET_TRIANGLES:
-        return _normalise(kind, vertices, faces)
-    reduction = 1.0 - TARGET_TRIANGLES / float(len(faces))
-    vertices, faces = simplify(vertices, faces, target_reduction=max(0.0, reduction))
-    vertices = np.asarray(vertices, dtype=np.float64)
-    faces = np.asarray(faces, dtype=np.int64)
-    return _normalise(kind, vertices, faces)
+    # One pass is not always enough. A sculpture of many disconnected islands -
+    # the sample piece uploaded in November is 282k triangles in one mesh - loses
+    # far less than the ratio asked for, because the simplifier will not collapse
+    # across a boundary. So it is run again on what came out, up to four times,
+    # and the result is reported if it still misses the budget.
+    for _attempt in range(4):
+        if len(faces) <= TARGET_TRIANGLES:
+            break
+        reduction = 1.0 - TARGET_TRIANGLES / float(len(faces))
+        vertices, faces = simplify(vertices, faces, target_reduction=max(0.001, reduction))
+        vertices = np.asarray(vertices, dtype=np.float64)
+        faces = np.asarray(faces, dtype=np.int64)
+    if len(faces) > TARGET_TRIANGLES * 1.25:
+        print(f"{kind}: still {len(faces)} triangles after four passes "
+              f"(budget {TARGET_TRIANGLES}); the source is too fragmented to decimate further",
+              file=sys.stderr)
+    vertices, faces = _normalise(kind, vertices, faces)
+    colours = None
+    if source_colours is not None:
+        # Carried across *after* decimation, by nearest original vertex: the
+        # simplified mesh has its own vertices and no UVs that survive.
+        spacing = float(np.linalg.norm(vertices.max(axis=0) - vertices.min(axis=0))) / 60.0
+        lookup = _NearestVertex(source_vertices, max(spacing, 0.005))
+        colours = np.zeros((len(vertices), 3), dtype=np.uint8)
+        for index, point in enumerate(vertices):
+            nearest = lookup.nearest(point)
+            if nearest >= 0:
+                colours[index] = source_colours[nearest]
+    return vertices, faces, colours
 
 
 def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_plinth: bool = False) -> tuple[np.ndarray, np.ndarray]:
@@ -145,6 +239,20 @@ def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_pli
     return vertices, faces
 
 
+def write_tint(path: str, colours: np.ndarray) -> None:
+    """Write per-vertex colour beside the OBJ, in the OBJ's own vertex order.
+
+    A binary sidecar rather than an OBJ feature: OBJ has no agreed vertex-colour
+    syntax, and the game's own OBJ reader (`_piece_mesh`) welds vertices and
+    rebuilds the colour array anyway. 3 bytes a vertex is 30 KB for a whole
+    piece, against 1.3 MB for the atlas it was sampled from.
+    """
+    with open(path, "wb") as handle:
+        handle.write(b"TINT")
+        handle.write(len(colours).to_bytes(4, "little"))
+        handle.write(np.ascontiguousarray(colours, dtype=np.uint8).tobytes())
+
+
 def write_obj(path: str, kind: str, vertices: np.ndarray, faces: np.ndarray) -> None:
     # Positions and faces only, exactly like the Staunton OBJs: _piece_mesh()
     # welds the export's duplicated vertices and generates one smooth normal per
@@ -162,8 +270,13 @@ def write_obj(path: str, kind: str, vertices: np.ndarray, faces: np.ndarray) -> 
 
 
 def main() -> int:
-    source = sys.argv[1] if len(sys.argv) > 1 else "."
-    output = sys.argv[2] if len(sys.argv) > 2 else "assets/models/persian"
+    # `--colours` is opt-in: a set's own colour is a product decision (it takes
+    # the army colours away from the game's palette), so the importer only
+    # carries it over when asked.
+    keep_colour = "--colours" in sys.argv
+    positional = [argument for argument in sys.argv[1:] if not argument.startswith("--")]
+    source = positional[0] if len(positional) > 0 else "."
+    output = positional[1] if len(positional) > 1 else "assets/models/persian"
     os.makedirs(output, exist_ok=True)
     for kind in KINDS:
         # The file names are whatever the author's tool produced: the bastani set
@@ -184,13 +297,21 @@ def main() -> int:
             print(f"{kind}: {len(matches)} files name it ({', '.join(matches)}); using {matches[0]}",
                   file=sys.stderr)
         path = os.path.join(source, matches[0])
-        vertices, faces = prepare(kind, path)
+        vertices, faces, colours = prepare(kind, path, keep_colour)
         target = os.path.join(output, f"{kind}.obj")
         write_obj(target, kind, vertices, faces)
+        tint = os.path.join(output, f"{kind}.tint")
+        if colours is not None:
+            write_tint(tint, colours)
+            printed_colour = f"  colour {len(colours)} verts"
+        else:
+            if os.path.exists(tint):
+                os.remove(tint)
+            printed_colour = ""
         low, high = vertices.min(axis=0), vertices.max(axis=0)
         print(f"{kind:7s} {len(faces):6d} tris  height {high[1]:.3f}  "
               f"width {high[0] - low[0]:.3f}  depth {high[2] - low[2]:.3f}  "
-              f"{os.path.getsize(target) // 1024} KB")
+              f"{os.path.getsize(target) // 1024} KB{printed_colour}")
     return 0
 
 
