@@ -357,13 +357,13 @@ func _test_piece_facing() -> void:
 		["staunton", "pawn", true, 0.0],
 		["staunton", "rook", false, 0.0],
 		# Sculpted sets face +Z: White takes half a turn, Black keeps the model.
-		["persian", "king", true, PI],
-		["persian", "king", false, 0.0],
-		# The persian knight is cut muzzle-down -Z like the turned one, whatever
-		# the rest of its set does, so it takes the turned set's turn and not the
-		# figures'. This is the case that shipped back to front.
-		["persian", "knight", true, 0.0],
-		["persian", "knight", false, PI],
+		["pars", "king", true, PI],
+		["pars", "king", false, 0.0],
+		# The pars horse looks straight down +Z like the rest of its set, so it
+		# takes the figures' turn. The set this one replaced did not, and that is
+		# the case that shipped back to front.
+		["pars", "knight", true, PI],
+		["pars", "knight", false, 0.0],
 		["bastani", "knight", true, PI],
 		["bastani", "knight", false, 0.0],
 		["bastani", "bishop", true, PI],
@@ -767,18 +767,19 @@ func _test_piece_height_ladder() -> void:
 ## The facing table against the meshes it describes.
 ##
 ## The rule a piece "faces" is a fact about its geometry, and it has now been
-## wrong twice - once for every knight, once for the persian knights only - with a
+## wrong twice - once for every knight, once for a set's knights only - with a
 ## human seeing it in a screenshot as the only detector. So the knights are
-## measured here: the muzzle is the point furthest from the piece's own vertical
-## axis in the top fifth of its height, and its z sign is what the table has to
-## say.
+## measured here: the head's mass in the top 5% of the piece's height - the ears
+## and the muzzle, which is what leans - is compared with the body's, and its z
+## sign is what the table has to say.
 ##
-## The rule is checked with the muzzle rather than with the upper body's mass
-## because a horse's head counterbalances its chest: measured on the persian
-## knight, the mass offset across the whole upper body is +0.002 - indistinguishable
-## from symmetric - while the muzzle is at -0.30.
+## Measured on the way that separates the three sets, checked against their known
+## directions: top-5% centroid is -0.127 on staunton (muzzle down -Z), +0.062 on
+## pars and -0.031 on bastani. The last one is why the rule asks about the head
+## and not "the furthest point from the axis": on bastani that is the near-side
+## cheek, at -0.217, and the furthest-point rule would call the set backwards.
 func _test_knight_facing_matches_the_meshes() -> void:
-	for set_name in ["staunton", "persian", "bastani"]:
+	for set_name in ["staunton", "pars", "bastani"]:
 		var path := "res://assets/models/%s/knight.obj" % set_name
 		var file := FileAccess.open(path, FileAccess.READ)
 		_expect(file != null, "%s has a knight mesh" % set_name)
@@ -801,19 +802,18 @@ func _test_knight_facing_matches_the_meshes() -> void:
 			lowest = minf(lowest, point.y)
 			highest = maxf(highest, point.y)
 		var height := highest - lowest
-		var furthest := 0.0
-		var muzzle_z := 0.0
+		var head_z := 0.0
+		var head_count := 0
 		for point in points:
-			if point.y < lowest + height * 0.80:
+			if point.y < lowest + height * 0.95:
 				continue
-			var radius := sqrt(point.x * point.x + point.z * point.z)
-			if radius > furthest:
-				furthest = radius
-				muzzle_z = point.z
-		_expect(absf(muzzle_z) > 0.1, "%s's knight has a muzzle that sticks out (%.2f)" % [set_name, muzzle_z])
+			head_z += point.z
+			head_count += 1
+		var muzzle_z := head_z / maxf(1.0, float(head_count))
+		_expect(absf(muzzle_z) > 0.01, "%s's knight has a head that leans (%.3f)" % [set_name, muzzle_z])
 		var measured := 1 if muzzle_z > 0.0 else -1
 		_expect(measured == PieceFacing.front_sign(set_name, "knight"),
-			"%s's knight is carved facing %s, as the table says (muzzle z %+.2f)"
+			"%s's knight is carved facing %s, as the table says (head z %+.3f)"
 				% [set_name, "+Z" if measured > 0 else "-Z", muzzle_z])
 		# And the consequence, which is the thing the player actually sees: the two
 		# knights of a set end up facing each other.

@@ -3,40 +3,45 @@
 
 WHY THIS EXISTS
 ---------------
-Two sets of six GLB files were supplied by the project author - "persian" (the
-one uploaded to the repository root, one file per piece, 200-320k vertices and
-about 10 MB each) and "persian" (the older set recovered from the
-assets/models/persian/ folder of an earlier branch). Neither can be used as it
-is: 56 MB for the first set is more than a mobile game can afford for its
-pieces, and a Godot import of half a million triangles per piece would stall
-startup on a phone.
+The project author supplies each piece set as six sculpted files - one GLB per
+piece, 280k-500k triangles and 13-21 MB each - uploaded to the repository. The
+current set ("pars", an Indo-Persian figured set) is the third in that series;
+"bastani" and the retired turned "classic" came the same way.
 
-Both sets arrive the same way: geometry only, no materials, no UVs, and every
-piece exactly 1.0 unit tall - so a pawn would stand as tall as a king.
+None of them can be used as uploaded: 110 MB of GLB is not a mobile game's
+budget for its pieces, and a Godot import of half a million triangles per piece
+would stall startup on a phone.
 
-This script does the three conversions that turn them into a usable set:
+The uploads now land in tools/sources/incoming/ rather than assets/, because the
+export filter packs everything under assets/ into the APK - see
+tools/check_shipped_assets.py for the guard that fails the build when one does.
 
-1. Decimate. Every piece is reduced to TARGET_TRIANGLES with
-   fast-simplification, which keeps the silhouette and the carved surface but
-   drops the triangle count by roughly 60x. The other bodies in this project are
-   5-16k triangles; this set lands in the same band.
+This script does the conversions that turn six uploads into a usable set:
 
-2. Put it on the board's scale. The uploaded models are all exactly 1.0 unit
-   tall, whatever the piece, so they cannot simply be dropped in: a pawn would
-   be as tall as a king. Each one is scaled to the height the shipped set uses
-   (pawn 0.91 up to king 1.62), so the two sets can stand on the same board and
-   in the same squares.
+1. Weld, then decimate. The uploads are triangle soups - the pars horse is 282k
+   triangles in 21 000 disconnected islands, because the exporter shares no
+   vertices between neighbouring faces. A quadric simplifier will not collapse
+   across an island boundary, so welding first is what takes the mesh to
+   TARGET_TRIANGLES in one pass instead of bottoming out at 18k. The silhouette
+   and the carved surface survive; the triangle count drops by roughly 30x, into
+   the 5-16k band the rest of the project uses.
 
-3. Write OBJ with vertex normals. The project loads its bodies as OBJ meshes
-   with `preload`; OBJ also keeps the file readable in the diff. Normals are
-   area-weighted and averaged so the carving shades smoothly instead of
-   faceting - the uploaded meshes arrive without any normal data.
+2. Put it on the board's scale. The uploads are all exactly 1.0 unit tall,
+   whatever the piece, so a pawn would stand as tall as a king. Each one is
+   scaled to the height the shipped set uses (pawn 0.91 up to king 1.62).
+
+3. Write OBJ at four decimals. Positions and faces only - the game generates
+   smooth normals, a UV set and tangents at load, and a baked normal would be
+   thrown away.
+
+4. `--colours`: bake the sculpture's own colour per vertex into `<kind>.tint`
+   beside the OBJ, in both armies. See write_tint() for the layout and the
+   grading rules, and main.gd's `_read_tint()` for the other end.
 
 The set is stored the way the game expects: +Y up, standing on y = 0, centred on
 the origin in X/Z. Fragments are not merged or repaired: the source sculptures
-have a couple of open shells (the rook, the knight and the king are not
-watertight), and decimation of an open shell is still a correct render - it is
-only shadows from inside that would care, and chess pieces are lit from outside.
+have open shells, and decimating one is still a correct render - only shadows
+from inside would care, and chess pieces are lit from outside.
 
 DEPENDENCIES (build-time only; the generated OBJs are committed)
 ----------------------------------------------------------------
@@ -45,17 +50,9 @@ DEPENDENCIES (build-time only; the generated OBJs are committed)
 Files are found by the piece name inside them (`tools/piece_names.py`), in any
 format `trimesh` opens, so an upload does not have to be renamed first.
 
-`--colours` additionally bakes the model's own colour - a texture atlas, vertex
-colours or a flat material colour, whichever it arrived as - down to one RGB per
-vertex and writes it beside the OBJ as `<kind>.tint`. The game does not read it
-yet; it exists so a coloured upload survives the pipeline at 90 KB a piece
-instead of shipping its 1.3 MB atlas, and so the decision to use it can be taken
-later without asking for the upload again.
-
 Run:  python3 tools/prepare_sculpt_set.py [source_dir] [output_dir]
 
-    python3 tools/prepare_sculpt_set.py tools/sources/incoming assets/models/newwhite
-    python3 tools/prepare_sculpt_set.py /tmp/uploaded_glb   assets/models/persian
+    python3 tools/prepare_sculpt_set.py --colours tools/sources/incoming assets/models/pars
 """
 
 from __future__ import annotations
@@ -92,6 +89,31 @@ TARGET_HEIGHT = {
 # piece that is fully sculpted rather than assembled from a lathe and a crown.
 TARGET_TRIANGLES = 10000
 
+
+def weld(vertices: np.ndarray, faces: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Merge vertices that sit on the same point, and drop the collapsed faces.
+
+    Quantised to a ten-thousandth of the model's height, which on a piece that
+    is later scaled to 1.6 board units is 0.16 mm: far below anything a phone
+    screen can show, and far enough apart that genuinely distinct surfaces are
+    not fused.
+    """
+    span = float(np.max(vertices.max(axis=0) - vertices.min(axis=0)))
+    quantise = max(1e-6, span / 10000.0)
+    keys = np.round(vertices / quantise).astype(np.int64)
+    _, inverse, counts = np.unique(keys, axis=0, return_inverse=True, return_counts=True)
+    if len(inverse) == len(vertices) and int(counts.max()) == 1:
+        return vertices, faces
+    merged = np.zeros((len(counts), 3), dtype=np.float64)
+    np.add.at(merged, inverse, vertices)
+    merged /= counts[:, None].astype(np.float64)
+    faces = inverse[faces]
+    keep = (faces[:, 0] != faces[:, 1]) & (faces[:, 1] != faces[:, 2]) & (faces[:, 0] != faces[:, 2])
+    faces = faces[keep]
+    # Vertices no face refers to are dropped, which also drops the ones the
+    # atlas sampled for nothing.
+    used, faces = np.unique(faces, return_inverse=True)
+    return merged[used], faces.reshape(-1, 3)
 
 def load(path: str) -> tuple[np.ndarray, np.ndarray]:
     mesh = trimesh.load(path, force="mesh")
@@ -303,6 +325,15 @@ def _plinth_centre(vertices: np.ndarray) -> tuple[float, float]:
 
 def prepare(kind: str, path: str, keep_colour: bool = False):
     vertices, faces = load(path)
+    # These uploads are triangle soups: the November horse is 282k triangles in
+    # 21 000 disconnected islands, because the exporter did not share vertices
+    # between neighbouring faces. A quadric simplifier will not collapse across
+    # an island boundary, so decimating the soup directly bottoms out around
+    # 18k triangles however hard it is pushed. Welding first - 262k vertices to
+    # 138k on that horse - takes the same mesh to 10k in a single pass, and the
+    # surface it produces is smoother because the crease is now a crease rather
+    # than a seam between two unconnected facets.
+    vertices, faces = weld(vertices, faces)
     source_vertices = source_colours = None
     if keep_colour:
         source_vertices = np.asarray(vertices, dtype=np.float64)
@@ -316,8 +347,8 @@ def prepare(kind: str, path: str, keep_colour: bool = False):
             print(f"{kind}: the model's colour reads as black - the atlas probably "
                   f"did not decode; importing it without colour", file=sys.stderr)
             source_vertices = source_colours = None
-    # The two sets are not equally dense: the persian pieces arrive already
-    # decimated (6k-26k triangles) while the persian ones arrive at 370k-650k.
+    # The sets are not equally dense: the older uploads arrive already decimated
+    # (6k-26k triangles) while the pars ones arrive at 280k-500k.
     # Only decimate downwards, never upwards, and never re-simplify a piece
     # that is already under budget - it would only cost detail.
     # One pass is not always enough. A sculpture of many disconnected islands -
@@ -388,21 +419,137 @@ def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_pli
     return vertices, faces
 
 
-def write_tint(path: str, colours: np.ndarray) -> None:
-    """Write per-vertex colour beside the OBJ, in the OBJ's own vertex order.
+## Turning the uploaded colours into the two armies.
+##
+## Everything below is done in sRGB, and that is the decision this block exists
+## to record. The palette in main.gd - ivory 0.68, charcoal 0.32 - is written in
+## sRGB, and tools/check_visual_balance.py measures it in that space. A first
+## version of this file did its arithmetic in linear light, which is the correct
+## space for multiplying light and the wrong space for matching a palette: the
+## "dark" army came out at 0.32 *linear*, which is 0.60 on screen, and rendered
+## as a mid-brown piece rather than a black one. sRGB numbers are what the artist
+## and the checker both speak, so the bake speaks it too and converts once, at
+## the end, into what the shader wants.
+##
+## Three things happen to the uploaded colours:
+##
+##   1. A tone squeeze. The atlas spans nearly black to bright gold, and the
+##      render cannot use that range: past about 0.78 the key light clips and the
+##      piece is a white cut-out, which is the failure this project has shipped
+##      twice. Each piece's colours are mapped onto their own percentile ranks,
+##      between PALE_FLOOR and PALE_CEILING. Ranking rather than scaling is what
+##      keeps the gold gold and the silver silver: the order of the pixels is
+##      untouched, only the distance between them is compressed.
+##
+##   2. The second army. The reference image the author supplied is the same
+##      sculpture in black armour - same gold trim, same red plume, everything
+##      else dark - so the ink army is the pale army with a gamma and a gain. The
+##      gamma is what puts the contrast back: at 1.6 the dark cloth and the skin
+##      fall away while the gilding keeps half its brightness, which a plain
+##      multiply did not do (measured: the gold ended up 1.35x the body instead of
+##      the 2.5x the photograph has).
+##
+##   3. Both armies land in the bands the rest of the game lives in, and
+##      tools/check_visual_balance.py checks that against every board: the pale
+##      median is ~0.67 next to the other sets' 0.668, the ink median ~0.32 next
+##      to their 0.322.
+##
+## The two numbers were not guessed. The first attempt - pale 0.60, ink 0.25 -
+## sat 0.05 from the light squares and 0.01 from the dark ones, i.e. a gold piece
+## vanished into a gold-adjacent square; the second was 1.9x apart when the rule
+## wants 2x. Both were caught by that checker, not by the eye.
+PALE_TARGET = 0.70
+PALE_GAMMA = 0.62
+PALE_CEILING = 0.84
+INK_MEDIAN = 0.322
+INK_GAMMA = 1.6
+INK_LIFT = np.array([0.006, 0.007, 0.010])
 
-    A binary sidecar rather than an OBJ feature: OBJ has no agreed vertex-colour
-    syntax, and the game's own OBJ reader (`_piece_mesh`) welds vertices and
-    rebuilds the colour array anyway. 3 bytes a vertex is 30 KB for a whole
-    piece, against 1.3 MB for the atlas it was sampled from.
+
+def luma(rgb: np.ndarray) -> np.ndarray:
+    return 0.2126 * rgb[:, 0] + 0.7152 * rgb[:, 1] + 0.0722 * rgb[:, 2]
+
+
+def pale_army(colours: np.ndarray) -> np.ndarray:
+    """The uploaded colours (sRGB 0-1), squeezed into the brightness band the render can use.
+
+    The squeeze is a uniform multiply per vertex, so it cannot change a hue: the
+    red of the plume stays red at every brightness. That property is the whole
+    reason it is written this way - the first version mapped each piece's colours
+    onto their percentile ranks instead, which preserves contrast but not hue, and
+    the set came out orange plastic: the dark pixels got multiplied far harder
+    than the bright ones, so every channel that was already warm clipped first.
     """
+    values = np.maximum(luma(colours), 1e-4)
+    median = float(np.median(values))
+    target = np.minimum(PALE_TARGET * np.power(values / median, PALE_GAMMA), PALE_CEILING)
+    out = colours * (target / values)[:, None]
+    high = out.max(axis=1, keepdims=True)
+    return np.clip(np.where(high > 1.0, out / np.maximum(high, 1e-6), out), 0.0, 1.0)
+
+
+def ink_gain(pale: np.ndarray) -> float:
+    """The gain that puts the ink army's median on INK_MEDIAN.
+
+    Derived per set rather than fixed, because that median is where the
+    arithmetic has to land: tools/check_visual_balance.py wants the two armies at
+    least 2x apart AND each at least 0.06 clear of every square it can stand on.
+    The dark squares sit at 0.23-0.26 and the dark army's band tops out at 0.35,
+    so an ink median has one narrow place to live - 0.32, where the other two
+    sets' charcoal is.
+    """
+    median = float(np.median(luma(ink_army(pale, 1.0))))
+    return float(np.clip(INK_MEDIAN / max(median, 1e-4), 0.05, 2.0))
+
+
+def ink_army(pale: np.ndarray, gain: float) -> np.ndarray:
+    """The same piece in dark armour: the gold stays the brightest thing on it."""
+    curved = np.power(np.clip(pale, 0.0, 1.0), INK_GAMMA) * gain
+    return np.clip(curved + INK_LIFT, 0.0, 1.0)
+
+
+def tint_luma(colours_srgb: np.ndarray) -> float:
+    return float(np.median(luma(np.asarray(colours_srgb, dtype=np.float64) / 255.0)))
+
+
+def write_tint(path: str, colours: np.ndarray) -> None:
+    """Write the pale army's vertex colours beside the OBJ, in the OBJ's vertex order.
+
+    Layout, all little-endian:
+
+        b"TINT"   uint8 version (3)   uint32 vertex count
+        float32 ink_gain, ink_gamma, ink_r, ink_g, ink_b    <- the ink army's rule
+        count x RGB, one sRGB byte triple per vertex
+
+    Only the pale army is stored. The ink army is `pale ** ink_gamma * ink_gain
+    + ink` in sRGB, and those five numbers travel in the header rather than being
+    written out as a second colour per vertex: that would put the packaged
+    content over its budget for data the game can compute for the cost of one
+    power. main.gd's `_read_tint()` is the other end of this file, and
+    tools/check_visual_balance.py reads it too - the numbers in docs are the
+    numbers the game draws.
+
+    A sidecar rather than an OBJ feature: OBJ has no agreed vertex-colour syntax,
+    and the game's own OBJ reader rebuilds the vertex array anyway. Three bytes a
+    vertex is 15 KB for a whole piece, against 1.3 MB for the atlas it was
+    sampled from.
+    """
+    pale = pale_army(np.asarray(colours, dtype=np.float64) / 255.0)
+    gain = ink_gain(pale)
+    stored = np.clip(np.round(pale * 255.0), 0, 255).astype(np.uint8)
     with open(path, "wb") as handle:
         handle.write(b"TINT")
-        handle.write(len(colours).to_bytes(4, "little"))
-        handle.write(np.ascontiguousarray(colours, dtype=np.uint8).tobytes())
+        handle.write(bytes([3]))
+        handle.write(len(stored).to_bytes(4, "little"))
+        handle.write(np.asarray([gain, INK_GAMMA], dtype="<f4").tobytes())
+        handle.write(np.asarray(INK_LIFT, dtype="<f4").tobytes())
+        handle.write(np.ascontiguousarray(stored, dtype=np.uint8).tobytes())
 
 
 def write_obj(path: str, kind: str, vertices: np.ndarray, faces: np.ndarray) -> None:
+    # Four decimals, not six: on a king that is 1.62 board units tall, the last
+    # digit is a twentieth of a millimetre, and the text it saves is a quarter of
+    # the file.
     # Positions and faces only, exactly like the Staunton OBJs: _piece_mesh()
     # welds the export's duplicated vertices and generates one smooth normal per
     # corner plus a cylindrical UV set. Writing normals here as well would add
@@ -412,7 +559,7 @@ def write_obj(path: str, kind: str, vertices: np.ndarray, faces: np.ndarray) -> 
         handle.write("# Source: user-supplied GLB, see assets/models/<set>/README.md\n")
         handle.write(f"o {kind}\n")
         for point in vertices:
-            handle.write(f"v {point[0]:.5f} {point[1]:.5f} {point[2]:.5f}\n")
+            handle.write(f"v {point[0]:.4f} {point[1]:.4f} {point[2]:.4f}\n")
         for face in faces:
             a, b, c = face + 1
             handle.write(f"f {a} {b} {c}\n")

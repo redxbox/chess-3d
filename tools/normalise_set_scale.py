@@ -33,7 +33,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS = os.path.join(ROOT, "assets", "models")
 REFERENCE = "staunton"
-SETS = ("persian", "bastani")
+SETS = ("pars", "bastani")
 KINDS = ("pawn", "rook", "knight", "bishop", "queen", "king")
 FOOT_FRACTION = 0.08
 

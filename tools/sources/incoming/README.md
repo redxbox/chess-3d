@@ -54,41 +54,44 @@ git add tools/sources/incoming && git commit -m "New piece set upload" && git pu
 - نکته‌ای دربارهٔ هر قطعه؟
 ```
 
-## دربارهٔ «رنگی»
+## ست فعلی (`pars`)
 
-نکتهٔ مهم، چون گفتی مهره‌ها **رنگی** هستند: بازی الان رنگ دو ارتش را از پالت خودش
-می‌دهد (`PIECE_THEMES` در `main.gd`) و رنگِ خودِ مدل را نادیده می‌گیرد، چون:
+شش فایلی که در `assets/` آپلود شده بود، همین‌جاست، و ست `pars` از همین‌ها ساخته شد.
+نام هر فایل با نقشش شروع می‌شود تا ایمپورتر پیدایش کند:
 
-* مهره‌ها باید سفید/سیاه خوانده شوند تا بتوان بازی کرد — رنگی‌بودن مدل ممکن است
-  این تفکیک را بشکند؛
-* سایهٔ فرورفتگی‌ها روی رأس‌ها bake می‌شود و با رنگ پالت ضرب می‌شود.
+| نقش | فایل | مثلث | تکسچر | حجم آپلود |
+| --- | --- | --- | --- | --- |
+| پیاده | `pawn-104217.179.glb` | 472k | 4096² | 18.5 MB |
+| رخ | `rook-105358.655.glb` | 282k | 2048² | 12.7 MB |
+| اسب | `knight-110155.406.glb` | 470k | 4096² | 19.1 MB |
+| فیل | `bishop-111346.525.glb` | 474k | 4096² | 20.3 MB |
+| وزیر | `queen-111935.605.glb` | 468k | 4096² | 19.3 MB |
+| شاه | `king-110725.578.glb` | 496k | 4096² | 19.3 MB |
 
-پس دو راه هست و انتخابش با توست:
+خروجی: شش مهرهٔ ۱۰٬۰۰۰ مثلثی در `assets/models/pars/`، هر کدام ۲۷۰ کیلوبایت OBJ
+به‌علاوهٔ ۱۵ کیلوبایت `.tint`. کل ست ۱٫۸ مگابایت — همان‌قدر که دو ست دیگر.
 
-1. **پالت بازی رنگ بدهد (پیش‌فرض).** مدل رنگی آپلود می‌شود، ولی بازی رنگ خودش را
-   می‌زند. سریع‌ترین راه؛ ست به‌عنوان ست چهارم (یا جایگزین یکی از سه ست) اضافه می‌شود.
-2. **رنگ خودِ مدل حفظ شود.** لازم است یک ست چهارم با متریال/تکسچر خودِ مدل ساخته
-   شود (مسیر متریال جدا + یکی‌شدن تکسچر در بودجهٔ حجم). این کار رنگ دو ارتش را از
-   کنترل بازی خارج می‌کند، پس باید بعدش با چشم تأیید شود که هر دو ارتش از هم
-   تشخیص‌دادنی مانده‌اند.
+## رنگ خودِ مدل (دیگر یک تصمیم باز نیست)
 
-در `NOTES.md` بنویس کدام را می‌خواهی.
-
-## اگر مدل رنگ و تکسچر خودش را دارد
-
-ایمپورتر می‌تواند رنگ مدل را از تکسچرِ داخل GLB **روی رأس‌ها bake کند** و کنار OBJ
-ذخیره کند (۳ بایت برای هر رأس ≈ ۹۰ کیلوبایت برای یک مهره، در برابر ۱٫۳ مگابایت
-تکسچر ۲۰۴۸×۲۰۴۸):
+از این نسخه به بعد بازی **رنگ خودِ مدل را می‌خوانَد**. ست `pars` دقیقاً همین‌طور
+ساخته شده: رنگ تکسچر ۴۰۹۶×۴۰۹۶ روی رأس‌ها bake شده و کنار OBJ در یک فایل
+`<kind>.tint` نشسته (۱۵ کیلوبایت برای هر مهره، در برابر ۱٫۳ مگابایت تکسچر).
 
 ```bash
 python3 tools/prepare_sculpt_set.py --colours tools/sources/incoming assets/models/<set-name>
+python3 tools/normalise_set_scale.py
 ```
 
-خروجی کنار `king.obj` یک `king.tint` هم می‌گذارد. توجه: بازی هنوز آن را نمی‌خواند —
-رنگ دو ارتش فعلاً از پالت خودِ بازی می‌آید. برای اینکه رنگ خودِ مدل روی تخته دیده
-شود باید یک ست چهارم با متریالِ خودش ساخته شود؛ این تصمیم طراحی است، نه کار
-مکانیکی، چون تفکیک سفید/سیاه روی تخته را به‌هم می‌زند. در `NOTES.md` بنویس که
-این را می‌خواهی.
+بعد از آن، در `src/main/main.gd` یک ورودی در `PIECE_THEMES` بساز که
+`"vertex_colour": true` داشته باشد (مثل `pars`) و `light` و `dark` آن `Color(1,1,1)`
+باشند — یعنی «رنگ از رأس‌ها بیاید».
+
+دو ارتش از یک bake می‌آیند: ارتش روشن همان رنگ مدل است، ارتش تیره همان رنگ با یک
+گاما و گین (`pale ** gamma * gain + lift`) که عددهایش در هدر همان `.tint` نوشته
+شده. پس لازم نیست دو نسخه از مدل بسازی.
+
+`tools/check_visual_balance.py` بعد از ایمپورت خودش این دو عدد را از فایل‌های
+`.tint` می‌خواند و چک می‌کند هر ارتش از هر چهار تخته به‌اندازهٔ کافی جدا باشد.
 
 ## بعدش چه می‌شود
 
@@ -124,7 +127,8 @@ at 25 MB per file. Run `python3 tools/check_incoming_set.py` to see what is
 missing or too heavy, then `prepare_sculpt_set.py` turns the folder into a
 playable set. Nothing here ships in the APK.
 
-Note that the game colours the two armies from its own palette and currently
-ignores a model's material: say in `NOTES.md` whether the colour of the model is
-part of the design, because keeping it means a fourth theme with its own
-material path.
+The game reads a model's own colour when the set asks for it: import with
+`--colours`, then give the theme `"vertex_colour": true` in `PIECE_THEMES`. Both
+armies come from the one bake - the ink army is a gamma and a gain over the pale
+one, and both numbers live in the `.tint` header. That is how the current `pars`
+set is built.

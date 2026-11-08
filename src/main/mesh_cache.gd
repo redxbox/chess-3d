@@ -23,11 +23,17 @@ extends RefCounted
 ##
 ## `user://` is not a build artefact and never ships: the cache is per install.
 
-## Bumped to 4 with the sculpt fields rewrite: the cavity bake is now measured
-## over a three-ring patch and thresholded instead of stretched, so a mesh cached
-## by 3 carries the blotched shading the rewrite was written to remove. A cache
-## is per install and free to rebuild; keeping a stale one is not.
-const FORMAT := 4
+## Bumped to 5 with the PARS set: a cached mesh now also carries the sculpture's
+## own colours, read from `<kind>.tint` and multiplied into the shading, and its
+## key gained the army because the two armies are the same body in two colours. A
+## cache written by 4 has neither, so it would draw the coloured set in the
+## palette white this round exists to replace.
+##
+## (4 was the sculpt-fields rewrite: the cavity bake moved to a three-ring patch,
+## and a mesh cached by 3 carried the blotched shading that rewrite removed.)
+##
+## A cache is per install and free to rebuild; keeping a stale one is not.
+const FORMAT := 5
 const ROOT := "user://mesh_cache"
 
 

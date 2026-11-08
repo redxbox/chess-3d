@@ -23,6 +23,7 @@ cheap guard that runs on every push, on every board and set, without a GPU.
 from __future__ import annotations
 
 import re
+import struct
 import sys
 from pathlib import Path
 
@@ -82,8 +83,58 @@ def parse_theme_table(source: str, name: str) -> dict[str, dict[str, tuple[float
             match = re.match(r'\s*"([a-z_]+)": ([0-9.]+),', line)
             if match:
                 values[match.group(1)] = (float(match.group(2)),)
+            # String and boolean flags as well: `vertex_colour` and `model_set`
+            # select a different source of albedo for a set that carries its own.
+            match = re.match(r'\s*"([a-z_]+)": "([a-z_]+)",', line)
+            if match:
+                values[match.group(1)] = (match.group(2),)
+            match = re.match(r'\s*"([a-z_]+)": (true|false),', line)
+            if match:
+                values[match.group(1)] = (match.group(2) == "true",)
         entries[theme_id] = values
     return entries
+
+
+def tinted_armies(palette: dict[str, tuple[float, ...]]) -> tuple[float, float] | None:
+    """The pale/ink albedos of a set whose colours are baked into the mesh.
+
+    A set marked `vertex_colour` has a white multiplier in PIECE_THEMES on
+    purpose: the albedo is the `.tint` sidecar next to its OBJs, one RGB per
+    vertex per army. Reading the palette there would measure the multiplier and
+    conclude the set is two white armies. So the sidecar is read instead, and the
+    numbers checked are the ones the mesh actually carries - median linear luma
+    over every vertex of all six pieces, which is the same statistic this script
+    uses for the other sets' flat albedos.
+    """
+    if not palette.get("vertex_colour", (False,))[0]:
+        return None
+    entry = palette.get("model_set")
+    if not entry or not isinstance(entry[0], str):
+        return None
+    model_set = entry[0]
+    directory = ROOT / "assets" / "models" / model_set
+    pale_values: list[float] = []
+    ink_values: list[float] = []
+    for path in sorted(directory.glob("*.tint")):
+        raw = path.read_bytes()
+        if raw[:4] != b"TINT" or raw[4] != 3:
+            continue
+        count = int.from_bytes(raw[5:9], "little")
+        gain, gamma = struct.unpack("<ff", raw[9:17])
+        lift = struct.unpack("<fff", raw[17:29])
+        for i in range(count):
+            r, g, b = raw[29 + i * 3: 32 + i * 3]
+            # sRGB, like the palette values for the other two sets: the bands in
+            # this file are written in the space PIECE_THEMES is written in, and
+            # the bake does its arithmetic there too.
+            pale = (r / 255.0, g / 255.0, b / 255.0)
+            pale_values.append(luma(pale))
+            ink_values.append(luma(tuple(min(1.0, pow(c, gamma) * gain + l) for c, l in zip(pale, lift))))
+    if not pale_values:
+        return None
+    pale_values.sort()
+    ink_values.sort()
+    return (pale_values[len(pale_values) // 2], ink_values[len(ink_values) // 2])
 
 
 def band_problem(label: str, value: float, band: tuple[float, float]) -> str | None:
@@ -101,7 +152,7 @@ def main() -> int:
     pieces = parse_theme_table(source, "PIECE_THEMES")
 
     problems: list[str] = []
-    print("albedoes (Rec.709 luma, linear)")
+    print("albedoes (Rec.709 luma, as written in the theme tables)")
 
     for board_id, board in boards.items():
         if "light_square" not in board or "dark_square" not in board:
@@ -122,9 +173,14 @@ def main() -> int:
         if "light" not in palette or "dark" not in palette:
             problems.append(f"set {set_id} has no light / dark body colour")
             continue
-        pale = luma(palette["light"])
-        dark = luma(palette["dark"])
-        print(f"  set   {set_id:11s} pale {pale:.3f}  dark {dark:.3f}")
+        measured = tinted_armies(palette)
+        if measured is not None:
+            pale, dark = measured
+            print(f"  set   {set_id:11s} pale {pale:.3f}  dark {dark:.3f}   (measured from the .tint sidecars)")
+        else:
+            pale = luma(palette["light"])
+            dark = luma(palette["dark"])
+            print(f"  set   {set_id:11s} pale {pale:.3f}  dark {dark:.3f}")
         for label, value, band in (
             (f"set {set_id} pale army", pale, PALE_ARMY),
             (f"set {set_id} dark army", dark, DARK_ARMY),
@@ -146,8 +202,12 @@ def main() -> int:
         for set_id, palette in pieces.items():
             if "light" not in palette or "dark" not in palette:
                 continue
-            pale = luma(palette["light"])
-            army = luma(palette["dark"])
+            measured = tinted_armies(palette)
+            if measured is not None:
+                pale, army = measured
+            else:
+                pale = luma(palette["light"])
+                army = luma(palette["dark"])
             # Both armies stand on both colours of square, so what matters is the
             # distance in either direction, not the sign: a charcoal piece that is
             # lighter than the dark square reads fine, it just has to be

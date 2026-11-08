@@ -12,9 +12,9 @@ extends RefCounted
 ##      at +Z, which is why White is the army nearest the player). To face the
 ##      enemy, White has to look -Z and Black +Z.
 ##   2. The turned Staunton bodies are sculpted with their muzzle down -Z. Both
-##      sculpted sets are sculpted facing +Z - the persian king and queen hold
-##      their staff and orb in front of them, and the bastani figures are cut the
-##      same way.
+##      sculpted sets are sculpted facing +Z - the pars king holds his sceptre in
+##      front of him and its horse looks straight down +Z, and the bastani
+##      figures are cut the same way.
 ##
 ## So a -Z-front body needs no turn for White and half a turn for Black, and a
 ## +Z-front body needs exactly the opposite. The turned bishop additionally
@@ -28,24 +28,25 @@ const TURNED_SET := "staunton"
 ##
 ## This is about the FIGURES - the king, queen, bishop and pawn holding a staff,
 ## an orb or a book - where "front" is which way the figure is looking.
-const PLUS_Z_SETS := ["persian", "bastani"]
+const PLUS_Z_SETS := ["pars", "bastani"]
 
 ## Which way each set's KNIGHT is carved. Measured from the meshes, not assumed:
-## the muzzle is the point furthest from the piece's own vertical axis in the top
-## fifth of its height, and it points -Z on staunton and persian and +Z on
-## bastani.
+## the muzzle is the far end of the head along z, and it points -Z on staunton and
+## +Z on pars and bastani. PARS is the one that changed: its horse is a bust cut
+## looking straight down +Z, measured at a top-5%-of-height centroid of +0.062
+## against the staunton's -0.127.
 ##
-## This table exists because the figure rule got the knights wrong. The persian
-## set is sculpted facing +Z in its figures - the king holds his staff in front of
-## him - and that was taken to mean the knight too. It does not: the persian
-## knight's head is cut the same way as the turned set's, muzzle down -Z, so
-## turning it with the figures put the two knights back to back, each facing its
-## own player. That is the mistake the player reported, in these words: the
-## knights have to face each other.
+## This table exists because the figure rule got a knight wrong once. The persian
+## set that PARS replaced was sculpted facing +Z in its figures, and that was
+## taken to mean its knight too; it was not, and the two knights ended up back to
+## back, each facing its own player. The player's words were that the knights have
+## to face each other. PARS is measured, not inherited: all six of its pieces are
+## cut looking +Z, so it needs no exception at all - and the exception list is
+## kept because the next set may.
 ##
 ## tests/test_chess.gd measures this table against the OBJ files, so a set that is
 ## re-exported with its horse turned round fails a test instead of shipping.
-const KNIGHT_FRONT_MINUS_Z := ["staunton", "persian"]
+const KNIGHT_FRONT_MINUS_Z := ["staunton"]
 
 
 static func yaw(set_name: String, kind: String, is_white: bool) -> float:

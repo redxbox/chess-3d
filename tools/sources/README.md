@@ -11,15 +11,20 @@ sees one.
 
 | folder | what it holds | used by |
 | --- | --- | --- |
-| `incoming/` | **the drop zone**: new piece models, exactly as they arrive | `tools/check_incoming_set.py`, then `tools/prepare_sculpt_set.py` - see the README inside it |
+| `incoming/` | **the drop zone**: new piece models, exactly as they arrive. Holds the six `pars` uploads as `<kind>-<timestamp>.glb` | `tools/check_incoming_set.py`, then `tools/prepare_sculpt_set.py` - see the README inside it |
 | `persian/` | `kinge.glb`, the replacement Persian king | retired with the Persian set; kept for the record |
 | `figurines/` | `pown1` `rook1` `knight1` `bishop1` `quin1` `king1` `.glb` - a whole set of court figures | `assets/models/bastani/` |
+
+`--colours` bakes each model's own texture atlas down to one colour per vertex
+and writes `<kind>.tint` beside the OBJ: 15 KB a piece against 1.3 MB of atlas.
+That is how `assets/models/pars/` was built, and it is what the game reads when
+the theme says `"vertex_colour": true`.
 
 ## Turning a folder of models into a playable set
 
 ```sh
 python3 tools/check_incoming_set.py          # what is in the drop zone, and is it complete
-python3 tools/prepare_sculpt_set.py tools/sources/incoming assets/models/<set>
+python3 tools/prepare_sculpt_set.py --colours tools/sources/incoming assets/models/<set>
 python3 tools/normalise_set_scale.py
 ```
 

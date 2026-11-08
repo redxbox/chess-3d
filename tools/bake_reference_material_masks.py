@@ -19,7 +19,7 @@ from PIL import Image, ImageFilter
 import trimesh
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_DIR = ROOT / "assets/models/persian/candidate2/optimized"
+MODEL_DIR = ROOT / "assets/models/pars"
 REFERENCES = {
     "rook": ("rook.png", (0.16, 0.87, 0.09, 0.90), "x"),
     "king": ("king.png", (0.16, 0.85, 0.01, 0.96), "x"),

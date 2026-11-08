@@ -184,7 +184,7 @@ jobs:
           # and the diagonal proves all six are wired up in three renders.
           # royal_wood-classic is kept as the fourth because the published
           # showcase image is that pairing - the turned set on the wood board.
-          for pair in classic-classic royal_wood-bastani royal_blue-persian royal_wood-classic; do
+          for pair in classic-classic royal_wood-bastani royal_blue-pars royal_wood-classic; do
             board="${pair%%-*}"
             pieces="${pair#*-}"
             name="${pair}.png"
@@ -257,7 +257,7 @@ jobs:
           script: |
             const fs = require('fs');
             const branch = context.ref.replace('refs/heads/', '');
-            for (const name of ['classic-classic.png', 'royal_wood-bastani.png', 'royal_blue-persian.png', 'royal_wood-classic.png', 'bastani-detail.png', 'style-picker.png']) {
+            for (const name of ['classic-classic.png', 'royal_wood-bastani.png', 'royal_blue-pars.png', 'royal_wood-classic.png', 'bastani-detail.png', 'style-picker.png']) {
               const path = `docs/previews/${name}`;
               let sha;
               try {
@@ -324,7 +324,7 @@ jobs:
           output=$(python3 tools/measure_preview.py \
             build/preview/classic-classic.png \
             build/preview/royal_wood-bastani.png \
-            build/preview/royal_blue-persian.png \
+            build/preview/royal_blue-pars.png \
             build/preview/royal_wood-classic.png 2>&1)
           status=$?
           printf '%s\n' "$output"
