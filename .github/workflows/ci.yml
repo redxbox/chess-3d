@@ -75,12 +75,18 @@ jobs:
       - name: Check packaged content budget
         shell: bash
         run: |
+          # No pipe into head. It was here to keep the annotation short, and what
+          # it actually did was close the script's stdout mid-write: the job then
+          # failed with exit 120 and a BrokenPipeError instead of with the budget
+          # message, which is exactly the kind of false alarm that makes a check
+          # stop being read. The full output goes to a file, the tail is printed,
+          # and the exit code is the script's own.
           set +e
-          output=$(python3 tools/export_budget.py -v 2>&1 | head -30)
+          output=$(python3 tools/export_budget.py -v 2>&1)
           status=$?
-          printf '%s\n' "$output"
+          printf '%s\n' "$output" | tail -40
           if [ "$status" -ne 0 ]; then
-            encoded=$(printf '%s' "$output" | tail -20 | base64 -w0 | cut -c1-4000)
+            encoded=$(printf '%s' "$output" | grep -E 'budget|over|FAIL|WARNING' | tail -12 | base64 -w0 | cut -c1-4000)
             echo "::error title=Content budget base64::$encoded"
           fi
           exit "$status"

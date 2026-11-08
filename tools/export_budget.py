@@ -61,6 +61,11 @@ IMPORTED = {".obj", ".wav", ".ogg", ".svg", ".tscn", ".tres", ".gd", ".glb", ".g
 SOURCE_FORMATS = {".glb", ".gltf", ".blend", ".fbx", ".zip"}
 # Extensions that are pure documentation and are never exported.
 IGNORED = {".md", ".txt"}
+# Runtime data that Godot copies verbatim and a script reads by hand. `.tint` is
+# the pars set's per-vertex colours: 15 KB a piece, read by _read_tint() in
+# main.gd. It has no importer, which is correct and is not a warning - the file
+# is counted at its real size above.
+VERBATIM_RUNTIME = {".tint"}
 
 
 def mesh_bytes(path):
@@ -95,6 +100,8 @@ def collect():
             # against its OBJ at the same triangle count.
             size = int(size * 0.6)
             note = "SOURCE EXPORT - importable, so it ships; move it to tools/sources/"
+        elif extension in VERBATIM_RUNTIME:
+            note = "runtime data, read by main.gd"
         elif extension not in IMPORTED:
             note = "SHIPPED AS-IS - no importer"
         rows.append({"path": path, "bytes": size, "note": note})
