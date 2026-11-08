@@ -449,10 +449,15 @@ def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_pli
 ##      multiply did not do (measured: the gold ended up 1.35x the body instead of
 ##      the 2.5x the photograph has).
 ##
-##   3. Both armies land in the bands the rest of the game lives in, and
-##      tools/check_visual_balance.py checks that against every board: the pale
-##      median is ~0.67 next to the other sets' 0.668, the ink median ~0.32 next
-##      to their 0.322.
+##   3. Both armies land in the bands the rest of the game lives in.
+##      tools/check_visual_balance.py checks that against every board, and the
+##      render measurement (tools/measure_preview.py, on a real Godot frame)
+##      is the final word: at an ink median of 0.322 - the value that matches the
+##      other two sets' palette charcoal exactly - the pars black pawns rendered
+##      at 25 of 255 on the royal_blue board, under the 30 floor. The reason is
+##      that the palette number is one flat albedo while this army is a mix, and
+##      its darks are darker than its median. 0.345 is where the render lands
+##      inside the band with its own mix.
 ##
 ## The two numbers were not guessed. The first attempt - pale 0.60, ink 0.25 -
 ## sat 0.05 from the light squares and 0.01 from the dark ones, i.e. a gold piece
@@ -461,7 +466,7 @@ def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_pli
 PALE_TARGET = 0.70
 PALE_GAMMA = 0.62
 PALE_CEILING = 0.84
-INK_MEDIAN = 0.322
+INK_MEDIAN = 0.345
 INK_GAMMA = 1.6
 INK_LIFT = np.array([0.006, 0.007, 0.010])
 
