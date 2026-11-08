@@ -270,7 +270,7 @@ const PIECE_THEMES := {
 		"dark": Color(1.0, 1.0, 1.0),
 		"accent": Color(0.92, 0.74, 0.28),
 		"light_roughness": 0.42,
-		"dark_roughness": 0.34,
+		"dark_roughness": 0.26,
 		"accent_roughness": 0.28,
 		"accent_metallic": 0.85,
 		"gild": 0.0,
@@ -1004,12 +1004,13 @@ func _setup_piece_materials() -> void:
 	ebony.rim_enabled = true
 	ebony.rim = 0.35
 	ebony.rim_tint = 0.35
-	if _piece_has_own_colours():
-		# Same reason as the pale army, and one more: the ink army's colours are
-		# a multiply of the pale army's, so its gold is already the brightest
-		# thing on the piece and a rim would flatten that into a uniform edge.
-		ebony.rim = 0.12
-		ebony.metallic_specular = 0.45
+	# The ink army of the coloured set keeps this whole material, and that was
+	# not the first attempt: it was given a weaker rim and a duller specular, on
+	# the argument that its gold is already the brightest thing on the piece.
+	# Measured on the render, that put the black pawns at 25 of 255 - under the
+	# floor the other two sets clear by a wide margin - because on a black body
+	# the rim and the tight lobe are most of what the eye reads as a form. The
+	# colour is the only thing that should differ between the sets.
 	_piece_obsidian_material = ebony
 
 	# --- Gold trim ----------------------------------------------------------
