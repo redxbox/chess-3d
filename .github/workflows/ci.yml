@@ -457,6 +457,15 @@ jobs:
             rm -rf /var/lib/apt/lists/*
           fi
 
+      # The presets were checked above; this is the artefact itself. The check
+      # that matters is the one that reads the built APK, because that is what
+      # the phone installs - the config can be right and the export can still
+      # leave a file out. Six missing sidecars looked exactly like this once:
+      # every piece white, every job green. See tools/check_packed_colours.py.
+      - name: Check the colour sidecars are in the built APK
+        shell: bash
+        run: python3 tools/check_packed_colours.py build/android/chess-3d.apk
+
       # The APK's own file list, not a guess: this is the only place the real
       # number exists. The table goes into the job summary and the total into a
       # step annotation, which the API can read, so a size change is visible on
