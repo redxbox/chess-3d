@@ -67,6 +67,15 @@ jobs:
           exit "$failed"
 
 
+      # Every file the game reads with FileAccess has to be in the package. Godot
+      # only packs files it can import, or files its include_filter names, and a
+      # missing one is invisible in the editor and in the render job - both read
+      # the source tree - while the phone build draws whatever is left. A set of
+      # six colour sidecars missed the APK exactly this way and shipped as bare
+      # white pieces. See tools/check_export_presets.py.
+      - name: Check every runtime file reaches the package
+        run: python3 tools/check_export_presets.py
+
       # The package budget is enforced before anything is built. It measures the
       # part of the APK this repository decides - meshes, audio, scripts - and
       # warns about files under assets/ that Godot has no importer for, which is

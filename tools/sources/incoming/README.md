@@ -82,6 +82,11 @@ python3 tools/prepare_sculpt_set.py --colours tools/sources/incoming assets/mode
 python3 tools/normalise_set_scale.py
 ```
 
+⚠️ فایل `.tint` ایمپورتر گودو ندارد؛ بدون `include_filter` در `export_presets.cfg`
+داخل APK بسته نمی‌شود و مهره‌ها روی گوشی **سفید بی‌رنگ** دیده می‌شوند (همین اتفاق یک
+بار افتاد). `tools/check_export_presets.py` این را در CI چک می‌کند و اجازهٔ ساخت
+نمی‌دهد.
+
 بعد از آن، در `src/main/main.gd` یک ورودی در `PIECE_THEMES` بساز که
 `"vertex_colour": true` داشته باشد (مثل `pars`) و `light` و `dark` آن `Color(1,1,1)`
 باشند — یعنی «رنگ از رأس‌ها بیاید».

@@ -88,7 +88,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "42.1"
+const APP_BUILD := "42.2"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -917,6 +917,18 @@ func _setup_piece_materials() -> void:
 	var body_dark: Color = palette.dark
 	var accent: Color = palette.accent
 	var carve := _piece_carve_map()
+	# A set whose colours live in a sidecar is white in this table on purpose, so
+	# if the sidecars are not there the whole set draws as bare white geometry -
+	# which is exactly what shipped once: the `.tint` files have no Godot importer
+	# and a build with an empty include_filter leaves them out of the APK, while
+	# an editor run reads them off disk and looks perfect. Two armies of white is
+	# unplayable, so the fallback is the other sets' ivory and charcoal: wrong
+	# colours, still a game, and an error in the log saying why.
+	if _piece_has_own_colours() and not _piece_tint_available():
+		push_error("The '%s' piece set has no colour sidecars under %s - the build is missing them. "
+			% [piece_theme, TINT_DIR] + "Drawing it in the fallback palette; check export_presets.cfg include_filter.")
+		body_light = Color(0.68, 0.668, 0.636)
+		body_dark = Color(0.32, 0.32, 0.345)
 
 	# --- White army: clean porcelain ---------------------------------------
 	# The speckle that made the pale pieces look dusty came from the carve
@@ -966,7 +978,7 @@ func _setup_piece_materials() -> void:
 	porcelain.rim_enabled = true
 	porcelain.rim = 0.25
 	porcelain.rim_tint = 0.2
-	if _piece_has_own_colours():
+	if _piece_has_own_colours() and _piece_tint_available():
 		# A rim traces the silhouette of a piece in the light's colour. On the
 		# sculpted sets that edge is what separates ivory from an ivory square;
 		# on the set that carries its own colours the edge is already gold, and
@@ -1073,7 +1085,7 @@ func _piece_mesh(kind: String, is_white := true) -> Mesh:
 	# a shared cache entry would hand the pale pieces the ink array. Every other
 	# set is one mesh per kind and its vertex colours are a grey shading table.
 	var cache_key := "piece:%s:%s" % [_piece_set(), kind]
-	if _piece_has_own_colours():
+	if _piece_has_own_colours() and _piece_tint_available():
 		cache_key += ":dark" if not is_white else ":light"
 	if _mesh_cache.has(cache_key):
 		return _mesh_cache[cache_key]
@@ -1212,6 +1224,17 @@ func _piece_has_own_colours() -> bool:
 	return bool(palette.get("vertex_colour", false))
 
 
+## Whether the sidecars the theme needs are actually on disk. One `FileAccess`
+## probe, cached: the answer cannot change while the app runs, and the style
+## screen asks for it twice per card.
+func _piece_tint_available() -> bool:
+	if _mesh_cache.has("tint:available"):
+		return bool(_mesh_cache["tint:available"])
+	var present := FileAccess.file_exists(TINT_DIR + "king.tint")
+	_mesh_cache["tint:available"] = present
+	return present
+
+
 ## One army's baked colours for `kind`, in the OBJ's own vertex order. Empty when
 ## the set has no sidecar or the vertex count does not match the mesh.
 func _piece_tint(kind: String, is_white: bool) -> PackedColorArray:
@@ -1229,7 +1252,8 @@ func _read_tint(kind: String, is_white: bool) -> PackedColorArray:
 	var path := TINT_DIR + kind + ".tint"
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		push_warning("No colour sidecar for %s; drawing it in the palette colour instead." % path)
+		push_error("No colour sidecar for %s. If this is a debug run the file is missing from the "
+			% path + "export; if it is the editor, see tools/prepare_sculpt_set.py --colours.")
 		return PackedColorArray()
 	if file.get_buffer(4).get_string_from_ascii() != "TINT":
 		return PackedColorArray()

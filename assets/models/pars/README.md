@@ -47,6 +47,19 @@ the way a stone tower would carry its coat of arms.
 - Positions and faces only in the OBJ, four decimals: `_piece_mesh()` welds,
   generates the normals and projects the UVs at load.
 
+## `.tint` and the export
+
+`.tint` has no Godot importer, so `export_filter="all_resources"` alone leaves it
+out of the APK. Both presets in `export_presets.cfg` carry
+`include_filter="*.tint"`, and `tools/check_export_presets.py` fails the build
+when a runtime file is not covered by one of those two rules.
+
+That check exists because this shipped: a build went to the phone without the six
+sidecars and every piece drew as bare white geometry, while every CI job was
+green - the render job renders from the source tree, where the files are just
+files. The mesh cache format was bumped at the same time, because a cache written
+by that build holds the white colours and would have survived the fix.
+
 ## Why the colours are baked rather than textured
 
 The atlas would have to ship (1.3 MB a piece, 8 MB for the set) and the meshes

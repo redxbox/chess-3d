@@ -23,6 +23,11 @@ extends RefCounted
 ##
 ## `user://` is not a build artefact and never ships: the cache is per install.
 
+## Bumped to 6 because a 5 written by the build that shipped without the `.tint`
+## sidecars has the pars set baked into its vertex colours as white. The files are
+## in the package now, but the cache outlives one install and would keep drawing
+## the old colour until the next format change - so it is the format that changes.
+##
 ## Bumped to 5 with the PARS set: a cached mesh now also carries the sculpture's
 ## own colours, read from `<kind>.tint` and multiplied into the shading, and its
 ## key gained the army because the two armies are the same body in two colours. A
@@ -33,7 +38,7 @@ extends RefCounted
 ## and a mesh cached by 3 carried the blotched shading that rewrite removed.)
 ##
 ## A cache is per install and free to rebuild; keeping a stale one is not.
-const FORMAT := 5
+const FORMAT := 6
 const ROOT := "user://mesh_cache"
 
 
