@@ -101,6 +101,30 @@ jobs:
         shell: bash
         run: python3 tools/check_shipped_assets.py
 
+      # The drop zone for new piece models. Uploading six GLBs has to be a
+      # complete act in itself, so this reports in the job summary what is
+      # sitting there and what is missing - it does not fail the build for an
+      # incomplete set, because an upload in progress is not a broken project,
+      # and it does fail for a file that cannot be read at all, because that is.
+      - name: Report the piece upload drop zone
+        if: hashFiles('tools/sources/incoming/*') != ''
+        shell: bash
+        run: |
+          set +e
+          output=$(python3 tools/check_incoming_set.py --strict 2>&1)
+          status=$?
+          printf '%s\n' "$output"
+          printf '```text\n%s\n```\n' "$output" >> "$GITHUB_STEP_SUMMARY"
+          if grep -q "UNREADABLE\|over the 25 MB" <<< "$output"; then
+            printf '%s\n' "$output" | grep -E 'UNREADABLE|25 MB' | sed ':a;N;$!ba;s/\n/%0A/g' > /tmp/incoming.txt
+            echo "::error title=Unusable file in the piece drop zone::$(cat /tmp/incoming.txt)"
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::notice title=Piece upload in progress::tools/sources/incoming holds an incomplete set - see the job summary"
+          fi
+          exit 0
+
       - name: Run chess rules tests
         shell: bash
         run: |

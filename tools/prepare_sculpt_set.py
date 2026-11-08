@@ -42,10 +42,13 @@ DEPENDENCIES (build-time only; the generated OBJs are committed)
 ----------------------------------------------------------------
     pip install numpy trimesh fast-simplification
 
+Files are found by the piece name inside them (`tools/piece_names.py`), in any
+format `trimesh` opens, so an upload does not have to be renamed first.
+
 Run:  python3 tools/prepare_sculpt_set.py [source_dir] [output_dir]
 
+    python3 tools/prepare_sculpt_set.py tools/sources/incoming assets/models/newwhite
     python3 tools/prepare_sculpt_set.py /tmp/uploaded_glb   assets/models/persian
-    python3 tools/prepare_sculpt_set.py /tmp/persian_glb    assets/models/persian
 """
 
 from __future__ import annotations
@@ -56,6 +59,10 @@ import sys
 import numpy as np
 import trimesh
 from fast_simplification import simplify
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from piece_names import MODEL_SUFFIXES, kind_of  # noqa: E402
 
 KINDS = ["pawn", "rook", "knight", "bishop", "queen", "king"]
 
@@ -144,7 +151,7 @@ def write_obj(path: str, kind: str, vertices: np.ndarray, faces: np.ndarray) -> 
     # corner plus a cylindrical UV set. Writing normals here as well would add
     # 45% to the file for data that is thrown away and recomputed at load.
     with open(path, "w", encoding="utf-8") as handle:
-        handle.write(f"# Persian {kind}, decimated by tools/prepare_sculpt_set.py\n")
+        handle.write(f"# {kind}, imported by tools/prepare_sculpt_set.py\n")
         handle.write("# Source: user-supplied GLB, see assets/models/<set>/README.md\n")
         handle.write(f"o {kind}\n")
         for point in vertices:
@@ -159,19 +166,24 @@ def main() -> int:
     output = sys.argv[2] if len(sys.argv) > 2 else "assets/models/persian"
     os.makedirs(output, exist_ok=True)
     for kind in KINDS:
-        # A piece may arrive under a slightly different file name - the
-        # replacement king uploaded for the Persian set is kinge.glb, and whole
-        # sets have arrived as king1.glb - so the three spellings are accepted
-        # rather than making the author rename their exports. "quin" is the
-        # author's spelling of queen and is listed with the queen.
-        names = [kind, f"{kind}e", f"{kind}1"]
-        if kind == "queen":
-            names.append("quin1")
-        candidates = [os.path.join(source, f"{name}.glb") for name in names]
-        path = next((candidate for candidate in candidates if os.path.exists(candidate)), "")
-        if path == "":
-            print(f"missing {candidates[0]}", file=sys.stderr)
+        # The file names are whatever the author's tool produced: the bastani set
+        # arrived as pown1.glb / quin1.glb, the persian replacement as
+        # kinge.glb. So the folder is scanned and each file is judged by the
+        # piece its name contains, through the same table the checker uses -
+        # `tools/piece_names.py`. The old hard-coded list of three spellings
+        # meant an upload called `Knight-final.glb` was reported as a missing
+        # knight while the file sat right there.
+        matches = [name for name in sorted(os.listdir(source))
+                   if os.path.isfile(os.path.join(source, name))
+                   and os.path.splitext(name)[1].lower() in MODEL_SUFFIXES
+                   and kind_of(name) == kind]
+        if not matches:
+            print(f"missing: no file in {source} names the {kind}", file=sys.stderr)
             return 1
+        if len(matches) > 1:
+            print(f"{kind}: {len(matches)} files name it ({', '.join(matches)}); using {matches[0]}",
+                  file=sys.stderr)
+        path = os.path.join(source, matches[0])
         vertices, faces = prepare(kind, path)
         target = os.path.join(output, f"{kind}.obj")
         write_obj(target, kind, vertices, faces)

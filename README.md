@@ -62,6 +62,29 @@ godot --headless --path . --export-debug "Android" build/android/chess-3d.apk
 python3 tools/export_budget.py -v
 ```
 
+## آپلود ست مهرهٔ جدید
+
+مدل‌های سه‌بعدی مهره را در **[`tools/sources/incoming/`](tools/sources/incoming/README.md)**
+بگذار — همان‌جا در گیت‌هاب: `Add file` → `Upload files`. این پوشه در APK بسته
+نمی‌شود، پس حجم آپلود به بازی اضافه نمی‌شود.
+
+خلاصهٔ شرط‌ها: شش فایل (یکی برای هر مهره)، ترجیحاً `.glb`، `+Y` بالا و صورت مهره
+رو به `+Z`، مقیاس آزاد. اسم فایل باید اسم قطعه را داشته باشد (`pawn` یا `پیاده`،
+`king` یا `شاه`، …) — نیازی به تغییر نام نیست.
+
+بعد از آپلود، این سه دستور ست را به بازی تبدیل می‌کنند:
+
+```bash
+python3 tools/check_incoming_set.py            # چه چیزی هست، چه چیزی کم است
+python3 tools/prepare_sculpt_set.py tools/sources/incoming assets/models/<set-name>
+python3 tools/normalise_set_scale.py
+```
+
+`check_incoming_set.py` بدون هیچ کتابخانهٔ اضافه‌ای OBJ/GLB/glTF/STL/PLY را
+می‌خواند و در CI هم اجرا می‌شود؛ نتیجه‌اش در Job Summary همان اجرا می‌آید. سقف
+آپلود وب گیت‌هاب ۲۵ مگابایت برای هر فایل است و ایمپورتر هر بدنه را تا ۱۰٬۰۰۰
+مثلث کم می‌کند، پس آپلودِ سبک‌تر فقط سریع‌تر است، نه کم‌جزئیات‌تر.
+
 ## GitHub Actions
 
 Workflow موجود در `.github/workflows/ci.yml` در هر Push و Pull Request:
