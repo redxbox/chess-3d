@@ -769,15 +769,17 @@ func _test_piece_height_ladder() -> void:
 ## The rule a piece "faces" is a fact about its geometry, and it has now been
 ## wrong twice - once for every knight, once for a set's knights only - with a
 ## human seeing it in a screenshot as the only detector. So the knights are
-## measured here: the head's mass in the top 5% of the piece's height - the ears
-## and the muzzle, which is what leans - is compared with the body's, and its z
-## sign is what the table has to say.
+## measured here: in the top 15% of the piece - the head, the ears and the mane
+## above the neck - the point furthest forward or back along z is the muzzle, and
+## its z sign is what the table has to say.
 ##
-## Measured on the way that separates the three sets, checked against their known
-## directions: top-5% centroid is -0.127 on staunton (muzzle down -Z), +0.062 on
-## pars and -0.031 on bastani. The last one is why the rule asks about the head
-## and not "the furthest point from the axis": on bastani that is the near-side
-## cheek, at -0.217, and the furthest-point rule would call the set backwards.
+## Two cheaper rules were tried and both got a set wrong, which is why this one is
+## spelled out. "Furthest point from the vertical axis" reads the bastani horse's
+## near-side cheek in the top fifth of its height and calls the set backwards. The
+## mass of the top 5% reads the mane that sweeps back over the neck: -0.031 on
+## bastani, also backwards. Along z, in the top 15%, the three sets measure
+## -0.317 (staunton), +0.218 (pars) and +0.249 (bastani) - the three carved
+## directions, with a margin on every one.
 func _test_knight_facing_matches_the_meshes() -> void:
 	for set_name in ["staunton", "pars", "bastani"]:
 		var path := "res://assets/models/%s/knight.obj" % set_name
@@ -802,18 +804,16 @@ func _test_knight_facing_matches_the_meshes() -> void:
 			lowest = minf(lowest, point.y)
 			highest = maxf(highest, point.y)
 		var height := highest - lowest
-		var head_z := 0.0
-		var head_count := 0
+		var muzzle_z := 0.0
 		for point in points:
-			if point.y < lowest + height * 0.95:
+			if point.y < lowest + height * 0.85:
 				continue
-			head_z += point.z
-			head_count += 1
-		var muzzle_z := head_z / maxf(1.0, float(head_count))
-		_expect(absf(muzzle_z) > 0.01, "%s's knight has a head that leans (%.3f)" % [set_name, muzzle_z])
+			if absf(point.z) > absf(muzzle_z):
+				muzzle_z = point.z
+		_expect(absf(muzzle_z) > 0.1, "%s's knight has a muzzle that sticks out (%.3f)" % [set_name, muzzle_z])
 		var measured := 1 if muzzle_z > 0.0 else -1
 		_expect(measured == PieceFacing.front_sign(set_name, "knight"),
-			"%s's knight is carved facing %s, as the table says (head z %+.3f)"
+			"%s's knight is carved facing %s, as the table says (muzzle z %+.3f)"
 				% [set_name, "+Z" if measured > 0 else "-Z", muzzle_z])
 		# And the consequence, which is the thing the player actually sees: the two
 		# knights of a set end up facing each other.
