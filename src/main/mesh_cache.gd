@@ -23,6 +23,10 @@ extends RefCounted
 ##
 ## `user://` is not a build artefact and never ships: the cache is per install.
 
+## Bumped to 7 with the material-map sidecar: the pars set's colours changed from
+## one sampled atlas colour per vertex to three materials and two palettes, so a
+## 6 written by the previous build holds the camouflage this replaces.
+##
 ## Bumped to 6 because a 5 written by the build that shipped without the `.tint`
 ## sidecars has the pars set baked into its vertex colours as white. The files are
 ## in the package now, but the cache outlives one install and would keep drawing
@@ -38,7 +42,7 @@ extends RefCounted
 ## and a mesh cached by 3 carried the blotched shading that rewrite removed.)
 ##
 ## A cache is per install and free to rebuild; keeping a stale one is not.
-const FORMAT := 6
+const FORMAT := 7
 const ROOT := "user://mesh_cache"
 
 

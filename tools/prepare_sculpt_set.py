@@ -382,6 +382,9 @@ def prepare(kind: str, path: str, keep_colour: bool = False):
             nearest = lookup.nearest(point)
             if nearest >= 0:
                 colours[index] = source_colours[nearest]
+        # The colours are not what ships: the material map derived from them is.
+        # See material_indices() for why, and write_tint() for the file.
+        colours = material_indices(colours, faces)
     return vertices, faces, colours
 
 
@@ -421,54 +424,71 @@ def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_pli
 
 ## Turning the uploaded colours into the two armies.
 ##
-## Everything below is done in sRGB, and that is the decision this block exists
-## to record. The palette in main.gd - ivory 0.68, charcoal 0.32 - is written in
-## sRGB, and tools/check_visual_balance.py measures it in that space. A first
-## version of this file did its arithmetic in linear light, which is the correct
-## space for multiplying light and the wrong space for matching a palette: the
-## "dark" army came out at 0.32 *linear*, which is 0.60 on screen, and rendered
-## as a mid-brown piece rather than a black one. sRGB numbers are what the artist
-## and the checker both speak, so the bake speaks it too and converts once, at
-## the end, into what the shader wants.
+## WHY THIS IS A PALETTE AND NOT THE ATLAS
+## ---------------------------------------
+## The uploads carry a 4096-square base-colour atlas per piece, and the first
+## version of this block sampled it down to one RGB per vertex. That is right in
+## principle and wrong at this vertex count: these atlases are a filigree of gold
+## over silver over dark leather, fragmented into thousands of small islands, and
+## at 4 800 vertices a piece the sampling lands on a different island almost
+## every vertex. What came out was camouflage - a leopard print of gold, silver
+## and maroon, and because gold is 50-90% of those atlases, both armies read as
+## gold and could not be told apart on a phone. That is the complaint this block
+## answers ("they are all gold and white, where are the colours").
 ##
-## Three things happen to the uploaded colours:
+## Detail cannot survive that sampling, so it is not what gets kept. What gets
+## kept is the *division of the sculpture into materials* - which parts are gold
+## and which are the body - which the atlas does support, because it is a
+## region map even where the per-vertex sample is noise. Each vertex is scored
+## for gold and for red, the scores are smoothed over the mesh, and the top
+## share of each becomes that material. The result is three materials per piece
+## with clean edges: a body, gilded trim, and red accents (plumes, gems).
 ##
-##   1. A tone squeeze. The atlas spans nearly black to bright gold, and the
-##      render cannot use that range: past about 0.78 the key light clips and the
-##      piece is a white cut-out, which is the failure this project has shipped
-##      twice. Each piece's colours are mapped onto their own percentile ranks,
-##      between PALE_FLOOR and PALE_CEILING. Ranking rather than scaling is what
-##      keeps the gold gold and the silver silver: the order of the pixels is
-##      untouched, only the distance between them is compressed.
+## That also makes the two armies cheap and exact. Both armies are the same
+## material indices and two palettes, so a `.tint` is one byte per vertex - 5 KB
+## a piece against 15 KB - and the ink army is a palette rather than an
+## arithmetic rule that cannot tell gold from the body it sits on.
 ##
-##   2. The second army. The reference image the author supplied is the same
-##      sculpture in black armour - same gold trim, same red plume, everything
-##      else dark - so the ink army is the pale army with a gamma and a gain. The
-##      gamma is what puts the contrast back: at 1.6 the dark cloth and the skin
-##      fall away while the gilding keeps half its brightness, which a plain
-##      multiply did not do (measured: the gold ended up 1.35x the body instead of
-##      the 2.5x the photograph has).
-##
-##   3. Both armies land in the bands the rest of the game lives in.
-##      tools/check_visual_balance.py checks that against every board, and the
-##      render measurement (tools/measure_preview.py, on a real Godot frame)
-##      is the final word: at an ink median of 0.322 - the value that matches the
-##      other two sets' palette charcoal exactly - the pars black pawns rendered
-##      at 25 of 255 on the royal_blue board, under the 30 floor. The reason is
-##      that the palette number is one flat albedo while this army is a mix, and
-##      its darks are darker than its median. 0.345 is where the render lands
-##      inside the band with its own mix.
-##
-## The two numbers were not guessed. The first attempt - pale 0.60, ink 0.25 -
-## sat 0.05 from the light squares and 0.01 from the dark ones, i.e. a gold piece
-## vanished into a gold-adjacent square; the second was 1.9x apart when the rule
-## wants 2x. Both were caught by that checker, not by the eye.
-PALE_TARGET = 0.672     # linear luma; the other sets' ivory is 0.668
-PALE_GAMMA = 0.90
-PALE_CEILING = 0.80     # linear, where this rig's key light begins to clip
-INK_MEDIAN = 0.325      # linear luma; the other sets' charcoal is 0.322
-INK_GAMMA = 1.6
-INK_LIFT = np.array([0.02, 0.022, 0.03])   # linear; keeps the blacks off the floor
+## The bands the two palettes have to land in are enforced by
+## tools/check_visual_balance.py: the pale army's median albedo in 0.55-0.78
+## linear, the ink army's in 0.28-0.35, and at least 2x apart. Those numbers are
+## not taste - they are where the other two sets sit and where a render on a
+## phone keeps the armies apart on both square colours.
+MATERIALS = ("body", "gold", "accent")
+
+# sRGB, because that is the space the palettes in main.gd are written in and the
+# space an artist reads; the shader's albedo is linear and the reader converts.
+# The pale army is ivory and gold, the ink army is the same sculpture in black
+# armour with the gilding kept - the reference photograph the author supplied.
+PALE_PALETTE = {
+    "body":   (224, 217, 198),   # ivory    - linear luma 0.696
+    "gold":   (226, 190, 116),   # gilding  - linear luma 0.543
+    "accent": (168, 32, 36),     # plume and gems
+}
+INK_PALETTE = {
+    "body":   (154, 155, 160),   # black armour in light - linear luma 0.329
+    "gold":   (212, 170, 98),    # the gilding keeps its brightness
+    "accent": (120, 26, 30),
+}
+
+# How much of a piece each material is allowed to be. Gold over 50% stops being
+# trim and becomes the piece (the rook's atlas is 87% gold), so the share is
+# fixed per piece rather than taken from the atlas: every figure then reads as
+# the same set. The values were picked by eye against the reference photograph
+# and then checked against the measuring script.
+GOLD_SHARE = 0.34
+ACCENT_SHARE = 0.05
+
+# Smoothing rounds over the mesh graph. One round is not enough to close the
+# gaps the atlas sampling leaves inside a gilded region; three starts rounding
+# off genuinely thin detail like the wire of a crown.
+SMOOTH_ROUNDS = 2
+
+# Where a hue has to sit to count, in degrees. Gold is yellow-orange, the
+# accents are red; everything else is body. Hues wrap, so red is two windows.
+GOLD_HUE = (25.0, 80.0)
+ACCENT_HUE = (335.0, 25.0)
+MIN_VALUE = 0.22            # below this the atlas is in shadow, not a material
 
 
 def srgb_to_linear(rgb: np.ndarray) -> np.ndarray:
@@ -485,93 +505,139 @@ def luma(rgb: np.ndarray) -> np.ndarray:
     return 0.2126 * rgb[:, 0] + 0.7152 * rgb[:, 1] + 0.0722 * rgb[:, 2]
 
 
-def pale_army(linear: np.ndarray) -> np.ndarray:
-    """The uploaded colours (linear light), squeezed into the band the render can use.
+def _hsv(colours: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Hue in degrees, saturation and value, from sRGB 0..1 triples."""
+    rgb = np.asarray(colours, dtype=np.float64)
+    high = rgb.max(axis=1)
+    low = rgb.min(axis=1)
+    delta = high - low
+    saturation = np.where(high > 1e-6, delta / np.maximum(high, 1e-6), 0.0)
+    hue = np.zeros(len(rgb))
+    coloured = delta > 1e-6
+    r, g, b = rgb[:, 0], rgb[:, 1], rgb[:, 2]
+    index = (high == r) & coloured
+    hue[index] = ((g[index] - b[index]) / delta[index]) % 6.0
+    index = (high == g) & coloured
+    hue[index] = (b[index] - r[index]) / delta[index] + 2.0
+    index = (high == b) & coloured
+    hue[index] = (r[index] - g[index]) / delta[index] + 4.0
+    return np.mod(hue * 60.0, 360.0), saturation, high
 
-    Two properties are load-bearing:
 
-      * one multiplier per vertex, so a hue cannot change - the red of the plume
-        stays red at every brightness. Mapping each piece onto its percentile
-        ranks instead (the first attempt) preserves contrast but not hue, and the
-        set came out orange plastic;
-      * the multiplier is solved for, not computed. The ceiling clips the
-        brightest gilding, so the median of what comes out is not the median that
-        went in and one division lands short. Six rounds of measure-and-correct
-        converge to a thousandth.
+def _in_hue(hue: np.ndarray, window: tuple[float, float]) -> np.ndarray:
+    low, high = window
+    if low <= high:
+        return (hue >= low) & (hue <= high)
+    return (hue >= low) | (hue <= high)          # the window crosses 0 degrees
+
+
+def _edges(faces: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Unique mesh edges as two index arrays, for the smoothing passes."""
+    edges = np.concatenate([faces[:, [0, 1]], faces[:, [1, 2]], faces[:, [2, 0]]], axis=0)
+    edges = np.concatenate([edges, edges[:, ::-1]], axis=0)
+    edges = np.unique(edges, axis=0)
+    return edges[:, 0], edges[:, 1]
+
+
+def smooth(values: np.ndarray, faces: np.ndarray, rounds: int) -> np.ndarray:
+    """Average a per-vertex field with its mesh neighbours a few times.
+
+    A plain mean, not a median: the fields being smoothed are scores in 0..1
+    and the point is to close gaps, so one pass over the edge list is enough and
+    keeps this to a single bincount per round on 10 000 faces.
     """
-    values = np.maximum(luma(linear), 1e-5)
-    shaped = np.power(values, PALE_GAMMA - 1.0)
-    gain = 1.0
-    for _ in range(6):
-        out = np.minimum(linear * (gain * shaped)[:, None], PALE_CEILING)
-        gain *= PALE_TARGET / max(float(np.median(luma(out))), 1e-5)
-    return np.minimum(linear * (gain * shaped)[:, None], PALE_CEILING)
+    values = np.asarray(values, dtype=np.float64).copy()
+    a, b = _edges(faces)
+    for _ in range(rounds):
+        total = values.copy()
+        count = np.ones(len(values))
+        np.add.at(total, a, values[b])
+        np.add.at(total, b, values[a])
+        np.add.at(count, a, 1.0)
+        np.add.at(count, b, 1.0)
+        values = total / count
+    return values
 
 
-def ink_gain(pale: np.ndarray) -> float:
-    """The gain that puts the ink army's median on INK_MEDIAN.
+def material_indices(colours_srgb: np.ndarray, faces: np.ndarray) -> np.ndarray:
+    """One material index per vertex: 0 body, 1 gold, 2 accent.
 
-    Derived per set rather than fixed, because that median is where the
-    arithmetic has to land: tools/check_visual_balance.py wants the two armies at
-    least 2x apart AND each at least 0.06 clear of every square it can stand on.
-    The dark squares sit at 0.23-0.26 and the dark army's band tops out at 0.35,
-    so an ink median has one narrow place to live - 0.32, where the other two
-    sets' charcoal is.
+    The shares are fixed, so this is a ranking rather than a threshold: it says
+    "the gilding is the most golden third of this piece", which survives an atlas
+    that is 87% gold on one figure and 39% on the next. Smoothing comes first, so
+    what is ranked is a region score and not a per-vertex sample.
     """
-    median = float(np.median(luma(ink_army(pale, 1.0))))
-    return float(np.clip(INK_MEDIAN / max(median, 1e-5), 0.02, 4.0))
+    rgb = np.asarray(colours_srgb, dtype=np.float64) / 255.0
+    hue, saturation, value = _hsv(rgb)
+    gold = saturation * _in_hue(hue, GOLD_HUE) * (value > MIN_VALUE)
+    accent = saturation * _in_hue(hue, ACCENT_HUE) * (value > MIN_VALUE)
+    gold = smooth(gold, faces, SMOOTH_ROUNDS)
+    accent = smooth(accent, faces, SMOOTH_ROUNDS)
+
+    labels = np.zeros(len(rgb), dtype=np.uint8)
+    gold_count = int(round(GOLD_SHARE * len(rgb)))
+    accent_count = int(round(ACCENT_SHARE * len(rgb)))
+    # Accents first - a plume has to stay red even where it is the most golden
+    # thing on the figure - then gold from whatever is left.
+    accent_order = np.argsort(-accent)[:accent_count]
+    labels[accent_order[accent[accent_order] > 0]] = 2
+    remaining = np.flatnonzero(labels == 0)
+    if len(remaining):
+        order = remaining[np.argsort(-gold[remaining])][:gold_count]
+        labels[order[gold[order] > 0]] = 1
+    # One majority pass: a gilded region with three stray body vertices in it
+    # reads as holes in the gold at this scale.
+    return _majority(labels, faces)
 
 
-def ink_army(pale: np.ndarray, gain: float) -> np.ndarray:
-    """The same piece in dark armour: the gold stays the brightest thing on it.
-
-    The gamma is what puts the contrast back. A plain multiply darkens the gold
-    and the silver by the same factor and the piece reads as a brown version of
-    itself - measured, the gold ended up only 1.35x the body, where the reference
-    photograph is nearer 2.5x.
-    """
-    curved = np.power(np.clip(pale, 0.0, 1.0), INK_GAMMA) * gain
-    return np.clip(curved + INK_LIFT, 0.0, 1.0)
+def _majority(labels: np.ndarray, faces: np.ndarray) -> np.ndarray:
+    a, b = _edges(faces)
+    votes = np.zeros((len(labels), len(MATERIALS)))
+    for column, sources, targets in ((0, a, b), (1, b, a)):
+        np.add.at(votes, (sources, labels[targets]), 1.0)
+    votes[np.arange(len(labels)), labels] += 2.0     # keep the vertex's own vote
+    return np.argmax(votes, axis=1).astype(np.uint8)
 
 
-def tint_luma(colours_srgb: np.ndarray) -> float:
-    return float(np.median(luma(srgb_to_linear(np.asarray(colours_srgb, dtype=np.float64) / 255.0))))
+def palette_bytes(palette: dict[str, tuple[int, int, int]]) -> bytes:
+    return b"".join(bytes(palette[name]) for name in MATERIALS)
 
 
-def write_tint(path: str, colours: np.ndarray) -> None:
-    """Write the pale army's vertex colours beside the OBJ, in the OBJ's vertex order.
+def palette_luma(palette: dict[str, tuple[int, int, int]]) -> float:
+    """The palette's luminance in linear light - what the checker measures."""
+    colours = np.asarray([palette[name] for name in MATERIALS], dtype=np.float64) / 255.0
+    return float(np.median(luma(srgb_to_linear(colours))))
+
+
+def write_tint(path: str, labels: np.ndarray) -> None:
+    """Write the material map beside the OBJ, in the OBJ's vertex order.
 
     Layout, all little-endian:
 
-        b"TINT"   uint8 version (3)   uint32 vertex count
-        float32 ink_gain, ink_gamma, ink_r, ink_g, ink_b    <- the ink army's rule
-        count x RGB, one sRGB byte triple per vertex
+        b"TINT"   uint8 version (4)   uint32 vertex count   uint8 material count
+        material count x 3 pale sRGB bytes, then 3 ink sRGB bytes
+        vertex count x uint8 material index
 
-    Only the pale army is stored, and it is stored as sRGB bytes because that is
-    what a byte can hold without banding the dark end. The ink army is
-    `pale ** ink_gamma * ink_gain + ink` in LINEAR light, and those five numbers
-    travel in the header rather than as a second colour per vertex: a second
-    colour would put the packaged content over its budget for data the game can
-    compute for the cost of one power. main.gd's `_read_tint()` is the other end of this file, and
-    tools/check_visual_balance.py reads it too - the numbers in docs are the
-    numbers the game draws.
+    Both armies travel in one file because they are one sculpture in two
+    palettes: the body of the pale king is ivory and the body of the ink king is
+    black armour, and every other vertex is the same gilded trim in both. One
+    byte per vertex, 5 KB a piece, and no arithmetic between the two armies that
+    could turn gilding into the colour of the body it sits on - which is what
+    the previous version, a gamma-and-gain rule over sampled atlas colours, did
+    on the phone.
 
-    A sidecar rather than an OBJ feature: OBJ has no agreed vertex-colour syntax,
-    and the game's own OBJ reader rebuilds the vertex array anyway. Three bytes a
-    vertex is 15 KB for a whole piece, against 1.3 MB for the atlas it was
-    sampled from.
+    main.gd's `_read_tint()` is the other end; tools/check_visual_balance.py
+    reads the same palettes to measure the armies.
     """
-    linear = srgb_to_linear(np.asarray(colours, dtype=np.float64) / 255.0)
-    pale = pale_army(linear)
-    gain = ink_gain(pale)
-    stored = np.clip(np.round(linear_to_srgb(pale) * 255.0), 0, 255).astype(np.uint8)
+    labels = np.asarray(labels, dtype=np.uint8)
     with open(path, "wb") as handle:
         handle.write(b"TINT")
-        handle.write(bytes([3]))
-        handle.write(len(stored).to_bytes(4, "little"))
-        handle.write(np.asarray([gain, INK_GAMMA], dtype="<f4").tobytes())
-        handle.write(np.asarray(INK_LIFT, dtype="<f4").tobytes())
-        handle.write(np.ascontiguousarray(stored, dtype=np.uint8).tobytes())
+        handle.write(bytes([4]))
+        handle.write(len(labels).to_bytes(4, "little"))
+        handle.write(bytes([len(MATERIALS)]))
+        handle.write(palette_bytes(PALE_PALETTE))
+        handle.write(palette_bytes(INK_PALETTE))
+        handle.write(labels.tobytes())
 
 
 def write_obj(path: str, kind: str, vertices: np.ndarray, faces: np.ndarray) -> None:

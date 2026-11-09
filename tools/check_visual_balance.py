@@ -103,12 +103,12 @@ def tinted_armies(palette: dict[str, tuple[float, ...]]) -> tuple[float, float] 
     """The pale/ink albedos of a set whose colours are baked into the mesh.
 
     A set marked `vertex_colour` has a white multiplier in PIECE_THEMES on
-    purpose: the albedo is the `.tint` sidecar next to its OBJs, one RGB per
-    vertex per army. Reading the palette there would measure the multiplier and
-    conclude the set is two white armies. So the sidecar is read instead, and the
-    numbers checked are the ones the mesh actually carries - median linear luma
-    over every vertex of all six pieces, which is the same statistic this script
-    uses for the other sets' flat albedos.
+    purpose: the albedo is the `.tint` sidecar next to its OBJs - a material map
+    over three materials plus one palette per army. Reading the palette in
+    main.gd there would measure the multiplier and conclude the set is two white
+    armies, so the sidecar is read instead: the median linear luma over every
+    vertex of all six pieces, which is the same statistic this script uses for
+    the other sets' flat albedos.
     """
     if not palette.get("vertex_colour", (False,))[0]:
         return None
@@ -121,19 +121,23 @@ def tinted_armies(palette: dict[str, tuple[float, ...]]) -> tuple[float, float] 
     ink_values: list[float] = []
     for path in sorted(directory.glob("*.tint")):
         raw = path.read_bytes()
-        if raw[:4] != b"TINT" or raw[4] != 3:
+        if raw[:4] != b"TINT" or raw[4] != 4:
             continue
         count = int.from_bytes(raw[5:9], "little")
-        gain, gamma = struct.unpack("<ff", raw[9:17])
-        lift = struct.unpack("<fff", raw[17:29])
-        for i in range(count):
-            r, g, b = raw[29 + i * 3: 32 + i * 3]
-            # Linear, like the palette values of the other two sets: the bands in
-            # this file are linear luma, and Godot treats an albedo as linear, so
-            # the sidecar's bytes are read back through sRGB first.
-            pale = tuple(srgb_to_linear(c / 255.0) for c in (r, g, b))
-            pale_values.append(luma(pale))
-            ink_values.append(luma(tuple(min(1.0, pow(c, gamma) * gain + l) for c, l in zip(pale, lift))))
+        materials = raw[9]
+        pale_bytes = raw[10:10 + materials * 3]
+        ink_bytes = raw[10 + materials * 3:10 + materials * 6]
+        labels = raw[10 + materials * 6:10 + materials * 6 + count]
+        if len(labels) != count:
+            continue
+        pale = [luma(tuple(srgb_to_linear(c / 255.0) for c in pale_bytes[i * 3:i * 3 + 3]))
+                for i in range(materials)]
+        ink = [luma(tuple(srgb_to_linear(c / 255.0) for c in ink_bytes[i * 3:i * 3 + 3]))
+               for i in range(materials)]
+        for label in labels:
+            index = min(label, materials - 1)
+            pale_values.append(pale[index])
+            ink_values.append(ink[index])
     if not pale_values:
         return None
     pale_values.sort()

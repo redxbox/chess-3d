@@ -39,6 +39,7 @@ func _init() -> void:
 	_test_piece_height_ladder()
 	_test_sculpt_relief_and_gild()
 	_test_knight_facing_matches_the_meshes()
+	_test_colour_sidecars()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -832,3 +833,73 @@ func _test_knight_facing_matches_the_meshes() -> void:
 			"%s: White's knight looks toward rank 8" % set_name)
 		_expect(black_world == 1,
 			"%s: Black's knight looks toward rank 1" % set_name)
+
+
+## The pars set's colours live in a sidecar, and a sidecar is data no compiler
+## checks. Every failure this project has shipped in that file was invisible to
+## the renderer until it reached a phone: six sidecars missing from the package
+## drew two armies of white, and a per-vertex sample of the atlas drew both
+## armies gold. So the file itself is checked here - the header, the length, the
+## vertex count against the OBJ, and the one property that matters to a player:
+## the two armies are far apart in brightness.
+func _test_colour_sidecars() -> void:
+	const KINDS := ["pawn", "rook", "knight", "bishop", "queen", "king"]
+	const MATERIALS := 3
+	var pale_totals := 0.0
+	var ink_totals := 0.0
+	var samples := 0
+	var seen := {}
+	for kind in KINDS:
+		var path := "res://assets/models/pars/%s.tint" % kind
+		var file := FileAccess.open(path, FileAccess.READ)
+		_expect(file != null, "%s.tint is in the project" % kind)
+		if file == null:
+			continue
+		var raw := file.get_buffer(file.get_length())
+		file.close()
+		_expect(raw.slice(0, 4).get_string_from_ascii() == "TINT",
+			"%s.tint is a TINT sidecar" % kind)
+		_expect(raw[4] == 4, "%s.tint is version 4 (material map)" % kind)
+		var count := raw.decode_u32(5)
+		var materials := raw[9]
+		_expect(materials == MATERIALS, "%s.tint names %d materials" % [kind, MATERIALS])
+		_expect(raw.size() == 10 + materials * 6 + count,
+			"%s.tint is exactly its header plus one byte per vertex" % kind)
+		# The OBJ's vertex count is the number the reader indexes with, so a
+		# mismatch here is a wrong colour on every vertex after the first gap.
+		var mesh := FileAccess.open("res://assets/models/pars/%s.obj" % kind, FileAccess.READ)
+		var vertices := 0
+		if mesh != null:
+			while not mesh.eof_reached():
+				if mesh.get_line().begins_with("v "):
+					vertices += 1
+			mesh.close()
+		_expect(count == vertices, "%s.tint has one material per vertex (%d vs %d)"
+			% [kind, count, vertices])
+		var pale := []
+		var ink := []
+		for i in materials:
+			pale.append(Color8(raw[10 + i * 3], raw[11 + i * 3], raw[12 + i * 3]))
+			ink.append(Color8(raw[10 + materials * 3 + i * 3],
+				raw[11 + materials * 3 + i * 3], raw[12 + materials * 3 + i * 3]))
+		var out_of_range := 0
+		for i in count:
+			var label: int = raw[10 + materials * 6 + i]
+			if label >= materials:
+				out_of_range += 1
+			seen[label] = true
+			var pale_colour: Color = pale[mini(label, materials - 1)]
+			var ink_colour: Color = ink[mini(label, materials - 1)]
+			pale_totals += pale_colour.srgb_to_linear().get_luminance()
+			ink_totals += ink_colour.srgb_to_linear().get_luminance()
+			samples += 1
+		_expect(out_of_range == 0, "%s.tint names no material that does not exist" % kind)
+	for material in MATERIALS:
+		_expect(seen.has(material), "some piece uses material %d" % material)
+	_expect(samples > 0, "the sidecars were read (%d vertices)" % samples)
+	if samples > 0:
+		var pale_average := pale_totals / samples
+		var ink_average := ink_totals / samples
+		_expect(ink_average < pale_average * 0.7,
+			"the two armies are different in brightness (%.2f vs %.2f)"
+				% [pale_average, ink_average])

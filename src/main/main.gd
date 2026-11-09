@@ -88,7 +88,7 @@ const SQUARE_SIZE := 1.0
 ## the matching version/name, so the UI, the About window and the store build
 ## can never drift apart again.
 const APP_VERSION_FALLBACK := "0.16.1"
-const APP_BUILD := "42.2"
+const APP_BUILD := "42.3"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
@@ -257,12 +257,11 @@ const PIECE_THEMES := {
 	# and paints them. Doing that on top of a piece that is already gilded would
 	# put a second ring of gold on the crown.
 	#
-	# The two armies are one sculpture in two finishes. The pale army is the
-	# atlas squeezed into the band the render can use; the ink army is that same
-	# colour in linear light times 0.40 plus a few thousandths of lift - the
-	# reference image is the pale sculpture in black armour with the same gold
-	# trim, which is exactly what a multiply preserves. Those two numbers travel
-	# in the .tint header, so the rule cannot drift between the bake and the game.
+	# The two armies are one sculpture in two finishes, and both palettes travel
+	# in the `.tint` sidecar: ivory and gold for one, black armour and the same
+	# gilding for the other. The colour here is a white multiplier on purpose -
+	# the mesh carries the albedo - which is why this entry has the lowest
+	# roughness and the metallic accent of the three.
 	"pars": {
 		"label": "PARS",
 		"model_set": "pars",
@@ -276,8 +275,8 @@ const PIECE_THEMES := {
 		"gild": 0.0,
 		"trim_variant": "pars",
 		"vertex_colour": true,
-		"swatch_light": Color(0.86, 0.82, 0.68),
-		"swatch_dark": Color(0.34, 0.28, 0.20),
+		"swatch_light": Color(0.88, 0.85, 0.78),
+		"swatch_dark": Color(0.42, 0.41, 0.42),
 	},
 	# Glazed stone: the tightest lobe of the three, so the folds of the robes and
 	# the mane of the horse carry a highlight along them.
@@ -1204,18 +1203,21 @@ func _piece_mesh(kind: String, is_white := true) -> Mesh:
 ## The set that carries its own colours
 ##
 ## PARS is the one set whose palette lives in the mesh: tools/prepare_sculpt_set.py
-## samples the sculpture's own texture atlas down to one RGB per vertex, squeezes
-## it into the band the render can use, and writes it beside the OBJ as
-## `<kind>.tint`. The layout is documented in that script; what matters here is
-## that the header carries the ink army's rule, so the two armies are one file and
-## one multiply apart and neither is a second 1.3 MB atlas.
+## turns the sculpture's texture atlas into a material map - body, gilding,
+## accent - and writes it beside the OBJ as `<kind>.tint` together with both
+## armies' palettes. The layout is documented in that script; what matters here is
+## that one byte per vertex and six colour triples carry the whole set, so the two
+## armies cost one file and neither is a second 1.3 MB atlas.
 ##
 ## Read lazily and cached per kind. A missing or mismatched sidecar is not fatal:
 ## the piece simply falls back to the plain palette, which is what the other two
 ## sets use, rather than failing to draw.
 ## ---------------------------------------------------------------------------
 
-const TINT_VERSION := 3
+const TINT_VERSION := 4
+## Materials per piece: body, gilding, accent. Matches MATERIALS in
+## tools/prepare_sculpt_set.py and the sidecar's own material count.
+const TINT_MATERIALS := 3
 const TINT_DIR := "res://assets/models/pars/"
 
 
@@ -1248,6 +1250,16 @@ func _piece_tint(kind: String, is_white: bool) -> PackedColorArray:
 	return colours
 
 
+## The sidecar is a material map, not a colour per vertex - see write_tint() in
+## tools/prepare_sculpt_set.py for why, and for the layout.
+##
+## Short version: sampling a 4096-square filigree atlas down to one colour per
+## vertex at 4 800 vertices picks a different island almost every vertex, and
+## what comes out is camouflage. What is shipped instead is the sculpture's
+## division into three materials - ivory body, gilded trim, red accents - one
+## byte per vertex, and a palette per army. The edges are clean, a byte a vertex
+## is 5 KB a piece, and the two armies are one index array and two palettes
+## rather than an arithmetic rule that cannot tell gold from the body under it.
 func _read_tint(kind: String, is_white: bool) -> PackedColorArray:
 	var path := TINT_DIR + kind + ".tint"
 	var file := FileAccess.open(path, FileAccess.READ)
@@ -1263,36 +1275,32 @@ func _read_tint(kind: String, is_white: bool) -> PackedColorArray:
 		push_warning("%s is a version this build cannot read." % path)
 		return PackedColorArray()
 	var count := file.get_32()
-	var ink_gain := file.get_float()
-	var ink_gamma := file.get_float()
-	var ink_lift := Color(file.get_float(), file.get_float(), file.get_float())
-	var bytes := file.get_buffer(count * 3)
-	file.close()
-	if bytes.size() != count * 3:
+	var materials := file.get_8()
+	if materials != TINT_MATERIALS:
+		push_warning("%s names %d materials, this build knows %d."
+			% [path, materials, TINT_MATERIALS])
 		return PackedColorArray()
+	var palette_bytes := file.get_buffer(materials * 6)
+	var labels := file.get_buffer(count)
+	file.close()
+	if palette_bytes.size() != materials * 6 or labels.size() != count:
+		return PackedColorArray()
+	# The pale palette is the first `materials` triples, the ink one the second.
+	var offset := 0 if is_white else materials * 3
+	var palette: Array[Color] = []
+	for i in materials:
+		var at := offset + i * 3
+		palette.append(Color(
+			_srgb_to_linear(palette_bytes[at] / 255.0),
+			_srgb_to_linear(palette_bytes[at + 1] / 255.0),
+			_srgb_to_linear(palette_bytes[at + 2] / 255.0)))
 	var colours := PackedColorArray()
 	colours.resize(count)
 	for i in count:
-		# The atlas is sRGB, so the byte goes to linear here - Godot treats a
-		# vertex colour as linear, and skipping this is what makes an imported
-		# set look washed out next to the others.
-		# `srgb`, not `byte`: `byte` is a built-in type name in GDScript and
-		# shadowing it is a compile error, not a warning.
-		var srgb := Color(bytes[i * 3] / 255.0, bytes[i * 3 + 1] / 255.0, bytes[i * 3 + 2] / 255.0)
-		var pale := Color(_srgb_to_linear(srgb.r), _srgb_to_linear(srgb.g), _srgb_to_linear(srgb.b))
-		if is_white:
-			colours[i] = pale
-		else:
-			# The ink army: the pale colour, gammared and gained in LINEAR light -
-			# Godot treats an albedo and a vertex colour as linear, which is why
-			# the byte is converted first and the rule applied after. Doing it the
-			# other way round (the first version) makes the "dark" army three
-			# times darker than the palette it was matched to, and the render
-			# measured its pawns at 26 of 255 against the other sets' 53-60.
-			colours[i] = Color(
-				clampf(pow(pale.r, ink_gamma) * ink_gain + ink_lift.r, 0.0, 1.0),
-				clampf(pow(pale.g, ink_gamma) * ink_gain + ink_lift.g, 0.0, 1.0),
-				clampf(pow(pale.b, ink_gamma) * ink_gain + ink_lift.b, 0.0, 1.0))
+		# A byte into the palette, clamped rather than trusted: a corrupt index
+		# is a wrong colour, not an out-of-range read.
+		var label := mini(labels[i], materials - 1)
+		colours[i] = palette[label]
 	return colours
 
 

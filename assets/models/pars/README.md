@@ -39,11 +39,20 @@ the way a stone tower would carry its coat of arms.
 - **On this project's height ladder and footprint** — `normalise_set_scale.py`
   puts every piece on the classic set's height and foot radius, so all three
   sets are interchangeable on the board.
-- **`.tint`** — the sculpture's own colour, sampled from its atlas, one sRGB
-  triple per vertex, plus the five header floats that make the ink army
-  (`pale ** gamma * gain + lift`). 15 KB a piece, against 1.3 MB for the atlas.
-  The grading rules are in `tools/prepare_sculpt_set.py`; the reader is
-  `_read_tint()` in `src/main/main.gd`.
+- **`.tint`** — the sculpture's *material map*: one byte per vertex naming the
+  body, the gilding or an accent, plus both armies' palettes in the header.
+  5 KB a piece, against 1.3 MB for the atlas. The reader is `_read_tint()` in
+  `src/main/main.gd`; the rules that build the map are in
+  `tools/prepare_sculpt_set.py`.
+
+  It is a material map rather than a sampled colour per vertex because of what
+  sampling did on a phone: these atlases are 4096-square filigree, gold over
+  silver over dark leather in thousands of islands, and at 4 800 vertices a
+  piece the nearest-atlas-pixel sample lands on a different island almost every
+  vertex. The result was camouflage - a leopard print of gold, silver and
+  maroon - and since gold is 50-90% of every one of these atlases, both armies
+  read as gold and could not be told apart. Three materials with clean edges
+  read as a sculpted, gilded figure at the size a piece is actually drawn.
 - Positions and faces only in the OBJ, four decimals: `_piece_mesh()` welds,
   generates the normals and projects the UVs at load.
 
