@@ -561,7 +561,7 @@ func _setup_environment() -> void:
 	# density reads as a scratch rather than as a shadow. The blur is the cheap
 	# half of soft shadows on this renderer (there is no PCSS here), and 1.75 is
 	# as far as it can go before the contact point starts to detach from the piece.
-	$KeyLight.shadow_blur = 1.45
+	$KeyLight.shadow_blur = 1.75
 	# Orthographic, not PSSM. The board is eleven units across and always the same
 	# size on screen, so four cascades split a shadow map that was never going to
 	# run out of resolution, and every cascade is a draw of every caster: on the
@@ -581,7 +581,7 @@ func _setup_environment() -> void:
 	# Contact shadows and PCSS soft shadow use the light's angular distance, which
 	# this renderer does not implement; zero leaves no shadow-ray march behind.
 	$KeyLight.light_angular_distance = 0.0
-	$KeyLight.shadow_opacity = 0.95
+	$KeyLight.shadow_opacity = 0.9
 	# Fill: soft, front-right, cool, no shadow. This is the light that reaches the
 	# camera-facing side of a piece, so it is the one that makes the black army
 	# legible; the cool colour keeps the shadow side of a white piece from turning
