@@ -99,53 +99,6 @@ def srgb_to_linear(value: float) -> float:
     return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
 
 
-def tinted_armies(palette: dict[str, tuple[float, ...]]) -> tuple[float, float] | None:
-    """The pale/ink albedos of a set whose colours are baked into the mesh.
-
-    A set marked `vertex_colour` has a white multiplier in PIECE_THEMES on
-    purpose: the albedo is the `.tint` sidecar next to its OBJs - a material map
-    over three materials plus one palette per army, and the medians below are
-    weighted by how many vertices each material actually covers. Reading the palette in
-    main.gd there would measure the multiplier and conclude the set is two white
-    armies, so the sidecar is read instead: the median linear luma over every
-    vertex of all six pieces, which is the same statistic this script uses for
-    the other sets' flat albedos.
-    """
-    if not palette.get("vertex_colour", (False,))[0]:
-        return None
-    entry = palette.get("model_set")
-    if not entry or not isinstance(entry[0], str):
-        return None
-    model_set = entry[0]
-    directory = ROOT / "assets" / "models" / model_set
-    pale_values: list[float] = []
-    ink_values: list[float] = []
-    for path in sorted(directory.glob("*.tint")):
-        raw = path.read_bytes()
-        if raw[:4] != b"TINT" or raw[4] != 4:
-            continue
-        count = int.from_bytes(raw[5:9], "little")
-        materials = raw[9]
-        pale_bytes = raw[10:10 + materials * 3]
-        ink_bytes = raw[10 + materials * 3:10 + materials * 6]
-        labels = raw[10 + materials * 6:10 + materials * 6 + count]
-        if len(labels) != count:
-            continue
-        pale = [luma(tuple(srgb_to_linear(c / 255.0) for c in pale_bytes[i * 3:i * 3 + 3]))
-                for i in range(materials)]
-        ink = [luma(tuple(srgb_to_linear(c / 255.0) for c in ink_bytes[i * 3:i * 3 + 3]))
-               for i in range(materials)]
-        for label in labels:
-            index = min(label, materials - 1)
-            pale_values.append(pale[index])
-            ink_values.append(ink[index])
-    if not pale_values:
-        return None
-    pale_values.sort()
-    ink_values.sort()
-    return (pale_values[len(pale_values) // 2], ink_values[len(ink_values) // 2])
-
-
 def band_problem(label: str, value: float, band: tuple[float, float]) -> str | None:
     low, high = band
     if value < low:
@@ -182,14 +135,9 @@ def main() -> int:
         if "light" not in palette or "dark" not in palette:
             problems.append(f"set {set_id} has no light / dark body colour")
             continue
-        measured = tinted_armies(palette)
-        if measured is not None:
-            pale, dark = measured
-            print(f"  set   {set_id:11s} pale {pale:.3f}  dark {dark:.3f}   (measured from the .tint sidecars)")
-        else:
-            pale = luma(palette["light"])
-            dark = luma(palette["dark"])
-            print(f"  set   {set_id:11s} pale {pale:.3f}  dark {dark:.3f}")
+        pale = luma(palette["light"])
+        dark = luma(palette["dark"])
+        print(f"  set   {set_id:11s} pale {pale:.3f}  dark {dark:.3f}")
         for label, value, band in (
             (f"set {set_id} pale army", pale, PALE_ARMY),
             (f"set {set_id} dark army", dark, DARK_ARMY),
@@ -211,12 +159,8 @@ def main() -> int:
         for set_id, palette in pieces.items():
             if "light" not in palette or "dark" not in palette:
                 continue
-            measured = tinted_armies(palette)
-            if measured is not None:
-                pale, army = measured
-            else:
-                pale = luma(palette["light"])
-                army = luma(palette["dark"])
+            pale = luma(palette["light"])
+            army = luma(palette["dark"])
             # Both armies stand on both colours of square, so what matters is the
             # distance in either direction, not the sign: a charcoal piece that is
             # lighter than the dark square reads fine, it just has to be

@@ -8,7 +8,6 @@ const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
 const CameraRigSpec = preload("res://src/main/camera_rig.gd")
 const PieceLadder = preload("res://src/main/piece_ladder.gd")
-const ObjLoader = preload("res://src/main/obj_loader.gd")
 var passed := 0
 var failed := 0
 
@@ -40,8 +39,6 @@ func _init() -> void:
 	_test_piece_height_ladder()
 	_test_sculpt_relief_and_gild()
 	_test_knight_facing_matches_the_meshes()
-	_test_colour_sidecars()
-	_test_obj_loader_matches_the_file()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -359,18 +356,17 @@ func _test_piece_facing() -> void:
 		# A turned pawn and rook are surfaces of revolution: no front, no turn.
 		["staunton", "pawn", true, 0.0],
 		["staunton", "rook", false, 0.0],
-		# Sculpted sets face +Z: White takes half a turn, Black keeps the model.
-		["pars", "king", true, PI],
-		["pars", "king", false, 0.0],
+
+
 		# The pars horse looks straight down +Z like the rest of its set, so it
 		# takes the figures' turn. The set this one replaced did not, and that is
 		# the case that shipped back to front.
-		["pars", "knight", true, PI],
-		["pars", "knight", false, 0.0],
-		["bastani", "knight", true, PI],
-		["bastani", "knight", false, 0.0],
-		["bastani", "bishop", true, PI],
-		["bastani", "bishop", false, 0.0],
+
+
+
+
+
+
 	]
 	for case in expectations:
 		var set_name: String = case[0]
@@ -776,15 +772,13 @@ func _test_piece_height_ladder() -> void:
 ## above the neck - the point furthest forward or back along z is the muzzle, and
 ## its z sign is what the table has to say.
 ##
-## Two cheaper rules were tried and both got a set wrong, which is why this one is
-## spelled out. "Furthest point from the vertical axis" reads the bastani horse's
-## near-side cheek in the top fifth of its height and calls the set backwards. The
-## mass of the top 5% reads the mane that sweeps back over the neck: -0.031 on
-## bastani, also backwards. Along z, in the top 15%, the three sets measure
-## -0.317 (staunton), +0.218 (pars) and +0.249 (bastani) - the three carved
-## directions, with a margin on every one.
+## Two cheaper rules were tried and both got it wrong, which is why this one is
+## spelled out: the point furthest from the vertical axis lands on a cheek, and
+## the mass of the top 5% lands on the mane that sweeps back over the neck. Along
+## z, in the top 15%, the staunton knight measures -0.317 - the carved direction,
+## with a margin.
 func _test_knight_facing_matches_the_meshes() -> void:
-	for set_name in ["staunton", "pars", "bastani"]:
+	for set_name in ["staunton"]:
 		var path := "res://assets/models/%s/knight.obj" % set_name
 		var file := FileAccess.open(path, FileAccess.READ)
 		_expect(file != null, "%s has a knight mesh" % set_name)
@@ -835,123 +829,3 @@ func _test_knight_facing_matches_the_meshes() -> void:
 			"%s: White's knight looks toward rank 8" % set_name)
 		_expect(black_world == 1,
 			"%s: Black's knight looks toward rank 1" % set_name)
-
-
-## The pars set's colours live in a sidecar, and a sidecar is data no compiler
-## checks. Every failure this project has shipped in that file was invisible to
-## the renderer until it reached a phone: six sidecars missing from the package
-## drew two armies of white, and a per-vertex sample of the atlas drew both
-## armies gold. So the file itself is checked here - the header, the length, the
-## vertex count against the OBJ, and the one property that matters to a player:
-## the two armies are far apart in brightness.
-func _test_colour_sidecars() -> void:
-	const KINDS := ["pawn", "rook", "knight", "bishop", "queen", "king"]
-	const MATERIALS := 3
-	var pale_totals := 0.0
-	var ink_totals := 0.0
-	var samples := 0
-	var seen := {}
-	for kind in KINDS:
-		var path := "res://assets/models/pars/%s.tint" % kind
-		var file := FileAccess.open(path, FileAccess.READ)
-		_expect(file != null, "%s.tint is in the project" % kind)
-		if file == null:
-			continue
-		var raw := file.get_buffer(file.get_length())
-		file.close()
-		_expect(raw.slice(0, 4).get_string_from_ascii() == "TINT",
-			"%s.tint is a TINT sidecar" % kind)
-		_expect(raw[4] == 4, "%s.tint is version 4 (material map)" % kind)
-		var count := raw.decode_u32(5)
-		var materials := raw[9]
-		_expect(materials == MATERIALS, "%s.tint names %d materials" % [kind, MATERIALS])
-		_expect(raw.size() == 10 + materials * 6 + count,
-			"%s.tint is exactly its header plus one byte per vertex" % kind)
-		# The OBJ's vertex count is the number the reader indexes with, so a
-		# mismatch here is a wrong colour on every vertex after the first gap.
-		var mesh := FileAccess.open("res://assets/models/pars/%s.obj" % kind, FileAccess.READ)
-		var vertices := 0
-		if mesh != null:
-			while not mesh.eof_reached():
-				if mesh.get_line().begins_with("v "):
-					vertices += 1
-			mesh.close()
-		_expect(count == vertices, "%s.tint has one material per vertex (%d vs %d)"
-			% [kind, count, vertices])
-		var pale := []
-		var ink := []
-		for i in materials:
-			pale.append(Color8(raw[10 + i * 3], raw[11 + i * 3], raw[12 + i * 3]))
-			ink.append(Color8(raw[10 + materials * 3 + i * 3],
-				raw[11 + materials * 3 + i * 3], raw[12 + materials * 3 + i * 3]))
-		var out_of_range := 0
-		for i in count:
-			var label: int = raw[10 + materials * 6 + i]
-			if label >= materials:
-				out_of_range += 1
-			seen[label] = true
-			var pale_colour: Color = pale[mini(label, materials - 1)]
-			var ink_colour: Color = ink[mini(label, materials - 1)]
-			pale_totals += pale_colour.srgb_to_linear().get_luminance()
-			ink_totals += ink_colour.srgb_to_linear().get_luminance()
-			samples += 1
-		_expect(out_of_range == 0, "%s.tint names no material that does not exist" % kind)
-	for material in MATERIALS:
-		_expect(seen.has(material), "some piece uses material %d" % material)
-	_expect(samples > 0, "the sidecars were read (%d vertices)" % samples)
-	if samples > 0:
-		var pale_average := pale_totals / samples
-		var ink_average := ink_totals / samples
-		_expect(ink_average < pale_average * 0.7,
-			"the two armies are different in brightness (%.2f vs %.2f)"
-				% [pale_average, ink_average])
-
-
-## The sidecar is indexed by the OBJ's vertex order, and that promise is what
-## obj_loader.gd exists to keep: Godot's OBJ importer builds its own vertex array
-## (in face order, and reordered again to optimise the vertex cache), so index N
-## of the imported mesh is not vertex N of the file.
-##
-## The one sided symptom was the pars set drawing as confetti - a clean material
-## map in file order, applied to a different order - and it survived two rounds
-## of looking at the colours themselves. So the order is what is checked: every
-## `v` line is one vertex, in the order it appears, and every face index is
-## within them.
-func _test_obj_loader_matches_the_file() -> void:
-	var loaded: Dictionary = ObjLoader.load_arrays("res://assets/models/pars/knight.obj")
-	_expect(not loaded.is_empty(), "the knight body parses")
-	if loaded.is_empty():
-		return
-	var positions: PackedVector3Array = loaded["positions"]
-	var indices: PackedInt32Array = loaded["indices"]
-	# Counted the slow way, from the file, so this is a comparison and not a
-	# restatement of what the loader believes.
-	var file := FileAccess.open("res://assets/models/pars/knight.obj", FileAccess.READ)
-	var vertices := []
-	while not file.eof_reached():
-		var line := file.get_line()
-		if line.begins_with("v "):
-			var parts := line.split(" ", false)
-			vertices.append(Vector3(parts[1].to_float(), parts[2].to_float(), parts[3].to_float()))
-	file.close()
-	_expect(positions.size() == vertices.size(),
-		"obj_loader keeps one vertex per `v` line (%d vs %d)" % [positions.size(), vertices.size()])
-	var order_ok := true
-	for i in mini(positions.size(), vertices.size()):
-		if not positions[i].is_equal_approx(vertices[i]):
-			order_ok = false
-			break
-	_expect(order_ok, "obj_loader keeps the file's vertex order, so a sidecar index means something")
-	_expect(indices.size() % 3 == 0, "obj_loader returns whole triangles")
-	var in_range := true
-	for index in indices:
-		if index < 0 or index >= positions.size():
-			in_range = false
-			break
-	_expect(in_range, "every face index is inside the vertex list")
-	# The sidecar's length is the contract between the two files.
-	var tint := FileAccess.open("res://assets/models/pars/knight.tint", FileAccess.READ)
-	var raw := tint.get_buffer(tint.get_length())
-	tint.close()
-	_expect(raw.decode_u32(5) == positions.size(),
-		"the knight's sidecar covers exactly the vertices obj_loader returns")

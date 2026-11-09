@@ -4,7 +4,7 @@
 WHAT THIS CATCHES
 -----------------
 Godot's `export_filter="all_resources"` ships resources it can import or load as
-a resource. A file with no importer of its own - the pars set's `<kind>.tint`
+a resource. A file with no importer of its own - a `.tint` sidecar, say
 sidecars are the current example, and any future `.json`, `.bin` or `.csv` table
 would be the next - is only packed when `include_filter` matches it.
 

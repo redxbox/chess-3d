@@ -5,8 +5,8 @@ WHY THIS EXISTS
 ---------------
 The project author supplies each piece set as six sculpted files - one GLB per
 piece, 280k-500k triangles and 13-21 MB each - uploaded to the repository. The
-current set ("pars", an Indo-Persian figured set) is the third in that series;
-"bastani" and the retired turned "classic" came the same way.
+three sets of uploads came that way, and all three were retired: see ROADMAP for
+why a 5 000-triangle decimation of a 300k-triangle figurine does not survive.
 
 None of them can be used as uploaded: 110 MB of GLB is not a mobile game's
 budget for its pieces, and a Godot import of half a million triangles per piece
@@ -18,7 +18,7 @@ tools/check_shipped_assets.py for the guard that fails the build when one does.
 
 This script does the conversions that turn six uploads into a usable set:
 
-1. Weld, then decimate. The uploads are triangle soups - the pars horse is 282k
+1. Weld, then decimate. The uploads are triangle soups - one horse arrived at 282k
    triangles in 21 000 disconnected islands, because the exporter shares no
    vertices between neighbouring faces. A quadric simplifier will not collapse
    across an island boundary, so welding first is what takes the mesh to
@@ -54,7 +54,7 @@ format `trimesh` opens, so an upload does not have to be renamed first.
 
 Run:  python3 tools/prepare_sculpt_set.py [source_dir] [output_dir]
 
-    python3 tools/prepare_sculpt_set.py --colours tools/sources/incoming assets/models/pars
+    python3 tools/prepare_sculpt_set.py --colours tools/sources/incoming assets/models/myset
 """
 
 from __future__ import annotations
@@ -796,7 +796,7 @@ def main() -> int:
     keep_colour = "--colours" in sys.argv
     positional = [argument for argument in sys.argv[1:] if not argument.startswith("--")]
     source = positional[0] if len(positional) > 0 else "."
-    output = positional[1] if len(positional) > 1 else "assets/models/persian"
+    output = positional[1] if len(positional) > 1 else "assets/models/myset"
     os.makedirs(output, exist_ok=True)
     for kind in KINDS:
         # The file names are whatever the author's tool produced: the bastani set

@@ -194,15 +194,12 @@ jobs:
       - name: Render real Godot screenshot
         run: |
           mkdir -p build/preview
-          # One render per board/piece combination, over the diagonal of the two
-          # axes plus one cross pairing: there are three boards and three sets,
-          # and the diagonal proves all six are wired up in three renders.
-          # royal_wood-classic is kept as the fourth because the published
-          # showcase image is that pairing - the turned set on the wood board.
-          for pair in classic-classic royal_wood-bastani royal_blue-pars royal_wood-classic; do
-            board="${pair%%-*}"
-            pieces="${pair#*-}"
-            name="${pair}.png"
+          # One render per board, all four of them with the one shipped piece
+          # set: the piece side of the picker has no alternatives to prove any
+          # more, and the board is what varies in the frame.
+          for board in classic royal_wood jade royal_blue; do
+            pieces=classic
+            name="${board}-${pieces}.png"
             CHESS_BOARD_THEME="$board" CHESS_PIECE_THEME="$pieces" CHESS_PREVIEW_NAME="$name" \
               xvfb-run -a -s "-screen 0 1536x864x24" \
               godot --path . --rendering-method gl_compatibility \
@@ -211,12 +208,12 @@ jobs:
           done
           # And one close-up of the near army, because at board scale a crown is
           # three pixels and no judgement about the carving can be made on it.
-          CHESS_PREVIEW_DETAIL=1 CHESS_BOARD_THEME=royal_wood CHESS_PIECE_THEME=bastani \
-            CHESS_PREVIEW_NAME=bastani-detail.png \
+          CHESS_PREVIEW_DETAIL=1 CHESS_BOARD_THEME=royal_wood CHESS_PIECE_THEME=classic \
+            CHESS_PREVIEW_NAME=classic-detail.png \
             xvfb-run -a -s "-screen 0 1536x864x24" \
             godot --path . --rendering-method gl_compatibility \
             --resolution 1536x864 --script res://tools/capture_preview.gd
-          test -s "build/preview/bastani-detail.png"
+          test -s "build/preview/classic-detail.png"
           # And the style screen itself, so the picker is reviewed in CI too.
           CHESS_PREVIEW_PICKER=1 CHESS_PREVIEW_NAME=style-picker.png \
             xvfb-run -a -s "-screen 0 1536x864x24" \
@@ -272,7 +269,7 @@ jobs:
           script: |
             const fs = require('fs');
             const branch = context.ref.replace('refs/heads/', '');
-            for (const name of ['classic-classic.png', 'royal_wood-bastani.png', 'royal_blue-pars.png', 'royal_wood-classic.png', 'bastani-detail.png', 'style-picker.png']) {
+            for (const name of ['classic-classic.png', 'royal_wood-classic.png', 'jade-classic.png', 'royal_blue-classic.png', 'classic-detail.png', 'style-picker.png']) {
               const path = `docs/previews/${name}`;
               let sha;
               try {
@@ -338,9 +335,9 @@ jobs:
           set +e
           output=$(python3 tools/measure_preview.py \
             build/preview/classic-classic.png \
-            build/preview/royal_wood-bastani.png \
-            build/preview/royal_blue-pars.png \
-            build/preview/royal_wood-classic.png 2>&1)
+            build/preview/royal_wood-classic.png \
+            build/preview/jade-classic.png \
+            build/preview/royal_blue-classic.png 2>&1)
           status=$?
           printf '%s\n' "$output"
           printf '```text\n%s\n```\n' "$output" >> "$GITHUB_STEP_SUMMARY"

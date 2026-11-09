@@ -27,31 +27,15 @@ extends RefCounted
 ## contents of its sidecar, so a 8 written before the gilding was re-baked holds
 ## the confetti and would keep drawing it.
 ##
-## Bumped to 8 because the pars set is now read from its OBJ file rather than
-## from the imported mesh: the vertex order changed, so the baked colour array of
-## a 7 indexes a different vertex. A 6 or 7 also holds the confetti the wrong
-## order produced.
-##
-## Bumped to 7 with the material-map sidecar: the pars set's colours changed from
-## one sampled atlas colour per vertex to three materials and two palettes, so a
-## 6 written by the previous build holds the camouflage this replaces.
-##
-## Bumped to 6 because a 5 written by the build that shipped without the `.tint`
-## sidecars has the pars set baked into its vertex colours as white. The files are
-## in the package now, but the cache outlives one install and would keep drawing
-## the old colour until the next format change - so it is the format that changes.
-##
-## Bumped to 5 with the PARS set: a cached mesh now also carries the sculpture's
-## own colours, read from `<kind>.tint` and multiplied into the shading, and its
-## key gained the army because the two armies are the same body in two colours. A
-## cache written by 4 has neither, so it would draw the coloured set in the
-## palette white this round exists to replace.
+## Bumped to 10 because the sculpted sets left: a cached mesh also carried their
+## baked per-vertex colours, keyed per army, and the queen's coronet geometry
+## changed with them. A 9 written by the previous build holds both.
 ##
 ## (4 was the sculpt-fields rewrite: the cavity bake moved to a three-ring patch,
 ## and a mesh cached by 3 carried the blotched shading that rewrite removed.)
 ##
 ## A cache is per install and free to rebuild; keeping a stale one is not.
-const FORMAT := 9
+const FORMAT := 10
 const ROOT := "user://mesh_cache"
 
 

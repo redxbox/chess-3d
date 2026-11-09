@@ -1,7 +1,7 @@
 """Which chess piece an uploaded file is, judged only from its name.
 
-The author's exports have never followed one convention: the bastani set
-arrived as `pown1.glb` / `quin1.glb`, the persian replacement as `kinge.glb`,
+Uploaded exports have never followed one convention: one set arrived as
+`pown1.glb` / `quin1.glb`, its replacement as `kinge.glb`,
 and the next set may well come as `شاه.fbx` or `Knight-final-v2.glb`. Rather
 than make someone rename their files - which is how a piece goes missing - both
 `tools/check_incoming_set.py` and `tools/prepare_sculpt_set.py` ask this module
@@ -20,7 +20,7 @@ KINDS = ("pawn", "rook", "knight", "bishop", "queen", "king")
 # Lower-case fragments, longest and least ambiguous first. English first because
 # that is what the last two sets used, then the Persian names, then the plain
 # English synonyms a modelling tool might export. "castle" and "tower" are the
-# rook, "horse" the knight, "elephant" the bishop (the bastani bishop is one),
+# rook, "horse" the knight, "elephant" the bishop,
 # and "vizier" the queen - the figure, not the piece.
 ALIASES = {
     "knight": ("knight", "horse", "asb", "اسب"),

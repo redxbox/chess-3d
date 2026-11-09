@@ -61,8 +61,8 @@ IMPORTED = {".obj", ".wav", ".ogg", ".svg", ".tscn", ".tres", ".gd", ".glb", ".g
 SOURCE_FORMATS = {".glb", ".gltf", ".blend", ".fbx", ".zip"}
 # Extensions that are pure documentation and are never exported.
 IGNORED = {".md", ".txt"}
-# Runtime data that Godot copies verbatim and a script reads by hand. `.tint` is
-# the pars set's per-vertex colours: 15 KB a piece, read by _read_tint() in
+# Runtime data that Godot copies verbatim and a script reads by hand. `.tint` was
+# a retired set's per-vertex colours: 15 KB a piece, read by a loader in
 # main.gd. It has no importer, which is correct and is not a warning - the file
 # is counted at its real size above.
 VERBATIM_RUNTIME = {".tint"}
