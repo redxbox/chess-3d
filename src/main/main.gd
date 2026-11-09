@@ -215,7 +215,12 @@ const PIECE_THEMES := {
 		"label": "CLASSIC",
 		"model_set": "staunton",
 		"light": Color(0.68, 0.668, 0.636),
-		"dark": Color(0.32, 0.32, 0.345),
+		# Charcoal, not slate. The value is the calibrated one - above the dark
+		# squares so the army cannot be mistaken for a hole in the board - but the
+		# hue was two points blue, which under a warm key made the black army read
+		# cold beside the ivory. The reference photograph's second army is warm
+		# charcoal, so the blue is gone and the red is two points above the green.
+		"dark": Color(0.338, 0.326, 0.308),
 		"accent": Color(0.92, 0.74, 0.28),
 		"light_roughness": 0.38,
 		"dark_roughness": 0.26,
@@ -556,7 +561,7 @@ func _setup_environment() -> void:
 	# density reads as a scratch rather than as a shadow. The blur is the cheap
 	# half of soft shadows on this renderer (there is no PCSS here), and 1.75 is
 	# as far as it can go before the contact point starts to detach from the piece.
-	$KeyLight.shadow_blur = 1.75
+	$KeyLight.shadow_blur = 1.45
 	# Orthographic, not PSSM. The board is eleven units across and always the same
 	# size on screen, so four cascades split a shadow map that was never going to
 	# run out of resolution, and every cascade is a draw of every caster: on the
@@ -576,7 +581,7 @@ func _setup_environment() -> void:
 	# Contact shadows and PCSS soft shadow use the light's angular distance, which
 	# this renderer does not implement; zero leaves no shadow-ray march behind.
 	$KeyLight.light_angular_distance = 0.0
-	$KeyLight.shadow_opacity = 0.9
+	$KeyLight.shadow_opacity = 0.95
 	# Fill: soft, front-right, cool, no shadow. This is the light that reaches the
 	# camera-facing side of a piece, so it is the one that makes the black army
 	# legible; the cool colour keeps the shadow side of a white piece from turning
