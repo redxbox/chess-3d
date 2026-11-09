@@ -384,7 +384,7 @@ def prepare(kind: str, path: str, keep_colour: bool = False):
                 colours[index] = source_colours[nearest]
         # The colours are not what ships: the material map derived from them is.
         # See material_indices() for why, and write_tint() for the file.
-        colours = material_indices(colours, faces)
+        colours = material_indices(colours, faces, vertices)
     return vertices, faces, colours
 
 
@@ -438,11 +438,12 @@ def _normalise(kind: str, vertices: np.ndarray, faces: np.ndarray, centre_on_pli
 ##
 ## Detail cannot survive that sampling, so it is not what gets kept. What gets
 ## kept is the *division of the sculpture into materials* - which parts are gold
-## and which are the body - which the atlas does support, because it is a
-## region map even where the per-vertex sample is noise. Each vertex is scored
-## for gold and for red, the scores are smoothed over the mesh, and the top
-## share of each becomes that material. The result is three materials per piece
-## with clean edges: a body, gilded trim, and red accents (plumes, gems).
+## and which are the body. And for the gilding that division is read from the
+## geometry rather than from the atlas: convexity, diffused over the mesh until
+## what is left is a region, marks where the sculpture has an edge - the rim of a
+## plinth, the band round a tower, the ridge of a mane, the points of a crown -
+## which is where a gilded statuette is gilded. The atlas still decides the red
+## accents, where a colour is the thing itself rather than a shape.
 ##
 ## That also makes the two armies cheap and exact. Both armies are the same
 ## material indices and two palettes, so a `.tint` is one byte per vertex - 5 KB
@@ -473,16 +474,29 @@ INK_PALETTE = {
 
 # How much of a piece each material is allowed to be. Gold over 50% stops being
 # trim and becomes the piece (the rook's atlas is 87% gold), so the share is
-# fixed per piece rather than taken from the atlas: every figure then reads as
-# the same set. The values were picked by eye against the reference photograph
-# and then checked against the measuring script.
-GOLD_SHARE = 0.34
+# fixed per piece rather than taken from it: every figure then reads as the same
+# set. The values were picked by eye against the reference photograph and then
+# checked against the measuring script.
+GOLD_SHARE = 0.26
 ACCENT_SHARE = 0.05
+
+# How far the convexity is diffused before it is thresholded. This is the number
+# that decides whether the gilding has an edge or is a rash of specks: at four
+# rounds every facet of the decimated sculpt crosses the threshold somewhere, and
+# at twenty-eight what is left is the mouldings, the ridges and the crowns.
+GOLD_ROUNDS = 28
 
 # Smoothing rounds over the mesh graph. One round is not enough to close the
 # gaps the atlas sampling leaves inside a gilded region; three starts rounding
 # off genuinely thin detail like the wire of a crown.
-SMOOTH_ROUNDS = 2
+SMOOTH_ROUNDS = 4
+
+# A material island smaller than this share of a piece is noise, not ornament:
+# it is reassigned to the body. The atlas sampling is per vertex, so a gilded
+# region arrives full of one-vertex holes and the piece renders as a speckle of
+# gold flakes. Islands, majority votes and this floor are what turn that back
+# into gilded trim with an edge.
+MIN_ISLAND = 0.012
 
 # Where a hue has to sit to count, in degrees. Gold is yellow-orange, the
 # accents are red; everything else is body. Hues wrap, so red is two windows.
@@ -559,35 +573,151 @@ def smooth(values: np.ndarray, faces: np.ndarray, rounds: int) -> np.ndarray:
     return values
 
 
-def material_indices(colours_srgb: np.ndarray, faces: np.ndarray) -> np.ndarray:
+def convexity(vertices: np.ndarray, faces: np.ndarray, rounds: int = 3) -> np.ndarray:
+    """Mean convexity per vertex: positive on ridges, negative in creases.
+
+    Measured as the Laplacian of the position projected onto the normal. This is
+    the same quantity src/main/piece_shading.gd measures to bake occlusion into
+    the vertex colours - a ridge catches light, a crease loses it - and it is
+    reused here because "where is the edge of the gilding" is the same question
+    as "where would the highlight land".
+    """
+    a, b = _edges(faces)
+    triangles = vertices[faces]
+    face_normals = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
+    normals = np.zeros_like(vertices)
+    for corner in range(3):
+        np.add.at(normals, faces[:, corner], face_normals)
+    normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-9)
+    lap = np.zeros_like(vertices)
+    count = np.zeros(len(vertices))
+    np.add.at(lap, a, vertices[b])
+    np.add.at(count, a, 1.0)
+    np.add.at(lap, b, vertices[a])
+    np.add.at(count, b, 1.0)
+    lap = lap / np.maximum(count, 1.0)[:, None] - vertices
+    values = np.einsum("ij,ij->i", lap, normals)
+    for _ in range(rounds):
+        total = values.copy()
+        weights = np.ones(len(vertices))
+        np.add.at(total, a, values[b])
+        np.add.at(total, b, values[a])
+        np.add.at(weights, a, 1.0)
+        np.add.at(weights, b, 1.0)
+        values = total / weights
+    return values
+
+
+def material_indices(colours_srgb: np.ndarray, faces: np.ndarray,
+                     vertices: np.ndarray | None = None) -> np.ndarray:
     """One material index per vertex: 0 body, 1 gold, 2 accent.
 
-    The shares are fixed, so this is a ranking rather than a threshold: it says
-    "the gilding is the most golden third of this piece", which survives an atlas
-    that is 87% gold on one figure and 39% on the next. Smoothing comes first, so
-    what is ranked is a region score and not a per-vertex sample.
+    Two different signals, because the two materials are recognised two
+    different ways:
+
+      * **Gilding comes from the geometry.** Convexity, diffused far enough over
+        the mesh that what is left is a region and not a per-triangle reading -
+        twenty-eight rounds, which on a 10 000-triangle piece is several
+        centimetres of surface. What survives that is where the sculpture has
+        edges: the rim of a plinth, the band round a tower, the ridge of a mane,
+        the points of a crown. That is where a gilded statuette is gilded, and
+        the threshold is a fixed share of the piece so every figure ends up with
+        the same amount of gold regardless of what its atlas happens to contain.
+
+      * **The accents come from the atlas.** A red plume or a garnet is a
+        colour, not a shape, and red is rare enough in these atlases that the
+        per-vertex reading is reliable where gold's is not.
+
+    The atlas was tried as the source for the gilding, and it is the reason this
+    set shipped twice as camouflage: gold is 50-90% of every one of these
+    atlases, spread as filigree over silver and dark leather in thousands of
+    islands, so at 4 800 vertices the samples come back as a leopard print
+    whichever way they are graded. Geometry does not have that problem - an edge
+    is an edge - and the colour of the gold is a palette entry, not a sample.
     """
     rgb = np.asarray(colours_srgb, dtype=np.float64) / 255.0
     hue, saturation, value = _hsv(rgb)
-    gold = saturation * _in_hue(hue, GOLD_HUE) * (value > MIN_VALUE)
-    accent = saturation * _in_hue(hue, ACCENT_HUE) * (value > MIN_VALUE)
-    gold = smooth(gold, faces, SMOOTH_ROUNDS)
-    accent = smooth(accent, faces, SMOOTH_ROUNDS)
-
     labels = np.zeros(len(rgb), dtype=np.uint8)
-    gold_count = int(round(GOLD_SHARE * len(rgb)))
+
+    accent = smooth(saturation * _in_hue(hue, ACCENT_HUE) * (value > MIN_VALUE),
+                    faces, SMOOTH_ROUNDS)
     accent_count = int(round(ACCENT_SHARE * len(rgb)))
-    # Accents first - a plume has to stay red even where it is the most golden
-    # thing on the figure - then gold from whatever is left.
     accent_order = np.argsort(-accent)[:accent_count]
     labels[accent_order[accent[accent_order] > 0]] = 2
-    remaining = np.flatnonzero(labels == 0)
-    if len(remaining):
-        order = remaining[np.argsort(-gold[remaining])][:gold_count]
+
+    if vertices is not None:
+        ridge = smooth(convexity(vertices, faces), faces, GOLD_ROUNDS)
+        threshold = np.percentile(ridge, 100.0 * (1.0 - GOLD_SHARE))
+        labels[(ridge > threshold) & (labels == 0)] = 1
+    else:
+        # No geometry to read (the caller passed labels only): fall back to the
+        # atlas, which is what this used to do for both materials.
+        gold = smooth(saturation * _in_hue(hue, GOLD_HUE) * (value > MIN_VALUE),
+                      faces, SMOOTH_ROUNDS)
+        gold_count = int(round(GOLD_SHARE * len(rgb)))
+        order = np.flatnonzero(labels == 0)
+        order = order[np.argsort(-gold[order])][:gold_count]
         labels[order[gold[order] > 0]] = 1
-    # One majority pass: a gilded region with three stray body vertices in it
-    # reads as holes in the gold at this scale.
-    return _majority(labels, faces)
+
+    return _fill_and_clean(labels, faces)
+
+
+def _fill_and_clean(labels: np.ndarray, faces: np.ndarray) -> np.ndarray:
+    """Close pin-holes, then drop islands too small to be ornament.
+
+    A gilded band with a scatter of one-vertex holes renders as a rash, and a few
+    gold vertices adrift on an ivory robe renders as the speckle this set shipped
+    with. A vertex is filled when most of its neighbours agree it should be, and
+    an island smaller than MIN_ISLAND of the piece goes back to the body.
+    """
+    a, b = _edges(faces)
+    for material in (1, 2):
+        for _ in range(3):
+            agree = np.zeros(len(labels))
+            count = np.zeros(len(labels))
+            np.add.at(agree, a, (labels[b] == material).astype(np.float64))
+            np.add.at(count, a, 1.0)
+            np.add.at(agree, b, (labels[a] == material).astype(np.float64))
+            np.add.at(count, b, 1.0)
+            fill = (labels == 0) & (agree / np.maximum(count, 1.0) > 0.62)
+            labels[fill] = material
+        labels = _drop_small_islands(labels, faces)
+    return labels
+
+
+def _components(labels: np.ndarray, faces: np.ndarray, material: int) -> tuple[np.ndarray, np.ndarray]:
+    """Connected components of one material over the mesh, by union-find."""
+    parent = np.arange(len(labels))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    a, b = _edges(faces)
+    same = (labels[a] == material) & (labels[b] == material)
+    for u, v in zip(a[same], b[same]):
+        ru, rv = find(int(u)), find(int(v))
+        if ru != rv:
+            parent[ru] = rv
+    roots = np.array([find(i) for i in range(len(labels))])
+    return roots, np.flatnonzero(labels == material)
+
+
+def _drop_small_islands(labels: np.ndarray, faces: np.ndarray) -> np.ndarray:
+    """Fold every material island below MIN_ISLAND of the piece back into the body."""
+    labels = labels.copy()
+    floor = max(6, int(round(MIN_ISLAND * len(labels))))
+    for material in (1, 2):
+        roots, members = _components(labels, faces, material)
+        if not len(members):
+            continue
+        values, counts = np.unique(roots[members], return_counts=True)
+        small = values[counts < floor]
+        if len(small):
+            labels[np.isin(roots, small) & (labels == material)] = 0
+    return labels
 
 
 def _majority(labels: np.ndarray, faces: np.ndarray) -> np.ndarray:
