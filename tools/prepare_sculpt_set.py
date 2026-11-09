@@ -463,12 +463,12 @@ MATERIALS = ("body", "gold", "accent")
 # armour with the gilding kept - the reference photograph the author supplied.
 PALE_PALETTE = {
     "body":   (224, 217, 198),   # ivory    - linear luma 0.696
-    "gold":   (226, 190, 116),   # gilding  - linear luma 0.543
+    "gold":   (230, 199, 141),   # gilding  - linear luma 0.585
     "accent": (168, 32, 36),     # plume and gems
 }
 INK_PALETTE = {
     "body":   (154, 155, 160),   # black armour in light - linear luma 0.329
-    "gold":   (212, 170, 98),    # the gilding keeps its brightness
+    "gold":   (219, 182, 120),   # the gilding keeps its brightness
     "accent": (120, 26, 30),
 }
 

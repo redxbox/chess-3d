@@ -23,6 +23,10 @@ extends RefCounted
 ##
 ## `user://` is not a build artefact and never ships: the cache is per install.
 
+## Bumped to 9 with the pars material map: the cache key names the piece, not the
+## contents of its sidecar, so a 8 written before the gilding was re-baked holds
+## the confetti and would keep drawing it.
+##
 ## Bumped to 8 because the pars set is now read from its OBJ file rather than
 ## from the imported mesh: the vertex order changed, so the baked colour array of
 ## a 7 indexes a different vertex. A 6 or 7 also holds the confetti the wrong
@@ -47,7 +51,7 @@ extends RefCounted
 ## and a mesh cached by 3 carried the blotched shading that rewrite removed.)
 ##
 ## A cache is per install and free to rebuild; keeping a stale one is not.
-const FORMAT := 8
+const FORMAT := 9
 const ROOT := "user://mesh_cache"
 
 
