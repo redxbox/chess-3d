@@ -2861,9 +2861,10 @@ func _load_board_theme() -> void:
 	if board_theme not in BOARD_THEME_ORDER: board_theme = "classic"
 
 
-## Opens the style screen. The board and the piece set are chosen
-## independently - two columns of thumbnails side by side, three boards and three
-## sets, the way a shop shows a set, any combination of the two.
+## Opens the style screen. The board and the piece set are chosen independently -
+## thumbnails side by side, the way a shop shows a set, any combination of the
+## two. The piece column collapses on its own when one set ships, because the
+## grid is built from the lists.
 func _open_theme_picker() -> void:
 	if not is_instance_valid(_theme_overlay):
 		_build_theme_picker()
@@ -2887,9 +2888,12 @@ func _build_theme_picker() -> void:
 	_theme_overlay.add_child(center)
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var panel := PanelContainer.new()
-	# Two columns of three cards, and the width follows from the card size rather
-	# than being another number to keep in step with the list lengths.
-	panel.custom_minimum_size = Vector2(120.0 + 2.0 * (3.0 * 218.0 + 26.0), 0)
+	# The width follows from the cards rather than from a constant: the panel used
+	# to be sized for two full columns of three, and once there was one piece set
+	# left that constant drew a dialog with a third of it empty. The cards have
+	# fixed minimum widths, so letting the container size itself is both correct
+	# and one number fewer to keep in step with the theme lists.
+	panel.custom_minimum_size = Vector2(0, 0)
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.04, 0.048, 0.066, 0.99)
 	panel_style.border_color = Color(0.55, 0.39, 0.2, 0.85)
