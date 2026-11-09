@@ -8,6 +8,7 @@ const PieceLayout = preload("res://src/main/piece_layout.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
 const CameraRigSpec = preload("res://src/main/camera_rig.gd")
 const PieceLadder = preload("res://src/main/piece_ladder.gd")
+const ObjLoader = preload("res://src/main/obj_loader.gd")
 var passed := 0
 var failed := 0
 
@@ -40,6 +41,7 @@ func _init() -> void:
 	_test_sculpt_relief_and_gild()
 	_test_knight_facing_matches_the_meshes()
 	_test_colour_sidecars()
+	_test_obj_loader_matches_the_file()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -903,3 +905,53 @@ func _test_colour_sidecars() -> void:
 		_expect(ink_average < pale_average * 0.7,
 			"the two armies are different in brightness (%.2f vs %.2f)"
 				% [pale_average, ink_average])
+
+
+## The sidecar is indexed by the OBJ's vertex order, and that promise is what
+## obj_loader.gd exists to keep: Godot's OBJ importer builds its own vertex array
+## (in face order, and reordered again to optimise the vertex cache), so index N
+## of the imported mesh is not vertex N of the file.
+##
+## The one sided symptom was the pars set drawing as confetti - a clean material
+## map in file order, applied to a different order - and it survived two rounds
+## of looking at the colours themselves. So the order is what is checked: every
+## `v` line is one vertex, in the order it appears, and every face index is
+## within them.
+func _test_obj_loader_matches_the_file() -> void:
+	var loaded: Dictionary = ObjLoader.load_arrays("res://assets/models/pars/knight.obj")
+	_expect(not loaded.is_empty(), "the knight body parses")
+	if loaded.is_empty():
+		return
+	var positions: PackedVector3Array = loaded["positions"]
+	var indices: PackedInt32Array = loaded["indices"]
+	# Counted the slow way, from the file, so this is a comparison and not a
+	# restatement of what the loader believes.
+	var file := FileAccess.open("res://assets/models/pars/knight.obj", FileAccess.READ)
+	var vertices := []
+	while not file.eof_reached():
+		var line := file.get_line()
+		if line.begins_with("v "):
+			var parts := line.split(" ", false)
+			vertices.append(Vector3(parts[1].to_float(), parts[2].to_float(), parts[3].to_float()))
+	file.close()
+	_expect(positions.size() == vertices.size(),
+		"obj_loader keeps one vertex per `v` line (%d vs %d)" % [positions.size(), vertices.size()])
+	var order_ok := true
+	for i in mini(positions.size(), vertices.size()):
+		if not positions[i].is_equal_approx(vertices[i]):
+			order_ok = false
+			break
+	_expect(order_ok, "obj_loader keeps the file's vertex order, so a sidecar index means something")
+	_expect(indices.size() % 3 == 0, "obj_loader returns whole triangles")
+	var in_range := true
+	for index in indices:
+		if index < 0 or index >= positions.size():
+			in_range = false
+			break
+	_expect(in_range, "every face index is inside the vertex list")
+	# The sidecar's length is the contract between the two files.
+	var tint := FileAccess.open("res://assets/models/pars/knight.tint", FileAccess.READ)
+	var raw := tint.get_buffer(tint.get_length())
+	tint.close()
+	_expect(raw.decode_u32(5) == positions.size(),
+		"the knight's sidecar covers exactly the vertices obj_loader returns")

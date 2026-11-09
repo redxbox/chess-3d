@@ -23,6 +23,11 @@ extends RefCounted
 ##
 ## `user://` is not a build artefact and never ships: the cache is per install.
 
+## Bumped to 8 because the pars set is now read from its OBJ file rather than
+## from the imported mesh: the vertex order changed, so the baked colour array of
+## a 7 indexes a different vertex. A 6 or 7 also holds the confetti the wrong
+## order produced.
+##
 ## Bumped to 7 with the material-map sidecar: the pars set's colours changed from
 ## one sampled atlas colour per vertex to three materials and two palettes, so a
 ## 6 written by the previous build holds the camouflage this replaces.
@@ -42,7 +47,7 @@ extends RefCounted
 ## and a mesh cached by 3 carried the blotched shading that rewrite removed.)
 ##
 ## A cache is per install and free to rebuild; keeping a stale one is not.
-const FORMAT := 7
+const FORMAT := 8
 const ROOT := "user://mesh_cache"
 
 

@@ -91,6 +91,7 @@ const APP_VERSION_FALLBACK := "0.16.1"
 const APP_BUILD := "42.3"
 const PieceFacing = preload("res://src/chess/piece_facing.gd")
 const PieceLayout = preload("res://src/main/piece_layout.gd")
+const ObjLoader = preload("res://src/main/obj_loader.gd")
 const PieceShading = preload("res://src/main/piece_shading.gd")
 const CameraRigSpec = preload("res://src/main/camera_rig.gd")
 const MeshCache = preload("res://src/main/mesh_cache.gd")
@@ -1102,12 +1103,27 @@ func _piece_mesh(kind: String, is_white := true) -> Mesh:
 	# lookup cannot mix two sets together.
 	var models := _piece_models()
 	var source: Mesh = models.get(kind)
-	if source == null or source.get_surface_count() == 0:
-		return source
-	var arrays := source.surface_get_arrays(0)
-	var positions: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var has_uvs: bool = arrays[Mesh.ARRAY_TEX_UV] != null
-	var has_normals: bool = arrays[Mesh.ARRAY_NORMAL] != null
+	var positions: PackedVector3Array = PackedVector3Array()
+	var source_indices := PackedInt32Array()
+	var has_uvs := false
+	var has_normals := false
+	var arrays: Array = []
+	if _piece_has_own_colours():
+		# Read from the file, not from the imported mesh, and see obj_loader.gd:
+		# the sidecar is indexed by the OBJ's own vertex order and the importer's
+		# order is different, which is what drew this set as confetti.
+		var parsed := ObjLoader.load_arrays(_piece_model_path(kind))
+		if parsed.is_empty():
+			return source
+		positions = parsed["positions"]
+		source_indices = parsed["indices"]
+	else:
+		if source == null or source.get_surface_count() == 0:
+			return source
+		arrays = source.surface_get_arrays(0)
+		positions = arrays[Mesh.ARRAY_VERTEX]
+		has_uvs = arrays[Mesh.ARRAY_TEX_UV] != null
+		has_normals = arrays[Mesh.ARRAY_NORMAL] != null
 	# The shading table is measured from the geometry here, once per kind per set,
 	# and cached with the mesh: every piece on the board reuses it.
 	if has_uvs and has_normals \
@@ -1124,8 +1140,8 @@ func _piece_mesh(kind: String, is_white := true) -> Mesh:
 	var source_normals: PackedVector3Array = PackedVector3Array()
 	if has_normals:
 		source_normals = arrays[Mesh.ARRAY_NORMAL]
-	var indices: PackedInt32Array = PackedInt32Array()
-	if arrays[Mesh.ARRAY_INDEX] != null:
+	var indices: PackedInt32Array = source_indices
+	if arrays.size() > 0 and arrays[Mesh.ARRAY_INDEX] != null:
 		indices = arrays[Mesh.ARRAY_INDEX]
 	var lowest := 0.0
 	var highest := 0.0
@@ -1892,6 +1908,14 @@ func _piece_models() -> Dictionary:
 	push_warning("Piece set '%s' is missing %d of its six bodies; using the turned set instead of mixing them."
 		% [wanted, PIECE_KINDS.size() - models.size()])
 	return _piece_models_for("staunton")
+
+
+## The OBJ a piece of the current set is read from. Only the set that carries
+## per-vertex data needs it - everybody else goes through the imported resource -
+## and it is the same table _piece_models_for() uses, so the two cannot drift.
+func _piece_model_path(kind: String) -> String:
+	var paths: Dictionary = PIECE_MODEL_PATHS.get(_piece_set(), PIECE_MODEL_PATHS["staunton"])
+	return String(paths.get(kind, ""))
 
 
 ## Loads (once) and returns one set's six bodies by name.

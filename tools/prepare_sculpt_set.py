@@ -34,9 +34,11 @@ This script does the conversions that turn six uploads into a usable set:
    smooth normals, a UV set and tangents at load, and a baked normal would be
    thrown away.
 
-4. `--colours`: bake the sculpture's own colour per vertex into `<kind>.tint`
-   beside the OBJ, in both armies. See write_tint() for the layout and the
-   grading rules, and main.gd's `_read_tint()` for the other end.
+4. `--colours`: turn the sculpture's texture atlas into a material map - body,
+   gilding, accent - and write it beside the OBJ as `<kind>.tint`, together with
+   both armies' palettes. See write_tint() for the layout and material_indices()
+   for why the atlas is not sampled per vertex; main.gd's `_read_tint()` is the
+   other end.
 
 The set is stored the way the game expects: +Y up, standing on y = 0, centred on
 the origin in X/Z. Fragments are not merged or repaired: the source sculptures
@@ -122,14 +124,12 @@ def load(path: str) -> tuple[np.ndarray, np.ndarray]:
 
 
 def load_colours(path: str) -> tuple[np.ndarray, np.ndarray]:
-    """The mesh's own per-vertex colour, sampled from whatever it arrives as.
+    """The mesh's own per-vertex colour, whatever way the upload carries it.
 
-    A GLB can carry its colour three ways - a baked texture atlas with UVs, a
-    colour per vertex, or a single flat material colour - and `trimesh` will
-    flatten all three into vertex colours with `visual.to_color()`. Sampling the
-    atlas per vertex is what makes a coloured upload survive decimation: the
-    texture is a few megabytes of image that would have to be shipped and UV'd,
-    while 3 bytes per vertex costs 30 KB and needs no texture unit at all.
+    Kept for the trimesh-friendly formats; GLB goes through baked_colours()
+    below, which reads the atlas WebP by hand. Neither is shipped: what the
+    material map needs from the colour are the gold and red regions, not the
+    colours themselves.
     """
     mesh = trimesh.load(path, force="mesh")
     visual = mesh.visual

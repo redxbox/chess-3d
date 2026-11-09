@@ -104,7 +104,8 @@ def tinted_armies(palette: dict[str, tuple[float, ...]]) -> tuple[float, float] 
 
     A set marked `vertex_colour` has a white multiplier in PIECE_THEMES on
     purpose: the albedo is the `.tint` sidecar next to its OBJs - a material map
-    over three materials plus one palette per army. Reading the palette in
+    over three materials plus one palette per army, and the medians below are
+    weighted by how many vertices each material actually covers. Reading the palette in
     main.gd there would measure the multiplier and conclude the set is two white
     armies, so the sidecar is read instead: the median linear luma over every
     vertex of all six pieces, which is the same statistic this script uses for
