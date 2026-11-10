@@ -2444,10 +2444,10 @@ func _ornate_identity_parts(parts: Array, kind: String) -> void:
 			# splayed very slightly outward, with the metal kept to the band and a
 			# single pearl at the centre of the cupped top.
 			_ornament_add(parts, "torus", 0.240, 0.026, 0.0, Vector3(0, 1.05, 0), ORNAMENT_ACCENT)
-			_ornament_add(parts, "cylinder", 0.285, 0.19, 0.18, Vector3(0, 1.14, 0), ORNAMENT_BODY)
+			_ornament_add(parts, "cylinder", 0.238, 0.19, 0.18, Vector3(0, 1.14, 0), ORNAMENT_BODY)
 			# The gold on a queen is the band the points grow out of, which is
 			# where a real coronet carries it.
-			_ornament_add(parts, "torus", 0.196, 0.010, 0.0, Vector3(0, 1.228, 0), ORNAMENT_ACCENT)
+			_ornament_add(parts, "torus", 0.190, 0.010, 0.0, Vector3(0, 1.228, 0), ORNAMENT_ACCENT)
 			var points := 8 if _radial_segments() <= 12 else 12
 			for i in points:
 				var crown_angle := PI * 2.0 * float(i) / float(points)
@@ -2456,8 +2456,8 @@ func _ornate_identity_parts(parts: Array, kind: String) -> void:
 				# in a fence.
 				var tilt := deg_to_rad(9.0)
 				var tilt_axis := Vector3(-sin(crown_angle) * tilt, 0.0, cos(crown_angle) * tilt)
-				_ornament_add(parts, "cone", 0.052, 0.135, 0.0,
-					Vector3(cos(crown_angle) * 0.200, 1.295, sin(crown_angle) * 0.200),
+				_ornament_add(parts, "cone", 0.060, 0.105, 0.0,
+					Vector3(cos(crown_angle) * 0.186, 1.282, sin(crown_angle) * 0.186),
 					ORNAMENT_BODY, Vector3(rad_to_deg(tilt_axis.x), 0.0, rad_to_deg(tilt_axis.z)))
 			_ornament_add(parts, "sphere", 0.075, 0.0, 0.0, Vector3(0, 1.36, 0), ORNAMENT_BODY)
 			_ornament_add(parts, "torus", 0.082, 0.008, 0.0, Vector3(0, 1.415, 0), ORNAMENT_ACCENT)
