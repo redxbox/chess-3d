@@ -107,8 +107,8 @@ const BOARD_THEMES := {
 	# whole frame then reads as a render rather than as a photograph of a set.
 	"classic": {
 		"label": "CREAM & WALNUT",
-		"light_square": Color(0.600, 0.530, 0.420),
-		"dark_square": Color(0.265, 0.248, 0.222),
+		"light_square": Color(0.600, 0.550, 0.465),
+		"dark_square": Color(0.258, 0.248, 0.232),
 		"square_roughness": 0.30,
 		"apron": Color(0.420, 0.315, 0.215),
 		"apron_roughness": 0.34,
@@ -563,7 +563,7 @@ func _setup_environment() -> void:
 	# diagonally across a piece instead of straight down behind it.
 	$KeyLight.light_energy = 1.06
 	$KeyLight.light_color = Color(1.0, 0.945, 0.865)
-	$KeyLight.rotation_degrees = Vector3(-48, 32, 0)
+	$KeyLight.rotation_degrees = Vector3(-62, 24, 0)
 	# Contact-tight shadows. The normal bias is deliberately small: a large one
 	# displaces the shadow lookup a long way along the surface normal, and a flat
 	# face can end up sampling the wrong part of the shadow map and dropping into
@@ -577,7 +577,7 @@ func _setup_environment() -> void:
 	# density reads as a scratch rather than as a shadow. The blur is the cheap
 	# half of soft shadows on this renderer (there is no PCSS here), and 1.75 is
 	# as far as it can go before the contact point starts to detach from the piece.
-	$KeyLight.shadow_blur = 1.75
+	$KeyLight.shadow_blur = 2.4
 	# Orthographic, not PSSM. The board is eleven units across and always the same
 	# size on screen, so four cascades split a shadow map that was never going to
 	# run out of resolution, and every cascade is a draw of every caster: on the
@@ -597,14 +597,14 @@ func _setup_environment() -> void:
 	# Contact shadows and PCSS soft shadow use the light's angular distance, which
 	# this renderer does not implement; zero leaves no shadow-ray march behind.
 	$KeyLight.light_angular_distance = 0.0
-	$KeyLight.shadow_opacity = 0.9
+	$KeyLight.shadow_opacity = 0.78
 	# Fill: soft, front-right, cool, no shadow. This is the light that reaches the
 	# camera-facing side of a piece, so it is the one that makes the black army
 	# legible; the cool colour keeps the shadow side of a white piece from turning
 	# into grey mud and separates the armies by temperature as well as by value.
-	$FillLight.light_energy = 0.40
+	$FillLight.light_energy = 0.50
 	$FillLight.light_color = Color(0.90, 0.92, 0.96)
-	$FillLight.rotation_degrees = Vector3(-58, 45, 0)
+	$FillLight.rotation_degrees = Vector3(-64, 40, 0)
 	$FillLight.shadow_enabled = false
 	# Rim: grazing, from behind, and deliberately weak. Its job is the specular
 	# edge along the silhouette of a dark body. At 0.40 - where it was first set -
