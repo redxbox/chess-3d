@@ -123,6 +123,21 @@ def crop(pixels: np.ndarray, centre: tuple[float, float], size: float) -> np.nda
     return patch.reshape(-1, 3)
 
 
+BOARD_RENDERS = {"classic-classic", "royal_wood-classic", "jade-classic", "royal_blue-classic"}
+
+
+def is_board_render(path: Path) -> bool:
+    """Only the wide board renders are measured geometrically.
+
+    The close-up and the style screen are published for a human to look at: the
+    close-up is a different camera and the picker is a UI screenshot, so running
+    the board's bands over them reports five failures that mean nothing. The
+    guard is a list of the renders this script knows how to project, not a guess
+    about their contents.
+    """
+    return path.stem in BOARD_RENDERS
+
+
 def measure(path: Path) -> list[str]:
     image = Image.open(path).convert("RGB")
     pixels = np.asarray(image).astype(float)
@@ -255,6 +270,7 @@ def main(argv: list[str]) -> int:
     if not argv:
         raise SystemExit("usage: measure_preview.py RENDER.png [RENDER.png ...]")
     failures: list[str] = []
+    argv = [path for path in argv if is_board_render(Path(path))]
     for name in argv:
         failures += [f"{Path(name).name}: {problem}" for problem in measure(Path(name))]
     if failures:
