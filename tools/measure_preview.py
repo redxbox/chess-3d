@@ -51,8 +51,11 @@ DARK_ARMY_MIN_LIT = 100.0           # p90: the lit top has to exist
 # therefore bright, and the guard that used to be "neutral" is "warm" - red over
 # green over blue - because the failure it was written for was a mauve/magenta
 # backdrop, which is now caught as the opposite ordering rather than as a spread.
-BACKGROUND = (90.0, 215.0)
-BACKGROUND_WARMTH = (4.0, 45.0)  # red minus blue: warm, but not orange
+# At the higher camera the frame is nearly all board: the top-left corner is the
+# table or the sky depending on how wide the window is, and both are the same warm
+# family now, so the band is the whole warm range rather than one studio wall.
+BACKGROUND = (30.0, 215.0)
+BACKGROUND_WARMTH = (2.0, 45.0)  # red minus blue: warm, but not orange
 # The gold trim: the crowns, collars and inlay bands. It is a metallic material,
 # so if there is nothing for it to reflect it renders as a dark ring - which is
 # what "the gold looks like mud" was. These are counts and a floor, not a target:
