@@ -219,7 +219,7 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "CLASSIC",
 		"model_set": "staunton",
-		"light": Color(0.720, 0.655, 0.545),
+		"light": Color(0.702, 0.668, 0.618),
 		# Charcoal, not slate. The value is the calibrated one - above the dark
 		# squares so the army cannot be mistaken for a hole in the board - but the
 		# hue was two points blue, which under a warm key made the black army read
