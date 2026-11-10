@@ -226,7 +226,7 @@ const PIECE_THEMES := {
 		# cold beside the ivory. The reference photograph's second army is warm
 		# charcoal, so the blue is gone and the red is two points above the green.
 		"dark": Color(0.330, 0.312, 0.292),
-		"accent": Color(0.90, 0.78, 0.52),
+		"accent": Color(0.95, 0.755, 0.380),
 		"light_roughness": 0.38,
 		# 0.20 rather than 0.26: on the charcoal body this turns the crown, the
 		# collar and the curve of a mane into one hard travelling highlight, which

@@ -208,7 +208,11 @@ def measure(path: Path) -> list[str]:
     # A low threshold finds the mahogany board as well as the trim - a board is
     # warm too. Gold separates from wood on saturation: (0.76, 0.60, 0.23) is a
     # much wider R-B than any square on any of the four boards.
-    warm = (rgb[:, 0] - rgb[:, 2] > 80) & (rgb[:, 1] - rgb[:, 2] > 30) & (rgb[:, 0] > 70)
+    # The mask is "more yellow than the room". The board's cream, the walnut
+    # frame and the sand backdrop are all warm, and on the green-minus-blue axis
+    # they sit at 25-35; gold is the only thing in the frame above 45, which is
+    # what keeps 200 000 pixels of warm background out of the measurement.
+    warm = (rgb[:, 0] - rgb[:, 2] > 70) & (rgb[:, 1] - rgb[:, 2] > 45) & (rgb[:, 0] > 100)
     gold = luma(rgb[warm])
     gold_count = int(warm.sum())
     gold_bright = float(np.percentile(gold, 90)) if gold_count else 0.0
