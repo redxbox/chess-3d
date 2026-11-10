@@ -110,12 +110,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.600, 0.530, 0.420),
 		"dark_square": Color(0.265, 0.248, 0.222),
 		"square_roughness": 0.30,
-		"apron": Color(0.285, 0.220, 0.155),
+		"apron": Color(0.420, 0.315, 0.215),
 		"apron_roughness": 0.34,
 		"apron_metallic": 0.06,
-		"trim": Color(0.520, 0.415, 0.235),
-		"trim_roughness": 0.38,
-		"table": Color(0.180, 0.140, 0.105),
+		"trim": Color(0.660, 0.520, 0.300),
+		"trim_roughness": 0.36,
+		"table": Color(0.300, 0.240, 0.180),
 		"apron_map": "rosewood",
 		"label_color": Color(0.80, 0.71, 0.55),
 		"swatch_light": Color(0.74, 0.65, 0.51),
@@ -127,12 +127,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.578, 0.519, 0.416),
 		"dark_square": Color(0.348, 0.202, 0.150),
 		"square_roughness": 0.34,
-		"apron": Color(0.270, 0.185, 0.130),
+		"apron": Color(0.400, 0.290, 0.200),
 		"apron_roughness": 0.32,
 		"apron_metallic": 0.05,
 		"trim": Color(0.330, 0.275, 0.150),
 		"trim_roughness": 0.42,
-		"table": Color(0.150, 0.110, 0.085),
+		"table": Color(0.260, 0.205, 0.155),
 		"apron_map": "rosewood",
 		"label_color": Color(0.78, 0.66, 0.40),
 		"swatch_light": Color(0.70, 0.62, 0.50),
@@ -146,12 +146,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.486, 0.562, 0.495),
 		"dark_square": Color(0.138, 0.265, 0.205),
 		"square_roughness": 0.28,
-		"apron": Color(0.245, 0.255, 0.215),
+		"apron": Color(0.330, 0.330, 0.270),
 		"apron_roughness": 0.34,
 		"apron_metallic": 0.12,
 		"trim": Color(0.340, 0.285, 0.150),
 		"trim_roughness": 0.40,
-		"table": Color(0.145, 0.150, 0.125),
+		"table": Color(0.240, 0.235, 0.195),
 		"apron_map": "marble",
 		"label_color": Color(0.68, 0.72, 0.58),
 		"swatch_light": Color(0.50, 0.58, 0.51),
@@ -166,12 +166,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.562, 0.551, 0.528),
 		"dark_square": Color(0.165, 0.245, 0.430),
 		"square_roughness": 0.30,
-		"apron": Color(0.255, 0.240, 0.225),
+		"apron": Color(0.350, 0.320, 0.280),
 		"apron_roughness": 0.30,
 		"apron_metallic": 0.12,
 		"trim": Color(0.330, 0.290, 0.170),
 		"trim_roughness": 0.42,
-		"table": Color(0.150, 0.135, 0.120),
+		"table": Color(0.260, 0.235, 0.200),
 		"apron_map": "marble",
 		"label_color": Color(0.74, 0.70, 0.58),
 		"swatch_light": Color(0.68, 0.67, 0.64),
@@ -495,8 +495,14 @@ func _setup_environment() -> void:
 	# against near-black. A sky, not a flat colour, because the reference has a
 	# gradient - bright behind the far rank, darker towards the bottom of the
 	# frame - and a gradient gives the eye a horizon to stand the board on.
-	environment.background_mode = Environment.BG_SKY
-	environment.background_energy_multiplier = 0.92
+	# A flat sand backdrop, not the sky. The sky is still in the scene for the
+	# metals to reflect, but it is not drawn: on this renderer the sky pixels came
+	# out three times darker than their own colour, and a backdrop that has to be
+	# calibrated through two guesses is a backdrop that ends up brown. This colour
+	# is chosen at the tonemapper input - 0.50 linear lands at about 175 of 255
+	# after the 0.60 exposure and ACES - so it is bright warm sand on screen.
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color(0.500, 0.435, 0.355)
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	# 0.60, down from 0.74, because the material and ambient calibration above is
 	# brighter than what it replaced: warm ivory at 0.88 albedo and a 0.45 colour
