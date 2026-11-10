@@ -45,8 +45,14 @@ PALE_ARMY_MEDIAN = (175.0, 245.0)   # ivory: bright, with room under 255 to shad
 PALE_ARMY_MAX_CLIPPED = 0.15        # share of the piece allowed at or above 250
 DARK_ARMY_MEDIAN = (30.0, 110.0)    # charcoal, not a hole in the board
 DARK_ARMY_MIN_LIT = 100.0           # p90: the lit top has to exist
-BACKGROUND = (14.0, 48.0)
-BACKGROUND_NEUTRAL = 9.0         # max channel spread: no purple, no magenta
+# The backdrop is a warm studio sky now, not a black void: the reference the
+# author pointed at has a sand-coloured wall behind the set, and it is what makes
+# a cream piece and a charcoal piece read as objects in a room. The band is
+# therefore bright, and the guard that used to be "neutral" is "warm" - red over
+# green over blue - because the failure it was written for was a mauve/magenta
+# backdrop, which is now caught as the opposite ordering rather than as a spread.
+BACKGROUND = (90.0, 215.0)
+BACKGROUND_WARMTH = (4.0, 45.0)  # red minus blue: warm, but not orange
 # The gold trim: the crowns, collars and inlay bands. It is a metallic material,
 # so if there is nothing for it to reflect it renders as a dark ring - which is
 # what "the gold looks like mud" was. These are counts and a floor, not a target:
@@ -222,12 +228,14 @@ def measure(path: Path) -> list[str]:
     # The background: the top-left corner, which is never board.
     background = pixels[8:48, 8:48].reshape(-1, 3)
     background_luma = float(luma(background).mean())
-    spread = float(np.abs(background.mean(axis=0).max() - background.mean(axis=0).min()))
-    print(f"   background     luma {background_luma:6.1f}  channel spread {spread:4.1f}")
+    red_blue = float(background[:, 0].mean() - background[:, 2].mean())
+    print(f"   background     luma {background_luma:6.1f}  r-b {red_blue:4.1f}")
     if not BACKGROUND[0] <= background_luma <= BACKGROUND[1]:
         problems.append(f"background renders at {background_luma:.0f}, outside {BACKGROUND[0]:.0f}-{BACKGROUND[1]:.0f}")
-    if spread > BACKGROUND_NEUTRAL:
-        problems.append(f"background has a {spread:.0f}-point channel spread - it is tinted")
+    if not BACKGROUND_WARMTH[0] <= red_blue <= BACKGROUND_WARMTH[1]:
+        problems.append(
+            f"background is {red_blue:.0f} red-minus-blue, outside "
+            f"{BACKGROUND_WARMTH[0]:.0f}-{BACKGROUND_WARMTH[1]:.0f} - it is not the warm studio")
 
     for problem in problems:
         print(f"   FAIL {problem}")

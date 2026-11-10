@@ -99,22 +99,27 @@ const DEFAULT_PIECE_THEME := "classic"
 ## module is the authority and _apply_camera_rig() is what writes them.
 
 const BOARD_THEMES := {
-	# The default: warm cream marble on matte charcoal slate.
+	# The default, and it is modelled on the photograph the author pointed at:
+	# warm cream limestone on a dark walnut-charcoal, in a walnut frame with a
+	# brass inlay. The values are warmer than the neutral pair they replace on
+	# purpose - cream at 0.60/0.53/0.42 and the dark square at 0.315/0.295/0.265 -
+	# because a neutral grey board under a warm key reads as cold white, and the
+	# whole frame then reads as a render rather than as a photograph of a set.
 	"classic": {
-		"label": "MARBLE & SLATE",
-		"light_square": Color(0.562, 0.545, 0.512),
-		"dark_square": Color(0.252, 0.257, 0.281),
+		"label": "CREAM & WALNUT",
+		"light_square": Color(0.600, 0.530, 0.420),
+		"dark_square": Color(0.265, 0.248, 0.222),
 		"square_roughness": 0.30,
-		"apron": Color(0.205, 0.212, 0.232),
-		"apron_roughness": 0.32,
-		"apron_metallic": 0.10,
-		"trim": Color(0.300, 0.300, 0.290),
-		"trim_roughness": 0.45,
-		"table": Color(0.125, 0.130, 0.145),
-		"apron_map": "marble",
-		"label_color": Color(0.74, 0.74, 0.72),
-		"swatch_light": Color(0.70, 0.69, 0.66),
-		"swatch_dark": Color(0.25, 0.255, 0.275),
+		"apron": Color(0.285, 0.220, 0.155),
+		"apron_roughness": 0.34,
+		"apron_metallic": 0.06,
+		"trim": Color(0.520, 0.415, 0.235),
+		"trim_roughness": 0.38,
+		"table": Color(0.180, 0.140, 0.105),
+		"apron_map": "rosewood",
+		"label_color": Color(0.80, 0.71, 0.55),
+		"swatch_light": Color(0.74, 0.65, 0.51),
+		"swatch_dark": Color(0.31, 0.29, 0.26),
 	},
 	# Maple on mahogany: the warm board, held at the same brightness band.
 	"royal_wood": {
@@ -122,12 +127,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.578, 0.519, 0.416),
 		"dark_square": Color(0.348, 0.202, 0.150),
 		"square_roughness": 0.34,
-		"apron": Color(0.232, 0.160, 0.122),
+		"apron": Color(0.270, 0.185, 0.130),
 		"apron_roughness": 0.32,
 		"apron_metallic": 0.05,
 		"trim": Color(0.330, 0.275, 0.150),
 		"trim_roughness": 0.42,
-		"table": Color(0.128, 0.095, 0.078),
+		"table": Color(0.150, 0.110, 0.085),
 		"apron_map": "rosewood",
 		"label_color": Color(0.78, 0.66, 0.40),
 		"swatch_light": Color(0.70, 0.62, 0.50),
@@ -141,12 +146,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.486, 0.562, 0.495),
 		"dark_square": Color(0.138, 0.265, 0.205),
 		"square_roughness": 0.28,
-		"apron": Color(0.215, 0.250, 0.228),
+		"apron": Color(0.245, 0.255, 0.215),
 		"apron_roughness": 0.34,
 		"apron_metallic": 0.12,
 		"trim": Color(0.340, 0.285, 0.150),
 		"trim_roughness": 0.40,
-		"table": Color(0.115, 0.140, 0.132),
+		"table": Color(0.145, 0.150, 0.125),
 		"apron_map": "marble",
 		"label_color": Color(0.68, 0.72, 0.58),
 		"swatch_light": Color(0.50, 0.58, 0.51),
@@ -161,12 +166,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.562, 0.551, 0.528),
 		"dark_square": Color(0.165, 0.245, 0.430),
 		"square_roughness": 0.30,
-		"apron": Color(0.200, 0.225, 0.270),
+		"apron": Color(0.255, 0.240, 0.225),
 		"apron_roughness": 0.30,
 		"apron_metallic": 0.12,
 		"trim": Color(0.330, 0.290, 0.170),
 		"trim_roughness": 0.42,
-		"table": Color(0.120, 0.128, 0.155),
+		"table": Color(0.150, 0.135, 0.120),
 		"apron_map": "marble",
 		"label_color": Color(0.74, 0.70, 0.58),
 		"swatch_light": Color(0.68, 0.67, 0.64),
@@ -214,14 +219,14 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "CLASSIC",
 		"model_set": "staunton",
-		"light": Color(0.68, 0.668, 0.636),
+		"light": Color(0.720, 0.655, 0.545),
 		# Charcoal, not slate. The value is the calibrated one - above the dark
 		# squares so the army cannot be mistaken for a hole in the board - but the
 		# hue was two points blue, which under a warm key made the black army read
 		# cold beside the ivory. The reference photograph's second army is warm
 		# charcoal, so the blue is gone and the red is two points above the green.
-		"dark": Color(0.338, 0.326, 0.308),
-		"accent": Color(0.92, 0.74, 0.28),
+		"dark": Color(0.345, 0.312, 0.272),
+		"accent": Color(0.90, 0.78, 0.52),
 		"light_roughness": 0.38,
 		"dark_roughness": 0.26,
 		"accent_roughness": 0.28,
@@ -483,13 +488,15 @@ func _setup_environment() -> void:
 	# shipped is the same intent at an exposure that leaves the pale end of the
 	# frame somewhere to go.
 	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	# Deep neutral slate. The background is the largest area of the frame, and it
-	# used to be mauve, so every judgement about the pieces was made against a
-	# magenta surround - which is why the pale army looked cold and the dark army
-	# looked violet. Neutral, and lifted far enough off black that a black piece
-	# standing on the far rank still has something to be seen against.
-	environment.background_color = Color(0.068, 0.072, 0.082)
+	# The background is a warm studio now, not a black void. It is the largest
+	# area of the frame and it was the single biggest difference between this
+	# render and the game the author pointed at: the same pieces and the same
+	# board read as a product photograph against warm sand and as a night render
+	# against near-black. A sky, not a flat colour, because the reference has a
+	# gradient - bright behind the far rank, darker towards the bottom of the
+	# frame - and a gradient gives the eye a horizon to stand the board on.
+	environment.background_mode = Environment.BG_SKY
+	environment.background_energy_multiplier = 0.92
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	# 0.60, down from 0.74, because the material and ambient calibration above is
 	# brighter than what it replaced: warm ivory at 0.88 albedo and a 0.45 colour
@@ -500,14 +507,17 @@ func _setup_environment() -> void:
 	# raising the albedo and cutting the ambient separately would not.
 	environment.tonemap_exposure = 0.60
 	var sky_material := ProceduralSkyMaterial.new()
-	# The sky is never drawn - the background is a flat colour - it exists to give
-	# the metals something to mirror and to give the ambient term a colour. Cool
-	# studio grey rather than a sunset, so it can no longer tint the shadowed side
-	# of a black piece mauve.
-	sky_material.sky_top_color = Color(0.095, 0.097, 0.103)
-	sky_material.sky_horizon_color = Color(0.368, 0.358, 0.338)
-	sky_material.ground_bottom_color = Color(0.037, 0.036, 0.035)
-	sky_material.ground_horizon_color = Color(0.162, 0.157, 0.148)
+	# Warm sand all the way round: the camera looks down, so most of the frame is
+	# the "ground" half of the sky and the gradient runs bright at the horizon
+	# behind the far rank down to a deeper tan under the camera. It also gives
+	# every metal something warm to mirror, which is most of why the gold reads as
+	# gold rather than as a dark ring.
+	sky_material.sky_top_color = Color(0.560, 0.500, 0.400)
+	sky_material.sky_horizon_color = Color(0.720, 0.655, 0.520)
+	sky_material.sky_curve = 0.12
+	sky_material.ground_horizon_color = Color(0.680, 0.610, 0.480)
+	sky_material.ground_bottom_color = Color(0.360, 0.300, 0.230)
+	sky_material.sun_angle_max = 28.0
 	var studio_sky := Sky.new()
 	studio_sky.radiance_size = Sky.RADIANCE_SIZE_64
 	studio_sky.sky_material = sky_material
@@ -528,7 +538,7 @@ func _setup_environment() -> void:
 	# the 2x separation the guard requires, which is the "two armies read as one
 	# colour" failure.
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.85, 0.85, 0.88)
+	environment.ambient_light_color = Color(0.94, 0.89, 0.81)
 	environment.ambient_light_sky_contribution = 0.0
 	# The ambient floor, and it is a compromise between two failures that pull in
 	# opposite directions. Too high and every face of a piece receives the same
@@ -537,7 +547,7 @@ func _setup_environment() -> void:
 	# the side facing the camera, collapses into the near-black background and the
 	# army reads as holes in the picture. 0.36 with a 1.12 key is the point where
 	# both armies hold their form and neither washes out.
-	environment.ambient_light_energy = 0.42
+	environment.ambient_light_energy = 0.46
 	# Key: front-left, above, warm, and the only light that casts. 1.12 against a
 	# 0.36 ambient is what gives a fold a lit face and a dark face; a strong
 	# ambient with a weak key gives every face the same value.
@@ -545,8 +555,8 @@ func _setup_environment() -> void:
 	# -55 / 35 puts the light behind the board from the camera, so the near faces
 	# of the black army are lit rather than silhouetted, and the shadows fall
 	# diagonally across a piece instead of straight down behind it.
-	$KeyLight.light_energy = 1.00
-	$KeyLight.light_color = Color(1.0, 0.965, 0.915)
+	$KeyLight.light_energy = 1.06
+	$KeyLight.light_color = Color(1.0, 0.945, 0.865)
 	$KeyLight.rotation_degrees = Vector3(-48, 32, 0)
 	# Contact-tight shadows. The normal bias is deliberately small: a large one
 	# displaces the shadow lookup a long way along the surface normal, and a flat
@@ -586,8 +596,8 @@ func _setup_environment() -> void:
 	# camera-facing side of a piece, so it is the one that makes the black army
 	# legible; the cool colour keeps the shadow side of a white piece from turning
 	# into grey mud and separates the armies by temperature as well as by value.
-	$FillLight.light_energy = 0.46
-	$FillLight.light_color = Color(0.86, 0.90, 1.0)
+	$FillLight.light_energy = 0.40
+	$FillLight.light_color = Color(0.90, 0.92, 0.96)
 	$FillLight.rotation_degrees = Vector3(-58, 45, 0)
 	$FillLight.shadow_enabled = false
 	# Rim: grazing, from behind, and deliberately weak. Its job is the specular
@@ -596,8 +606,8 @@ func _setup_environment() -> void:
 	# hits the silhouette, it put a white halo around every white piece: the whole
 	# figure sat inside a blown outline. 0.26 draws the edge on a black body and
 	# leaves a white body alone.
-	$RimLight.light_energy = 0.26
-	$RimLight.light_color = Color(0.86, 0.92, 1.0)
+	$RimLight.light_energy = 0.24
+	$RimLight.light_color = Color(0.96, 0.94, 0.90)
 	$RimLight.rotation_degrees = Vector3(-35, 160, 0)
 	$RimLight.shadow_enabled = false
 	# Bounce: a fourth, upward-facing light standing in for what the pale board
@@ -605,8 +615,8 @@ func _setup_environment() -> void:
 	# most for the knight: its jaw overhangs its own neck, so the whole underside
 	# of the head is a crevice the three top lights cannot reach. Warm and dim on
 	# purpose - it must lift the shadow, not add a second key.
-	$BounceLight.light_energy = 0.18
-	$BounceLight.light_color = Color(0.97, 0.90, 0.80)
+	$BounceLight.light_energy = 0.22
+	$BounceLight.light_color = Color(1.0, 0.88, 0.72)
 	$BounceLight.rotation_degrees = Vector3(68, 12, 0)
 	$BounceLight.shadow_enabled = false
 	# Bloom is off. On the Compatibility renderer it lifted the entire frame - the
@@ -2466,7 +2476,7 @@ func _create_ui() -> void:
 	sidebar.position = Vector2(14, 14)
 	sidebar.size = Vector2(208, 572)
 	sidebar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sidebar.add_theme_stylebox_override("panel", _glass_stylebox(14, Color(0.05, 0.06, 0.09, 0.62), Color(0.62, 0.55, 0.42, 0.30)))
+	sidebar.add_theme_stylebox_override("panel", _glass_stylebox(14, Color(0.115, 0.088, 0.066, 0.72), Color(0.72, 0.58, 0.36, 0.42)))
 	$UI.add_child(sidebar)
 	$UI.move_child(sidebar, 0)
 	_register_left_column(sidebar)
@@ -2569,7 +2579,7 @@ func _create_ui() -> void:
 	_fps_label.offset_right = -20.0
 	_fps_label.offset_bottom = -18.0
 	_fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_fps_label.add_theme_color_override("font_color", Color(0.68, 0.74, 0.82, 0.90))
+	_fps_label.add_theme_color_override("font_color", Color(0.86, 0.78, 0.64, 0.90))
 	_fps_label.add_theme_font_size_override("font_size", 15)
 	# Named so the automated capture harness can hide it: on the software
 	# renderer CI uses, the very first frames land about a second apart, so the
@@ -2585,8 +2595,8 @@ func _style_hud_button(button: Button) -> void:
 	# warm key light, and a gold accent on hover and press. Without the explicit
 	# styleboxes a themed Button falls back to the default project theme, which
 	# is opaque and ignores these colours entirely.
-	var normal := _glass_stylebox(8, Color(0.07, 0.08, 0.11, 0.60), Color(0.58, 0.60, 0.68, 0.42))
-	var active := _glass_stylebox(8, Color(0.17, 0.13, 0.09, 0.78), Color("d4af37"))
+	var normal := _glass_stylebox(8, Color(0.115, 0.090, 0.068, 0.70), Color(0.72, 0.60, 0.40, 0.48))
+	var active := _glass_stylebox(8, Color(0.30, 0.20, 0.10, 0.86), Color("e2c184"))
 	button.add_theme_stylebox_override("normal", normal)
 	button.add_theme_stylebox_override("hover", active)
 	button.add_theme_stylebox_override("pressed", active)
@@ -2616,7 +2626,7 @@ func _glass_stylebox(radius: int, fill: Color, border: Color) -> StyleBoxFlat:
 
 func _create_main_menu() -> void:
 	_menu_overlay = ColorRect.new()
-	_menu_overlay.color = Color(0.025, 0.035, 0.055, 0.94)
+	_menu_overlay.color = Color(0.055, 0.040, 0.028, 0.90)
 	$UI.add_child(_menu_overlay)
 	_menu_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_menu_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -2627,7 +2637,7 @@ func _create_main_menu() -> void:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(620, 680)
 	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.045, 0.052, 0.07, 0.98)
+	panel_style.bg_color = Color(0.085, 0.065, 0.048, 0.98)
 	panel_style.border_color = Color(0.55, 0.39, 0.2, 0.85)
 	panel_style.set_border_width_all(2)
 	panel_style.set_corner_radius_all(18)
@@ -2651,7 +2661,7 @@ func _create_main_menu() -> void:
 	subtitle.text = "THE CLASSIC GAME • REIMAGINED"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 14)
-	subtitle.add_theme_color_override("font_color", Color(0.66, 0.7, 0.78))
+	subtitle.add_theme_color_override("font_color", Color(0.82, 0.74, 0.62))
 	content.add_child(subtitle)
 	var rule := HSeparator.new()
 	rule.add_theme_constant_override("separation", 8)
@@ -2710,7 +2720,7 @@ func _create_game_panels() -> void:
 	var history_panel := PanelContainer.new()
 	history_panel.position = Vector2(24, 198)
 	history_panel.size = Vector2(188, 240)
-	history_panel.add_theme_stylebox_override("panel", _glass_stylebox(12, Color(0.05, 0.06, 0.09, 0.58), Color(0.55, 0.58, 0.66, 0.34)))
+	history_panel.add_theme_stylebox_override("panel", _glass_stylebox(12, Color(0.115, 0.088, 0.066, 0.68), Color(0.72, 0.58, 0.36, 0.38)))
 	$UI.add_child(history_panel)
 	_register_left_column(history_panel)
 	_history_label = RichTextLabel.new()
@@ -2803,13 +2813,13 @@ func _menu_button(text: String, callback: Callable, minimum_size := Vector2(540,
 	button.custom_minimum_size = minimum_size
 	button.add_theme_font_size_override("font_size", 17)
 	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.085, 0.095, 0.12, 0.96)
-	normal.border_color = Color(0.26, 0.28, 0.34, 1)
+	normal.bg_color = Color(0.135, 0.105, 0.078, 0.96)
+	normal.border_color = Color(0.46, 0.36, 0.24, 1)
 	normal.set_border_width_all(1)
 	normal.set_corner_radius_all(8)
 	button.add_theme_stylebox_override("normal", normal)
 	var hover := normal.duplicate()
-	hover.bg_color = Color(0.18, 0.14, 0.11, 1)
+	hover.bg_color = Color(0.27, 0.19, 0.11, 1)
 	hover.border_color = Color("d1ae68")
 	button.add_theme_stylebox_override("hover", hover)
 	button.add_theme_stylebox_override("pressed", hover)
@@ -2884,7 +2894,7 @@ func _open_theme_picker() -> void:
 
 func _build_theme_picker() -> void:
 	_theme_overlay = ColorRect.new()
-	_theme_overlay.color = Color(0.02, 0.028, 0.045, 0.97)
+	_theme_overlay.color = Color(0.050, 0.036, 0.026, 0.95)
 	$UI.add_child(_theme_overlay)
 	_theme_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_theme_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -2900,7 +2910,7 @@ func _build_theme_picker() -> void:
 	# and one number fewer to keep in step with the theme lists.
 	panel.custom_minimum_size = Vector2(0, 0)
 	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.04, 0.048, 0.066, 0.99)
+	panel_style.bg_color = Color(0.082, 0.062, 0.046, 0.99)
 	panel_style.border_color = Color(0.55, 0.39, 0.2, 0.85)
 	panel_style.set_border_width_all(2)
 	panel_style.set_corner_radius_all(18)
@@ -2926,7 +2936,7 @@ func _build_theme_picker() -> void:
 	subtitle.text = _text("style_subtitle")
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 14)
-	subtitle.add_theme_color_override("font_color", Color(0.66, 0.7, 0.78))
+	subtitle.add_theme_color_override("font_color", Color(0.82, 0.74, 0.62))
 	content.add_child(subtitle)
 	var rule := HSeparator.new()
 	rule.add_theme_constant_override("separation", 10)
@@ -2982,7 +2992,7 @@ func _build_theme_picker() -> void:
 	_theme_preview_label = Label.new()
 	_theme_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_theme_preview_label.add_theme_font_size_override("font_size", 13)
-	_theme_preview_label.add_theme_color_override("font_color", Color(0.62, 0.66, 0.74))
+	_theme_preview_label.add_theme_color_override("font_color", Color(0.80, 0.72, 0.60))
 	content.add_child(_theme_preview_label)
 
 	var footer := HBoxContainer.new()
@@ -3177,7 +3187,7 @@ func _refresh_theme_picker() -> void:
 
 func _style_theme_card(card: Button, selected: bool, fill: Color) -> void:
 	var normal := StyleBoxFlat.new()
-	normal.bg_color = fill.lightened(0.05) if selected else Color(0.055, 0.063, 0.082)
+	normal.bg_color = fill.lightened(0.05) if selected else Color(0.105, 0.082, 0.062)
 	normal.border_color = Color("e0bd71") if selected else Color(0.28, 0.32, 0.38, 0.7)
 	normal.set_border_width_all(2 if selected else 1)
 	normal.set_corner_radius_all(12)
@@ -3930,16 +3940,19 @@ func _draw_highlights() -> void:
 		highlights_root.remove_child(child)
 		child.queue_free()
 	if not last_move.is_empty():
-		_add_highlight(last_move.from, Color(0.22, 0.52, 0.9, 0.32), 0.44)
-		_add_highlight(last_move.to, Color(0.22, 0.52, 0.9, 0.48), 0.44)
+		_add_highlight(last_move.from, Color(0.96, 0.87, 0.62, 0.20), 0.44)
+		_add_highlight(last_move.to, Color(0.96, 0.87, 0.62, 0.34), 0.44)
 		# A castle moves two pieces, so it marks four squares. Marking only the
 		# king's two made the rook's move invisible in the record of the move.
 		var rook_squares := _castle_rook_squares(last_move)
 		if not rook_squares.is_empty():
-			_add_highlight(rook_squares[0], Color(0.22, 0.52, 0.9, 0.22), 0.40)
-			_add_highlight(rook_squares[1], Color(0.22, 0.52, 0.9, 0.34), 0.40)
-	var check_color := Color(0.95, 0.46, 0.10, 0.70) if colorblind_enabled else Color(0.82, 0.16, 0.12, 0.64)
-	var move_color := Color(0.20, 0.56, 0.85, 0.66) if colorblind_enabled else Color(0.72, 0.56, 0.25, 0.58)
+			_add_highlight(rook_squares[0], Color(0.96, 0.87, 0.62, 0.16), 0.40)
+			_add_highlight(rook_squares[1], Color(0.96, 0.87, 0.62, 0.26), 0.40)
+	var check_color := Color(0.95, 0.46, 0.10, 0.70) if colorblind_enabled else Color(0.86, 0.20, 0.13, 0.66)
+	# The move markers are bone-white discs, the way the reference game draws
+	# them: a cream dot on both colours of square is quieter than a gold one and
+	# it cannot be mistaken for the gold trim on the pieces themselves.
+	var move_color := Color(0.55, 0.85, 1.0, 0.62) if colorblind_enabled else Color(0.96, 0.93, 0.85, 0.55)
 	if game.result == "" and game.is_in_check(game.turn):
 		var king_code := "K" if game.turn == ChessRules.WHITE else "k"
 		for rank in BOARD_SIZE:
@@ -3947,9 +3960,13 @@ func _draw_highlights() -> void:
 				if game.board[rank][file] == king_code:
 					_add_highlight(Vector2i(file, rank), check_color, 0.46)
 	if selected.x >= 0:
-		_add_highlight(selected, Color(1.0, 0.72, 0.05, 0.78 if high_contrast_enabled else 0.62), 0.47)
+		# A ring, not a disc, and green rather than gold: a disc under the piece
+		# hides the square it is standing on, and the reference's selection is a
+		# ring drawn round the base. The gold is already doing the ornament work
+		# on the piece; a second gold ring under it read as part of the set.
+		_add_highlight_ring(selected, Color(0.30, 0.86, 0.40, 0.90), 0.30, 0.365)
 	for move in selected_moves:
-		_add_highlight(move.to, move_color, 0.18 if move.captured == "" else 0.38)
+		_add_highlight(move.to, move_color, 0.17 if move.captured == "" else 0.40)
 
 
 func _add_highlight(square: Vector2i, color: Color, radius: float) -> void:
@@ -3960,6 +3977,29 @@ func _add_highlight(square: Vector2i, color: Color, radius: float) -> void:
 	marker.material_override = _highlight_material(color)
 	marker.position = Vector3((square.x - 3.5) * SQUARE_SIZE, 0.1, (square.y - 3.5) * SQUARE_SIZE)
 	highlights_root.add_child(marker)
+
+
+## A flat ring on a square, drawn as a torus lying in the board plane. It is the
+## selection marker: a torus is one more primitive than a disc but it reads as a
+## ring from the game camera without a texture or a shader.
+func _add_highlight_ring(square: Vector2i, color: Color, inner: float, outer: float) -> void:
+	var marker := MeshInstance3D.new()
+	marker.mesh = _highlight_ring_mesh(inner, outer)
+	marker.material_override = _highlight_material(color)
+	marker.position = Vector3((square.x - 3.5) * SQUARE_SIZE, 0.1, (square.y - 3.5) * SQUARE_SIZE)
+	highlights_root.add_child(marker)
+
+
+func _highlight_ring_mesh(inner: float, outer: float) -> TorusMesh:
+	var key := "highlight_ring:%s:%s" % [inner, outer]
+	if not _mesh_cache.has(key):
+		var mesh := TorusMesh.new()
+		mesh.inner_radius = inner
+		mesh.outer_radius = outer
+		mesh.rings = 48
+		mesh.ring_segments = 6
+		_mesh_cache[key] = mesh
+	return _mesh_cache[key] as TorusMesh
 
 
 func _highlight_mesh(radius: float) -> CylinderMesh:

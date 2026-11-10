@@ -710,8 +710,8 @@ func _paraboloid(sign: float, steps: int) -> Dictionary:
 func _test_camera_rig() -> void:
 	var home := CameraRigSpec.home()
 	var elevation := CameraRigSpec.elevation_of(home)
-	_expect(elevation >= 48.0 and elevation <= 52.0,
-		"the camera looks down at 48-52 degrees (%.1f)" % elevation)
+	_expect(elevation >= 56.0 and elevation <= 60.0,
+		"the camera looks down at 56-60 degrees (%.1f)" % elevation)
 	_expect(CameraRigSpec.FOV >= 38.0 and CameraRigSpec.FOV <= 42.0,
 		"the field of view is 38-42 degrees (%.1f)" % CameraRigSpec.FOV)
 	# A camera on the origin's elevation vector looks at the origin: the angle
@@ -724,8 +724,8 @@ func _test_camera_rig() -> void:
 			and CameraRigSpec.DISTANCE_DEFAULT <= CameraRigSpec.DISTANCE_MAX,
 		"the resting distance is inside the zoom range")
 	# The far rank has to clear the pawns, which is the whole reason for the
-	# elevation. At 50 degrees a piece five and a half units behind a one-unit
-	# pawn is seen about 5.5 units above it; at the old 42 it was 3.9.
+	# elevation. At 58 degrees a piece five and a half units behind a one-unit
+	# pawn is seen nearly 8 units above it; at the old 42 it was 3.9.
 	var lift := CameraRigSpec.back_rank_lift()
 	_expect(lift > 5.0, "the back rank clears the pawns (%.2f units)" % lift)
 

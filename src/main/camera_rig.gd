@@ -7,11 +7,13 @@ extends RefCounted
 ## have to orbit: tests/test_chess.gd checks them, and the scene file and the
 ## reset tween both read them from here so they cannot drift apart.
 ##
-## Elevation: 50 degrees. At the 42 the project shipped with, the back rank sat
+## Elevation: 58 degrees. At the 42 the project shipped with, the back rank sat
 ## directly behind the pawns - a knight's head was cut in half by the pawn in
-## front of it on a phone screen, and the far side of the board could only be
-## read by dragging the camera round. 50 also matches how the classic desktop
-## chess games frame their boards.
+## front of it on a phone screen. 50 fixed that, and 58 is where the frame starts
+## to look like the games the author pointed at: the board is seen more from
+## above, the board and its frame fill the screen instead of sitting in a lake of
+## background, and every piece shows its own top, which is what makes a rook's
+## battlements and a queen's coronet readable without dragging the camera.
 ##
 ## Field of view: 40 degrees. The first version shipped at 52, which turned the
 ## board into a trapezoid: the near rank twice the size of the far one. 34 was
@@ -22,9 +24,9 @@ extends RefCounted
 ## the camera stands on the elevation vector from it, so the look-at point is the
 ## middle of the grid by construction rather than by a rotation someone typed.
 
-const ELEVATION_DEG := 50.0
+const ELEVATION_DEG := 58.0
 const FOV := 40.0
-const DISTANCE_DEFAULT := 13.2
+const DISTANCE_DEFAULT := 12.1
 const DISTANCE_MIN := 8.0
 const DISTANCE_MAX := 16.0
 
