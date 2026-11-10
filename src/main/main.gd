@@ -228,7 +228,11 @@ const PIECE_THEMES := {
 		"dark": Color(0.330, 0.312, 0.292),
 		"accent": Color(0.90, 0.78, 0.52),
 		"light_roughness": 0.38,
+		# 0.20 rather than 0.26: on the charcoal body this turns the crown, the
+		# collar and the curve of a mane into one hard travelling highlight, which
+		# is what makes a black piece read as polished ebony rather than as clay.
 		"dark_roughness": 0.20,
+		"accent_roughness": 0.26,
 		"accent_metallic": 0.85,
 		# None: the turned set's ornament is the generated trim mesh, which is
 		# metal already. A gild mask on a surface of revolution would put a ring
@@ -501,7 +505,7 @@ func _setup_environment() -> void:
 	# is chosen at the tonemapper input - 0.50 linear lands at about 175 of 255
 	# after the 0.60 exposure and ACES - so it is bright warm sand on screen.
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.500, 0.435, 0.355)
+	environment.background_color = Color(0.610, 0.535, 0.440)
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	# 0.60, down from 0.74, because the material and ambient calibration above is
 	# brighter than what it replaced: warm ivory at 0.88 albedo and a 0.45 colour
@@ -915,7 +919,7 @@ func _setup_piece_materials() -> void:
 	# The tight lobe is doing the work here: it is what draws a highlight along a
 	# mane, a shield rim and the fold of a robe on an army that would otherwise be
 	# a silhouette against dark squares.
-	var ebony := _luxury_piece_material(body_dark, clampf(palette.dark_roughness, 0.22, 0.30), 0.05, false, false, 0.65, null, carve, 0.22, 0.40, 0.20, true)
+	var ebony := _luxury_piece_material(body_dark, clampf(palette.dark_roughness, 0.18, 0.30), 0.05, false, false, 0.65, null, carve, 0.22, 0.40, 0.20, true)
 	ebony.rim_enabled = true
 	ebony.rim = 0.35
 	ebony.rim_tint = 0.35
