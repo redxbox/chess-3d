@@ -107,7 +107,7 @@ const BOARD_THEMES := {
 	# whole frame then reads as a render rather than as a photograph of a set.
 	"classic": {
 		"label": "CREAM & WALNUT",
-		"light_square": Color(0.600, 0.550, 0.465),
+		"light_square": Color(0.570, 0.522, 0.442),
 		"dark_square": Color(0.258, 0.248, 0.232),
 		"square_roughness": 0.30,
 		"apron": Color(0.420, 0.315, 0.215),
@@ -561,7 +561,7 @@ func _setup_environment() -> void:
 	# -55 / 35 puts the light behind the board from the camera, so the near faces
 	# of the black army are lit rather than silhouetted, and the shadows fall
 	# diagonally across a piece instead of straight down behind it.
-	$KeyLight.light_energy = 1.06
+	$KeyLight.light_energy = 0.94
 	$KeyLight.light_color = Color(1.0, 0.945, 0.865)
 	$KeyLight.rotation_degrees = Vector3(-62, 24, 0)
 	# Contact-tight shadows. The normal bias is deliberately small: a large one
