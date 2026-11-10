@@ -107,8 +107,8 @@ const BOARD_THEMES := {
 	# whole frame then reads as a render rather than as a photograph of a set.
 	"classic": {
 		"label": "CREAM & WALNUT",
-		"light_square": Color(0.552, 0.506, 0.428),
-		"dark_square": Color(0.258, 0.248, 0.232),
+		"light_square": Color(0.548, 0.512, 0.452),
+		"dark_square": Color(0.256, 0.247, 0.234),
 		"square_roughness": 0.30,
 		"apron": Color(0.420, 0.315, 0.215),
 		"apron_roughness": 0.34,
@@ -225,11 +225,10 @@ const PIECE_THEMES := {
 		# hue was two points blue, which under a warm key made the black army read
 		# cold beside the ivory. The reference photograph's second army is warm
 		# charcoal, so the blue is gone and the red is two points above the green.
-		"dark": Color(0.345, 0.312, 0.272),
+		"dark": Color(0.330, 0.312, 0.292),
 		"accent": Color(0.90, 0.78, 0.52),
 		"light_roughness": 0.38,
-		"dark_roughness": 0.26,
-		"accent_roughness": 0.28,
+		"dark_roughness": 0.20,
 		"accent_metallic": 0.85,
 		# None: the turned set's ornament is the generated trim mesh, which is
 		# metal already. A gild mask on a surface of revolution would put a ring
