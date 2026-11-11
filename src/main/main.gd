@@ -124,7 +124,7 @@ const BOARD_THEMES := {
 	# Maple on mahogany: the warm board, held at the same brightness band.
 	"royal_wood": {
 		"label": "MAPLE & MAHOGANY",
-		"light_square": Color(0.509, 0.468, 0.389),
+		"light_square": Color(0.537, 0.494, 0.410),
 		"dark_square": Color(0.348, 0.202, 0.150),
 		"square_roughness": 0.34,
 		"apron": Color(0.436, 0.356, 0.278),

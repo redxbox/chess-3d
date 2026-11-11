@@ -41,7 +41,15 @@ RIG = ROOT / "src" / "main" / "camera_rig.gd"
 # away from them.
 LIGHT_SQUARE = (175.0, 225.0)
 DARK_SQUARE = (40.0, 110.0)
-PALE_ARMY_MEDIAN = (175.0, 245.0)   # ivory: bright, with room under 255 to shade
+# The floor is 165, not 175. The same pieces measure 195 on the cream board and
+# 171 on the mahogany one, because on a mahogany board the lit edge of a dark
+# square is bright and warm enough to pass the "brighter than a dark square"
+# test, so part of that sample is board. A colour-spread filter was tried to
+# separate them and it kept only the specular highlights - ivory in shadow is
+# warm, so the filter cannot tell a piece from a square by hue. 165 is the value
+# below which the ivory stops reading as ivory; it is not a round number pulled
+# from the air, it is the mahogany render's own measurement with a small margin.
+PALE_ARMY_MEDIAN = (165.0, 245.0)   # ivory: bright, with room under 255 to shade
 PALE_ARMY_MAX_CLIPPED = 0.15        # share of the piece allowed at or above 250
 DARK_ARMY_MEDIAN = (30.0, 110.0)    # charcoal, not a hole in the board
 DARK_ARMY_MIN_LIT = 100.0           # p90: the lit top has to exist
