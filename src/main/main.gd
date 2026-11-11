@@ -107,32 +107,32 @@ const BOARD_THEMES := {
 	# whole frame then reads as a render rather than as a photograph of a set.
 	"classic": {
 		"label": "CREAM & WALNUT",
-		"light_square": Color(0.618, 0.572, 0.474),
-		"dark_square": Color(0.252, 0.238, 0.212),
+		"light_square": Color(0.572, 0.540, 0.470),
+		"dark_square": Color(0.268, 0.248, 0.216),
 		"square_roughness": 0.30,
-		"apron": Color(0.420, 0.315, 0.215),
+		"apron": Color(0.452, 0.404, 0.344),
 		"apron_roughness": 0.34,
 		"apron_metallic": 0.06,
 		"trim": Color(0.660, 0.520, 0.300),
 		"trim_roughness": 0.36,
-		"table": Color(0.560, 0.480, 0.380),
+		"table": Color(0.512, 0.494, 0.462),
 		"apron_map": "rosewood",
 		"label_color": Color(0.80, 0.71, 0.55),
-		"swatch_light": Color(0.74, 0.65, 0.51),
+		"swatch_light": Color(0.72, 0.66, 0.56),
 		"swatch_dark": Color(0.31, 0.29, 0.26),
 	},
 	# Maple on mahogany: the warm board, held at the same brightness band.
 	"royal_wood": {
 		"label": "MAPLE & MAHOGANY",
-		"light_square": Color(0.578, 0.519, 0.416),
+		"light_square": Color(0.566, 0.520, 0.432),
 		"dark_square": Color(0.348, 0.202, 0.150),
 		"square_roughness": 0.34,
-		"apron": Color(0.400, 0.290, 0.200),
+		"apron": Color(0.436, 0.356, 0.278),
 		"apron_roughness": 0.32,
 		"apron_metallic": 0.05,
 		"trim": Color(0.330, 0.275, 0.150),
 		"trim_roughness": 0.42,
-		"table": Color(0.540, 0.450, 0.350),
+		"table": Color(0.500, 0.474, 0.436),
 		"apron_map": "rosewood",
 		"label_color": Color(0.78, 0.66, 0.40),
 		"swatch_light": Color(0.70, 0.62, 0.50),
@@ -146,12 +146,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.486, 0.562, 0.495),
 		"dark_square": Color(0.138, 0.265, 0.205),
 		"square_roughness": 0.28,
-		"apron": Color(0.330, 0.330, 0.270),
+		"apron": Color(0.386, 0.386, 0.330),
 		"apron_roughness": 0.34,
 		"apron_metallic": 0.12,
 		"trim": Color(0.340, 0.285, 0.150),
 		"trim_roughness": 0.40,
-		"table": Color(0.520, 0.490, 0.420),
+		"table": Color(0.500, 0.486, 0.452),
 		"apron_map": "marble",
 		"label_color": Color(0.68, 0.72, 0.58),
 		"swatch_light": Color(0.50, 0.58, 0.51),
@@ -166,12 +166,12 @@ const BOARD_THEMES := {
 		"light_square": Color(0.562, 0.551, 0.528),
 		"dark_square": Color(0.165, 0.245, 0.430),
 		"square_roughness": 0.30,
-		"apron": Color(0.350, 0.320, 0.280),
+		"apron": Color(0.392, 0.372, 0.332),
 		"apron_roughness": 0.30,
 		"apron_metallic": 0.12,
 		"trim": Color(0.330, 0.290, 0.170),
 		"trim_roughness": 0.42,
-		"table": Color(0.545, 0.480, 0.395),
+		"table": Color(0.502, 0.478, 0.444),
 		"apron_map": "marble",
 		"label_color": Color(0.74, 0.70, 0.58),
 		"swatch_light": Color(0.68, 0.67, 0.64),
@@ -548,7 +548,7 @@ func _setup_environment() -> void:
 	# scales the whole frame together, so pulling it down keeps the ratio between
 	# a lit face, a shadowed face and the board that the calibration sets, where
 	# raising the albedo and cutting the ambient separately would not.
-	environment.tonemap_exposure = 0.65
+	environment.tonemap_exposure = 0.62
 	var sky_material := ProceduralSkyMaterial.new()
 	# Warm sand all the way round: the camera looks down, so most of the frame is
 	# the "ground" half of the sky and the gradient runs bright at the horizon
@@ -746,11 +746,11 @@ func _surface_map(kind: String) -> Texture2D:
 		# comes from the palettes, so a tinted map here would multiply the
 		# calibrated albedo down - the first version of this shipped a board
 		# two stops darker than the theme table says, which is exactly that bug.
-		"maple": texture = _wood_texture(Color(1.0, 0.995, 0.985), Color(0.78, 0.75, 0.70), 1201, 0.55)
+		"maple": texture = _wood_texture(Color(1.0, 0.995, 0.985), Color(0.88, 0.865, 0.835), 1201, 0.34)
 		"maple_normal": texture = _normal_map(_wood_heights(1201))
-		"walnut": texture = _wood_texture(Color(1.0, 0.99, 0.975), Color(0.70, 0.66, 0.61), 4407, 0.52)
+		"walnut": texture = _wood_texture(Color(1.0, 0.99, 0.975), Color(0.85, 0.825, 0.795), 4407, 0.34)
 		"walnut_normal": texture = _normal_map(_wood_heights(4407))
-		"frame_wood": texture = _wood_texture(Color(1.0, 0.985, 0.96), Color(0.72, 0.68, 0.62), 7717, 0.50)
+		"frame_wood": texture = _wood_texture(Color(1.0, 0.985, 0.96), Color(0.86, 0.835, 0.795), 7717, 0.34)
 		"frame_wood_normal": texture = _normal_map(_wood_heights(7717))
 		# Piece grain. Deliberately neutral: these are detail maps multiplied
 		# over the army's own albedo, so they carry the figure and the polish
@@ -994,7 +994,7 @@ func _setup_piece_materials() -> void:
 	var porcelain := _luxury_piece_material(body_light, clampf(palette.light_roughness, 0.34, 0.50), 0.0, false, false, 0.26,
 		_surface_map("piece_wood"), carve, 0.06, 0.40, 0.20, true)
 	porcelain.uv1_triplanar = true
-	porcelain.uv1_scale = Vector3(1.15, 1.15, 1.15)
+	porcelain.uv1_scale = Vector3(0.58, 0.58, 0.58)
 	# A rim light on the material itself, as well as the physical rim light in
 	# the scene: this one is view-dependent, so it traces the silhouette from
 	# wherever the camera is, which is what makes the edge of a pale piece read
@@ -1036,7 +1036,7 @@ func _setup_piece_materials() -> void:
 	var ebony := _luxury_piece_material(body_dark, clampf(palette.dark_roughness, 0.22, 0.38), 0.05, false, false, 0.50,
 		_surface_map("piece_wood"), carve, 0.22, 0.40, 0.20, true)
 	ebony.uv1_triplanar = true
-	ebony.uv1_scale = Vector3(1.15, 1.15, 1.15)
+	ebony.uv1_scale = Vector3(0.58, 0.58, 0.58)
 	ebony.rim_enabled = true
 	ebony.rim = 0.35
 	ebony.rim_tint = 0.35
@@ -1566,9 +1566,9 @@ func _create_board() -> void:
 	# that turned both trays into two holes punched in the set, which is what the
 	# first render of this round showed. Charcoal felt reads as charcoal when the
 	# material gives it something to return.
-	var tray_felt := _matte_material(Color(0.205, 0.198, 0.192), 0.85,
+	var tray_felt := _matte_material(Color(0.238, 0.230, 0.222), 0.85,
 		_surface_map("marble"), _surface_map("marble_normal"), 0.05)
-	var tray_wood := _material(apron.lerp(Color(0.30, 0.20, 0.12), 0.35), apron_roughness, apron_metallic, false, 0.06,
+	var tray_wood := _material(apron.darkened(0.34), apron_roughness, apron_metallic, false, 0.06,
 		_surface_map("frame_wood"), _surface_map("frame_wood_normal"))
 	tray_wood.uv1_scale = Vector3(0.30, 0.30, 0.30)
 	tray_wood.uv1_triplanar = true
@@ -4256,9 +4256,13 @@ func _draw_highlights() -> void:
 	for child in highlights_root.get_children():
 		highlights_root.remove_child(child)
 		child.queue_free()
+	# The last move is a tint, not a marker: a warm wash on the two squares that
+	# is quiet enough to sit under a piece and stay readable as "this is where we
+	# are" rather than as something to click. It is drawn first, so every other
+	# marker in the frame lands on top of it.
 	if not last_move.is_empty():
-		_add_highlight(last_move.from, Color(0.96, 0.87, 0.62, 0.20), 0.44)
-		_add_highlight(last_move.to, Color(0.96, 0.87, 0.62, 0.34), 0.44)
+		_add_highlight(last_move.from, Color(0.98, 0.86, 0.52, 0.16), 0.46)
+		_add_highlight(last_move.to, Color(0.98, 0.86, 0.52, 0.26), 0.46)
 		# A castle moves two pieces, so it marks four squares. Marking only the
 		# king's two made the rook's move invisible in the record of the move.
 		var rook_squares := _castle_rook_squares(last_move)
@@ -4281,9 +4285,25 @@ func _draw_highlights() -> void:
 		# hides the square it is standing on, and the reference's selection is a
 		# ring drawn round the base. The gold is already doing the ornament work
 		# on the piece; a second gold ring under it read as part of the set.
-		_add_highlight_ring(selected, Color(0.30, 0.86, 0.40, 0.90), 0.30, 0.365)
+		#
+		# Two rings, one inside the other, and the inner one lighter: the single
+		# 0.065-wide ring this replaced was a hairline at the far ranks, where a
+		# square is twenty pixels across. A bright core inside a dark edge is
+		# legible at both ends of the board, which is the whole reason the
+		# reference draws it that way.
+		_add_highlight_ring(selected, Color(0.12, 0.55, 0.22, 0.85), 0.322, 0.420)
+		_add_highlight_ring(selected, Color(0.46, 0.94, 0.52, 0.95), 0.322, 0.372)
 	for move in selected_moves:
-		_add_highlight(move.to, move_color, 0.17 if move.captured == "" else 0.40)
+		# Two kinds of destination, and they must not look alike. An empty square
+		# gets a small dot in the middle - the reference's marker, and the least
+		# ink that still says "you can go here". A capture gets a ring round the
+		# piece being taken, in the same warm gold as the board's trim, because
+		# a filled disc under a capture reads as a shadow and hides the piece the
+		# player is about to lose.
+		if move.captured == "":
+			_add_highlight(move.to, move_color, 0.115)
+		else:
+			_add_highlight_ring(move.to, Color(0.98, 0.82, 0.42, 0.92), 0.315, 0.400)
 
 
 func _add_highlight(square: Vector2i, color: Color, radius: float) -> void:
