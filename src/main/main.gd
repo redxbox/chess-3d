@@ -107,7 +107,7 @@ const BOARD_THEMES := {
 	# whole frame then reads as a render rather than as a photograph of a set.
 	"classic": {
 		"label": "CREAM & WALNUT",
-		"light_square": Color(0.606, 0.570, 0.494),
+		"light_square": Color(0.545, 0.513, 0.445),
 		"dark_square": Color(0.268, 0.248, 0.216),
 		"square_roughness": 0.30,
 		"apron": Color(0.482, 0.418, 0.330),
@@ -124,7 +124,7 @@ const BOARD_THEMES := {
 	# Maple on mahogany: the warm board, held at the same brightness band.
 	"royal_wood": {
 		"label": "MAPLE & MAHOGANY",
-		"light_square": Color(0.566, 0.520, 0.432),
+		"light_square": Color(0.509, 0.468, 0.389),
 		"dark_square": Color(0.348, 0.202, 0.150),
 		"square_roughness": 0.34,
 		"apron": Color(0.436, 0.356, 0.278),
@@ -143,7 +143,7 @@ const BOARD_THEMES := {
 	# of colour vision.
 	"jade": {
 		"label": "JADE & BRONZE",
-		"light_square": Color(0.486, 0.562, 0.495),
+		"light_square": Color(0.437, 0.506, 0.446),
 		"dark_square": Color(0.138, 0.265, 0.205),
 		"square_roughness": 0.28,
 		"apron": Color(0.386, 0.386, 0.330),
@@ -163,7 +163,7 @@ const BOARD_THEMES := {
 	# than a paint chart, and the cream squares no longer glare next to it.
 	"royal_blue": {
 		"label": "IVORY & SLATE BLUE",
-		"light_square": Color(0.548, 0.537, 0.515),
+		"light_square": Color(0.493, 0.483, 0.464),
 		"dark_square": Color(0.165, 0.245, 0.430),
 		"square_roughness": 0.30,
 		"apron": Color(0.392, 0.372, 0.332),
