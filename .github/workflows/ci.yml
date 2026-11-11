@@ -258,71 +258,80 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      # Committing the per-theme renders back to the branch gives a real visual
-      # feedback loop: the sandbox that edits the code has no Godot binary, so
-      # without this step lighting and material changes could only be judged by
-      # the arithmetic behind them.
-      - name: Publish per-theme renders on this branch
+      # Committing the per-theme renders and the benchmark back to the branch is
+      # what gives this project a real visual feedback loop: the sandbox that
+      # edits the code has no Godot binary, so without it lighting and material
+      # changes could only be judged by the arithmetic behind them.
+      #
+      # One commit per run, and only when something actually changed. The first
+      # version of this step called createOrUpdateFileContents once per file -
+      # seven commits, seven push events, so seven notification e-mails per run,
+      # and it committed them every time whether or not a pixel had moved. Over
+      # eighty commits on the branch, seventy were that step rewriting identical
+      # PNGs. So the bytes are compared against what is already on the branch,
+      # and the survivors go into one tree and one commit through the Git data
+      # API. A run that changed nothing now pushes nothing.
+      - name: Publish renders and benchmark on this branch
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/arena/')
         uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
             const branch = context.ref.replace('refs/heads/', '');
-            for (const name of ['classic-classic.png', 'royal_wood-classic.png', 'jade-classic.png', 'royal_blue-classic.png', 'classic-detail.png', 'style-picker.png']) {
-              const path = `docs/previews/${name}`;
-              let sha;
-              try {
-                const current = await github.rest.repos.getContent({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  path,
-                  ref: context.ref
-                });
-                sha = current.data.sha;
-              } catch (error) {
-                if (error.status !== 404) throw error;
+            const files = {
+              'docs/previews/classic-classic.png': 'build/preview/classic-classic.png',
+              'docs/previews/royal_wood-classic.png': 'build/preview/royal_wood-classic.png',
+              'docs/previews/jade-classic.png': 'build/preview/jade-classic.png',
+              'docs/previews/royal_blue-classic.png': 'build/preview/royal_blue-classic.png',
+              'docs/previews/classic-detail.png': 'build/preview/classic-detail.png',
+              'docs/previews/style-picker.png': 'build/preview/style-picker.png',
+              'docs/perf/latest.txt': 'build/preview/perf.txt',
+            };
+
+            const head = await github.rest.repos.getBranch({ owner, repo, branch });
+            const parent = head.data.commit.sha;
+            const tree = await github.rest.git.getTree({ owner, repo, tree_sha: parent, recursive: 'true' });
+            const existing = new Map(tree.data.tree.map((entry) => [entry.path, entry.sha]));
+
+            const entries = [];
+            for (const [path, source] of Object.entries(files)) {
+              const local = fs.readFileSync(source);
+              const current = existing.get(path);
+              if (current) {
+                const blob = await github.rest.git.getBlob({ owner, repo, file_sha: current });
+                if (blob.data.encoding === 'base64' && Buffer.from(blob.data.content, 'base64').equals(local)) {
+                  continue;
+                }
               }
-              await github.rest.repos.createOrUpdateFileContents({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                path,
-                branch,
-                message: `Update ${name} render [skip ci]`,
-                content: fs.readFileSync(`build/preview/${name}`).toString('base64'),
-                ...(sha ? { sha } : {})
+              const created = await github.rest.git.createBlob({
+                owner, repo, encoding: 'base64', content: local.toString('base64'),
               });
+              entries.push({ path, mode: '100644', type: 'blob', sha: created.data.sha });
             }
 
-      # The benchmark figures are committed back to the branch, so the next
-      # performance change has something to be compared against that is not
-      # "someone remembers the old number".
-      - name: Publish the performance baseline
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/arena/')
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const fs = require('fs');
-            const content = fs.readFileSync('build/preview/perf.txt', 'utf8');
-            const path = 'docs/perf/latest.txt';
-            let sha;
-            try {
-              const current = await github.rest.repos.getContent({
-                owner: context.repo.owner, repo: context.repo.repo, path, ref: context.ref
-              });
-              sha = current.data.sha;
-            } catch (error) {
-              if (error.status !== 404) throw error;
+            if (entries.length === 0) {
+              console.log('Renders and benchmark are unchanged; nothing to publish.');
+              return;
             }
-            await github.rest.repos.createOrUpdateFileContents({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              path,
-              branch: context.ref.replace('refs/heads/', ''),
-              message: 'Update the performance baseline [skip ci]',
-              content: Buffer.from(content).toString('base64'),
-              ...(sha ? { sha } : {})
+
+            const next = await github.rest.git.createTree({
+              owner, repo, base_tree: parent, tree: entries,
             });
+            const commit = await github.rest.git.createCommit({
+              owner,
+              repo,
+              message: `Publish renders and benchmark [skip ci]\n\n${entries.map((e) => e.path).join('\n')}`,
+              tree: next.data.sha,
+              parents: [parent],
+            });
+            // force: false, so a human commit that landed while this job ran is
+            // never overwritten - the push is rejected and the next run redoes it.
+            await github.rest.git.updateRef({
+              owner, repo, ref: `heads/${branch}`, sha: commit.data.sha, force: false,
+            });
+            console.log(`Published ${entries.length} file(s) in one commit ${commit.data.sha}.`);
 
       # The albedo guard cannot see the render: exposure, ACES, the light rig and
       # the baked vertex occlusion all sit between an albedo and a pixel. This is
