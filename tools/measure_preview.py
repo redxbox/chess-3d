@@ -148,16 +148,24 @@ def measure(path: Path) -> list[str]:
     # Squares, sampled near their corners so a piece standing on the square is
     # not what gets measured. The middle four ranks are empty at the start of a
     # game, which is what the previews render.
+    # A box in the middle of each square, and the median of it. The squares in
+    # the middle four ranks are empty at the start of a game, so the middle of
+    # the square is board and nothing else. This used to sample four patches
+    # three-tenths of a square out from the centre, which was safe while the
+    # board filled the frame and stopped being safe the moment the camera pulled
+    # back to show the trays: a tenth of a square is now twelve pixels, and a
+    # patch that close to the edge was reading the square's shaded bevel as
+    # often as its face. That is how a board with 210-value pale squares came
+    # back as 119, and it is why the value is a median over a central box now
+    # rather than a mean over corner spots.
     light: list[float] = []
     dark: list[float] = []
     for file in range(8):
         for rank in range(3, 7):
             size = view.square_size(file, rank)
-            for dx, dy in ((-0.3, -0.3), (0.3, -0.3), (-0.3, 0.3), (0.3, 0.3)):
-                centre = view.square_centre(file, rank)
-                centre = (centre[0] + dx * size, centre[1] + dy * size)
-                value = float(luma(crop(pixels, centre, size * 0.16)).mean())
-                (light if (file + rank) % 2 == 0 else dark).append(value)
+            centre = view.square_centre(file, rank)
+            value = float(np.median(luma(crop(pixels, centre, size * 0.5))))
+            (light if (file + rank) % 2 == 0 else dark).append(value)
     light_median, dark_median = float(np.median(light)), float(np.median(dark))
     print(f"   light squares  median {light_median:6.1f}")
     print(f"   dark  squares  median {dark_median:6.1f}")

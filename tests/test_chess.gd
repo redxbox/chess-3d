@@ -710,8 +710,8 @@ func _paraboloid(sign: float, steps: int) -> Dictionary:
 func _test_camera_rig() -> void:
 	var home := CameraRigSpec.home()
 	var elevation := CameraRigSpec.elevation_of(home)
-	_expect(elevation >= 46.0 and elevation <= 52.0,
-		"the camera looks down at 46-52 degrees (%.1f)" % elevation)
+	_expect(elevation >= 49.0 and elevation <= 55.0,
+		"the camera looks down at 49-55 degrees (%.1f)" % elevation)
 	_expect(CameraRigSpec.FOV >= 38.0 and CameraRigSpec.FOV <= 46.0,
 		"the field of view is 38-46 degrees (%.1f)" % CameraRigSpec.FOV)
 	# A camera on the origin's elevation vector looks at the origin: the angle
@@ -724,8 +724,8 @@ func _test_camera_rig() -> void:
 			and CameraRigSpec.DISTANCE_DEFAULT <= CameraRigSpec.DISTANCE_MAX,
 		"the resting distance is inside the zoom range")
 	# The far rank has to clear the pawns, which is the whole reason for the
-	# elevation. At 46 degrees a piece five and a half units behind a one-unit
-	# pawn is seen about 4.7 units above it; at the old 42 it was 3.9.
+	# elevation. At 52 degrees a piece five and a half units behind a one-unit
+	# pawn is seen about 6.0 units above it; at the old 42 it was 3.9.
 	var lift := CameraRigSpec.back_rank_lift()
 	# Four units is the bar now, not five: at 46 degrees the lift is 4.7, and the
 	# question the number answers is "can a knight's head be told from the pawn in

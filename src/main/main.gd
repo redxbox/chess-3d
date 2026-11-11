@@ -107,7 +107,7 @@ const BOARD_THEMES := {
 	# whole frame then reads as a render rather than as a photograph of a set.
 	"classic": {
 		"label": "CREAM & WALNUT",
-		"light_square": Color(0.600, 0.556, 0.462),
+		"light_square": Color(0.618, 0.572, 0.474),
 		"dark_square": Color(0.252, 0.238, 0.212),
 		"square_roughness": 0.30,
 		"apron": Color(0.420, 0.315, 0.215),
@@ -219,7 +219,7 @@ const PIECE_THEMES := {
 	"classic": {
 		"label": "CLASSIC",
 		"model_set": "staunton",
-		"light": Color(0.702, 0.668, 0.618),
+		"light": Color(0.690, 0.657, 0.608),
 		# Charcoal, not slate. The value is the calibrated one - above the dark
 		# squares so the army cannot be mistaken for a hole in the board - but the
 		# hue was two points blue, which under a warm key made the black army read
@@ -548,7 +548,7 @@ func _setup_environment() -> void:
 	# scales the whole frame together, so pulling it down keeps the ratio between
 	# a lit face, a shadowed face and the board that the calibration sets, where
 	# raising the albedo and cutting the ambient separately would not.
-	environment.tonemap_exposure = 0.60
+	environment.tonemap_exposure = 0.65
 	var sky_material := ProceduralSkyMaterial.new()
 	# Warm sand all the way round: the camera looks down, so most of the frame is
 	# the "ground" half of the sky and the gradient runs bright at the horizon
@@ -590,7 +590,7 @@ func _setup_environment() -> void:
 	# the side facing the camera, collapses into the near-black background and the
 	# army reads as holes in the picture. 0.36 with a 1.12 key is the point where
 	# both armies hold their form and neither washes out.
-	environment.ambient_light_energy = 0.46
+	environment.ambient_light_energy = 0.48
 	# Key: front-left, above, warm, and the only light that casts. 1.12 against a
 	# 0.36 ambient is what gives a fold a lit face and a dark face; a strong
 	# ambient with a weak key gives every face the same value.
@@ -1633,39 +1633,38 @@ func _create_board() -> void:
 	# it keeps the frame below the grid.
 	_add_board_box(Vector3(0, -0.0235, 0), Vector3(9.40, 0.143, 9.40), apron_material)
 	_add_board_box(Vector3(0, 0.0565, 0), Vector3(9.06, 0.017, 9.06), apron_material)
-	# The plinth and the two table steps below it. Each is centred and exactly as
-	# wide as the slab above, so the stack runs continuously from the tile
-	# bottoms down to the table with no gap and no overhang on any side.
+	# The plinth: a short, squared base directly under the frame. The reference
+	# set is a slab, not a cabinet - the frame's own thickness and one shadowed
+	# step below it are what give it weight, and anything taller than that starts
+	# to look like a table the board is standing on.
 	_add_board_box(Vector3(0, -0.145, 0), Vector3(9.40, 0.10, 9.40), apron_material)
-	# The platform. One slab under the board and both trays, so the set reads as
-	# one piece of furniture rather than as a board floating with two rectangles
-	# beside it. Its top is a hair under the board's plinth, so the frame's bottom
-	# step is still a visible shadow line.
-	_add_board_box(Vector3(0, -0.235, 0), Vector3(19.90, 0.10, 10.60), apron_material)
-	_add_board_box(Vector3(0, -0.375, 0), Vector3(20.50, 0.18, 11.20), table_material)
-	# The two side trays, and they are structural rather than decorative: a
-	# wooden rim, a recessed felt floor, and the rim's inner lip below the board's
-	# top face so a captured piece would sit down inside it.
-	#
-	# Each tray is five boxes rather than a CSG cut, so it costs five draw calls
-	# and no boolean geometry at load time: a base plate, a felt inlay a few
-	# millimetres above it, and three rim bars (outer, and a bar on the inner
-	# side facing the board). The bars are what cast the shadow that makes the
-	# recess read as a recess.
+	# The platform under the board *and* both trays, so the three pieces are one
+	# object. 14.90 wide: the tray rims stop at 7.28 on each side, so this is the
+	# last 0.17 of overhang, and no more - an overhang wider than the frame's own
+	# border makes the set look like it is sitting in a tray of its own.
+	_add_board_box(Vector3(0, -0.245, 0), Vector3(14.90, 0.10, 9.90), apron_material)
+	# The felt trays, one per side. They are wide and shallow, and they are the
+	# part of the reference that is easiest to get wrong twice: too wide and they
+	# read as two shelves, too deep and they read as two holes. 2.30 across,
+	# 9.20 deep (a hair shallower than the board so the end bars show), and the
+	# felt only 4 cm below the rim, so the recess is a shadow line rather than a
+	# cavity.
 	for side in [-1.0, 1.0]:
-		var cx: float = side * 7.35
-		_add_board_box(Vector3(cx, -0.150, 0), Vector3(4.60, 0.07, 8.80), tray_wood)
-		_add_board_box(Vector3(cx, -0.100, 0), Vector3(4.10, 0.03, 8.30), tray_felt)
-		# An inner lip, so the felt floor is genuinely recessed rather than a
-		# darker rectangle painted on a slab.
-		_add_board_box(Vector3(cx, -0.078, 0), Vector3(4.10, 0.05, 0.10), tray_wood)
-		_add_board_box(Vector3(cx, -0.078, 0), Vector3(0.10, 0.05, 8.30), tray_wood)
-		# Outer rim, then the two end bars.
-		_add_board_box(Vector3(side * 9.45, -0.060, 0), Vector3(0.32, 0.13, 8.80), tray_wood)
-		_add_board_box(Vector3(cx, -0.060, 4.30), Vector3(4.60, 0.13, 0.32), tray_wood)
-		_add_board_box(Vector3(cx, -0.060, -4.30), Vector3(4.60, 0.13, 0.32), tray_wood)
-		# Inner rim, hard against the board's frame.
-		_add_board_box(Vector3(side * 5.25, -0.060, 0), Vector3(0.32, 0.13, 8.80), tray_wood)
+		var cx: float = side * 6.13
+		_add_board_box(Vector3(cx, -0.150, 0), Vector3(2.30, 0.09, 9.20), tray_wood)
+		_add_board_box(Vector3(cx, -0.098, 0), Vector3(1.96, 0.02, 8.86), tray_felt)
+		# The rim: four bars, all cut back to 0.17 so the panel inside them is the
+		# felt and nothing else. Outer edge at 7.28, inner edge at 4.98.
+		_add_board_box(Vector3(side * 7.20, -0.070, 0), Vector3(0.17, 0.12, 9.20), tray_wood)
+		_add_board_box(Vector3(side * 5.06, -0.070, 0), Vector3(0.17, 0.12, 9.20), tray_wood)
+		_add_board_box(Vector3(cx, -0.070, 4.52), Vector3(2.30, 0.12, 0.17), tray_wood)
+		_add_board_box(Vector3(cx, -0.070, -4.52), Vector3(2.30, 0.12, 0.17), tray_wood)
+
+	# The studio floor. Not a table: a 60-unit plane the colour of the backdrop,
+	# which at this camera is a soft warm ground under the set and a seamless
+	# match to the sky behind it, so the only thing that tells you where the set
+	# ends is its own contact shadow.
+	_add_board_box(Vector3(0, -0.34, 0), Vector3(60.0, 0.10, 60.0), table_material)
 
 	_add_board_coordinates()
 

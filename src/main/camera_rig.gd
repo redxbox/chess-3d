@@ -7,21 +7,21 @@ extends RefCounted
 ## have to orbit: tests/test_chess.gd checks them, and the scene file and the
 ## reset tween both read them from here so they cannot drift apart.
 ##
-## Elevation: 46 degrees, and the set is now framed as a whole piece of
+## Elevation: 52 degrees, and the set is now framed as a whole piece of
 ## furniture rather than as a grid.
 ##
 ## Two facts set this. The board has side trays, so the frame is about twice as
 ## wide as the playing surface and the camera has to see all of it - that pushes
 ## it back. And the reference the author pointed at is a three-quarter view from
 ## roughly this angle: low enough that the frame's thickness and the trays' rims
-## show their front faces, high enough that the far rank is not hidden behind the
-## near pawns. 58 (the previous value) was a top-down board with no board in it;
-## 46 is a photograph of a set.
-const ELEVATION_DEG := 49.0
+## show their front faces, high enough that all eight ranks are readable at once
+## rather than the near ones covering the far ones. Measured against that
+## screenshot, 52 is the number; 58 lost the frame and 46 lost the far rank.
+const ELEVATION_DEG := 52.0
 const FOV := 42.0
-const DISTANCE_DEFAULT := 17.6
-const DISTANCE_MIN := 11.0
-const DISTANCE_MAX := 22.0
+const DISTANCE_DEFAULT := 13.4
+const DISTANCE_MIN := 9.6
+const DISTANCE_MAX := 19.0
 
 
 ## The camera's position for a distance, on the elevation vector from the origin.
