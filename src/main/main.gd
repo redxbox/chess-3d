@@ -107,7 +107,7 @@ const BOARD_THEMES := {
 	# whole frame then reads as a render rather than as a photograph of a set.
 	"classic": {
 		"label": "CREAM & WALNUT",
-		"light_square": Color(0.572, 0.540, 0.470),
+		"light_square": Color(0.606, 0.570, 0.494),
 		"dark_square": Color(0.268, 0.248, 0.216),
 		"square_roughness": 0.30,
 		"apron": Color(0.482, 0.418, 0.330),
@@ -115,7 +115,7 @@ const BOARD_THEMES := {
 		"apron_metallic": 0.06,
 		"trim": Color(0.660, 0.520, 0.300),
 		"trim_roughness": 0.36,
-		"table": Color(0.512, 0.494, 0.462),
+		"table": Color(0.505, 0.487, 0.458),
 		"apron_map": "rosewood",
 		"label_color": Color(0.255, 0.185, 0.105),
 		"swatch_light": Color(0.72, 0.66, 0.56),
@@ -132,7 +132,7 @@ const BOARD_THEMES := {
 		"apron_metallic": 0.05,
 		"trim": Color(0.330, 0.275, 0.150),
 		"trim_roughness": 0.42,
-		"table": Color(0.500, 0.474, 0.436),
+		"table": Color(0.505, 0.487, 0.458),
 		"apron_map": "rosewood",
 		"label_color": Color(0.235, 0.165, 0.090),
 		"swatch_light": Color(0.70, 0.62, 0.50),
@@ -151,7 +151,7 @@ const BOARD_THEMES := {
 		"apron_metallic": 0.12,
 		"trim": Color(0.340, 0.285, 0.150),
 		"trim_roughness": 0.40,
-		"table": Color(0.500, 0.486, 0.452),
+		"table": Color(0.505, 0.487, 0.458),
 		"apron_map": "marble",
 		"label_color": Color(0.185, 0.205, 0.145),
 		"swatch_light": Color(0.50, 0.58, 0.51),
@@ -163,7 +163,7 @@ const BOARD_THEMES := {
 	# than a paint chart, and the cream squares no longer glare next to it.
 	"royal_blue": {
 		"label": "IVORY & SLATE BLUE",
-		"light_square": Color(0.562, 0.551, 0.528),
+		"light_square": Color(0.548, 0.537, 0.515),
 		"dark_square": Color(0.165, 0.245, 0.430),
 		"square_roughness": 0.30,
 		"apron": Color(0.392, 0.372, 0.332),
@@ -171,7 +171,7 @@ const BOARD_THEMES := {
 		"apron_metallic": 0.12,
 		"trim": Color(0.330, 0.290, 0.170),
 		"trim_roughness": 0.42,
-		"table": Color(0.502, 0.478, 0.444),
+		"table": Color(0.505, 0.487, 0.458),
 		"apron_map": "marble",
 		"label_color": Color(0.205, 0.190, 0.140),
 		"swatch_light": Color(0.68, 0.67, 0.64),
@@ -746,9 +746,9 @@ func _surface_map(kind: String) -> Texture2D:
 		# comes from the palettes, so a tinted map here would multiply the
 		# calibrated albedo down - the first version of this shipped a board
 		# two stops darker than the theme table says, which is exactly that bug.
-		"maple": texture = _wood_texture(Color(1.0, 0.995, 0.985), Color(0.85, 0.835, 0.805), 1201, 0.42)
+		"maple": texture = _wood_texture(Color(1.0, 0.995, 0.985), Color(0.72, 0.700, 0.670), 1201, 0.62)
 		"maple_normal": texture = _normal_map(_wood_heights(1201))
-		"walnut": texture = _wood_texture(Color(1.0, 0.99, 0.975), Color(0.92, 0.895, 0.865), 4407, 0.30)
+		"walnut": texture = _wood_texture(Color(1.0, 0.99, 0.975), Color(0.80, 0.775, 0.745), 4407, 0.46)
 		"walnut_normal": texture = _normal_map(_wood_heights(4407))
 		"frame_wood": texture = _wood_texture(Color(1.0, 0.985, 0.96), Color(0.84, 0.815, 0.775), 7717, 0.40)
 		"frame_wood_normal": texture = _normal_map(_wood_heights(7717))
