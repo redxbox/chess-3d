@@ -228,10 +228,12 @@ const PIECE_THEMES := {
 		"dark": Color(0.330, 0.312, 0.292),
 		"accent": Color(0.95, 0.755, 0.380),
 		"light_roughness": 0.44,
-		# 0.20 rather than 0.26: on the charcoal body this turns the crown, the
-		# collar and the curve of a mane into one hard travelling highlight, which
-		# is what makes a black piece read as polished ebony rather than as clay.
-		"dark_roughness": 0.30,
+		# 0.30 was the last round's value and it was one stop too glossy: the crown,
+		# the collar and the curve of a mane each carried a hard travelling
+		# highlight, so the black army read as lacquered plastic beside the
+		# reference's satin ebony. 0.38 keeps a sheen on the shoulder and takes the
+		# mirror off the face.
+		"dark_roughness": 0.38,
 		"accent_roughness": 0.26,
 		"accent_metallic": 0.85,
 		# None: the turned set's ornament is the generated trim mesh, which is
@@ -1033,7 +1035,7 @@ func _setup_piece_materials() -> void:
 	# The tight lobe is doing the work here: it is what draws a highlight along a
 	# mane, a shield rim and the fold of a robe on an army that would otherwise be
 	# a silhouette against dark squares.
-	var ebony := _luxury_piece_material(body_dark, clampf(palette.dark_roughness, 0.22, 0.38), 0.05, false, false, 0.50,
+	var ebony := _luxury_piece_material(body_dark, clampf(palette.dark_roughness, 0.30, 0.46), 0.05, false, false, 0.36,
 		_surface_map("piece_wood"), carve, 0.22, 0.40, 0.20, true)
 	ebony.uv1_triplanar = true
 	ebony.uv1_scale = Vector3(0.58, 0.58, 0.58)
