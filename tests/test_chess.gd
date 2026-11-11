@@ -3,6 +3,11 @@ extends SceneTree
 const ChessGame = preload("res://src/chess/chess_game.gd")
 const OfflineAI = preload("res://src/ai/offline_ai.gd")
 const GameArchive = preload("res://src/storage/game_archive.gd")
+const PieceFacing = preload("res://src/chess/piece_facing.gd")
+const PieceLayout = preload("res://src/main/piece_layout.gd")
+const PieceShading = preload("res://src/main/piece_shading.gd")
+const CameraRigSpec = preload("res://src/main/camera_rig.gd")
+const PieceLadder = preload("res://src/main/piece_ladder.gd")
 var passed := 0
 var failed := 0
 
@@ -27,6 +32,13 @@ func _init() -> void:
 	_test_threefold_repetition()
 	_test_offline_ai()
 	_test_game_archive()
+	_test_piece_facing()
+	_test_piece_layout()
+	_test_piece_shading()
+	_test_camera_rig()
+	_test_piece_height_ladder()
+	_test_sculpt_relief_and_gild()
+	_test_knight_facing_matches_the_meshes()
 	print("Chess tests: %d passed, %d failed" % [passed, failed])
 	quit(0 if failed == 0 else 1)
 
@@ -324,3 +336,500 @@ func _test_game_archive() -> void:
 	_expect(int(side_reloaded.games[0].get("human_color", ChessGame.WHITE)) == ChessGame.BLACK, "archive entries remember which side the player controlled")
 	side_store.remove_game(side_id)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(test_path))
+
+
+## Every piece with a front must face the opposing army.
+##
+## This is a table, tested rather than eyeballed, because it has now been wrong in
+## both directions: first only the king and queen were listed, so the guards and
+## the elephant faced their own player; then the turned set was given no
+## per-army turn at all, so its black king and knights stood with their backs to
+## the enemy.
+func _test_piece_facing() -> void:
+	var expectations := [
+		# Turned set: muzzle -Z, so White keeps it and Black takes half a turn.
+		["staunton", "knight", true, 0.0],
+		["staunton", "knight", false, PI],
+		# Its bishop also needs the quarter turn that puts the mitre slit forward.
+		["staunton", "bishop", true, PI * 0.25],
+		["staunton", "bishop", false, PI * 1.25],
+		# A turned pawn and rook are surfaces of revolution: no front, no turn.
+		["staunton", "pawn", true, 0.0],
+		["staunton", "rook", false, 0.0],
+
+
+		# The pars horse looks straight down +Z like the rest of its set, so it
+		# takes the figures' turn. The set this one replaced did not, and that is
+		# the case that shipped back to front.
+
+
+
+
+
+
+	]
+	for case in expectations:
+		var set_name: String = case[0]
+		var kind: String = case[1]
+		var is_white: bool = case[2]
+		var expected: float = case[3]
+		var actual: float = PieceFacing.yaw(set_name, kind, is_white)
+		var same := absf(wrapf(actual - expected, -PI, PI)) < 0.001
+		_expect(same, "%s %s %s faces the enemy (yaw %.2f)" % [set_name, kind, "white" if is_white else "black", actual])
+
+
+## Only one node may stand on a square, and it has to be the right piece. Every
+## case here is one that went wrong on a real board: a capture leaving two bodies
+## on the arrival square, a promotion keeping the pawn's body, and a desynced node
+## that would have been turned into the wrong shape rather than replaced.
+func _test_piece_layout() -> void:
+	var empty_board := _blank_board()
+	# Nothing on the board, pieces in the tree: all of them go.
+	var plan := PieceLayout.plan([PieceLayout.node(Vector2i(4, 4), "pawn")], empty_board)
+	_expect(plan.free == [0] and plan.create.is_empty() and plan.keep.is_empty(),
+		"a piece that is not on the board is removed")
+
+	# A plain move. The animation re-tags the mover to its destination before the
+	# board is reconciled, so the node is already there and is simply kept.
+	var moved := _blank_board()
+	moved[4][4] = "P"
+	plan = PieceLayout.plan([PieceLayout.node(Vector2i(4, 4), "pawn")], moved)
+	_expect(plan.keep.get(0) == Vector2i(4, 4) and plan.create.is_empty() and plan.free.is_empty(),
+		"a moved piece keeps its node")
+	# If it was never re-tagged - a cancelled animation - the node is still on the
+	# square it left; it is freed and the piece is built on its real square, which
+	# is the behaviour that makes a desync repair itself instead of persisting.
+	plan = PieceLayout.plan([PieceLayout.node(Vector2i(4, 2), "pawn")], moved)
+	_expect(plan.free == [0] and plan.create == [Vector2i(4, 4)],
+		"a node left on a square the board no longer has is rebuilt")
+
+	# The capture window: the captor and the captured body both claim the square.
+	var captured := _blank_board()
+	captured[4][4] = "P"
+	plan = PieceLayout.plan([
+		PieceLayout.node(Vector2i(4, 4), "pawn"),
+		PieceLayout.node(Vector2i(4, 4), "pawn"),
+	], captured)
+	_expect(plan.keep.size() == 1 and plan.free.size() == 1 and plan.create.is_empty(),
+		"two nodes on one square are reduced to one")
+
+	# The captured body and its captor are both pawns, so child order decides -
+	# unless the caller says which one is the corpse.
+	plan = PieceLayout.plan([
+		PieceLayout.node(Vector2i(4, 4), "pawn"),
+		PieceLayout.node(Vector2i(4, 4), "pawn"),
+	], captured, [0])
+	_expect(plan.keep.get(1) == Vector2i(4, 4) and plan.free == [0],
+		"the captured body is given up rather than the captor")
+
+	# Same square, different kinds: the one that matches the board wins, whichever
+	# order they come in.
+	captured[4][4] = "Q"
+	plan = PieceLayout.plan([
+		PieceLayout.node(Vector2i(4, 4), "pawn"),
+		PieceLayout.node(Vector2i(4, 4), "queen"),
+	], captured)
+	_expect(plan.keep.get(1) == Vector2i(4, 4) and plan.free == [0],
+		"the node of the right kind is kept on a contested square")
+	plan = PieceLayout.plan([
+		PieceLayout.node(Vector2i(4, 4), "queen"),
+		PieceLayout.node(Vector2i(4, 4), "pawn"),
+	], captured)
+	_expect(plan.keep.get(0) == Vector2i(4, 4) and plan.free == [1],
+		"and the other way round")
+
+	# A promotion: the pawn's body cannot become a queen, so it is replaced.
+	var promoted := _blank_board()
+	promoted[7][4] = "Q"
+	# board[rank][file], but a square is Vector2i(file, rank): rank 7, file 4.
+	plan = PieceLayout.plan([PieceLayout.node(Vector2i(4, 7), "pawn")], promoted)
+	_expect(plan.free == [0] and plan.create == [Vector2i(4, 7)],
+		"a promoted pawn's node is replaced, not re-positioned")
+
+	# A square that has nothing on it at all has to be built.
+	var start := ChessGame.new().board
+	plan = PieceLayout.plan([], start)
+	_expect(plan.create.size() == 32 and plan.free.is_empty(),
+		"an empty tree builds all thirty-two pieces")
+	# ...and reconciling a board that already matches touches nothing.
+	var nodes: Array = []
+	for square in plan.create:
+		var code: String = start[square.y][square.x]
+		nodes.append(PieceLayout.node(square, String(PieceLayout.KIND_FOR_CODE[code.to_lower()])))
+	plan = PieceLayout.plan(nodes, start)
+	_expect(plan.create.is_empty() and plan.free.is_empty() and plan.keep.size() == 32,
+		"a board that already matches is left alone")
+
+	# The rook's half of a castle, which is the half that used to be invisible.
+	var castled_king_side := {"from": Vector2i(4, 7), "to": Vector2i(6, 7), "castle": "king"}
+	_expect(PieceLayout.castle_rook_squares(castled_king_side) == [Vector2i(7, 7), Vector2i(5, 7)],
+		"king-side castling moves the rook h to f")
+	var castled_queen_side := {"from": Vector2i(4, 7), "to": Vector2i(2, 7), "castle": "queen"}
+	_expect(PieceLayout.castle_rook_squares(castled_queen_side) == [Vector2i(0, 7), Vector2i(3, 7)],
+		"queen-side castling moves the rook a to d")
+	_expect(PieceLayout.castle_rook_squares({"from": Vector2i(4, 7), "to": Vector2i(4, 6)}).is_empty(),
+		"an ordinary move moves no rook")
+
+
+func _blank_board() -> Array:
+	var board: Array = []
+	for rank in 8:
+		var row: Array = []
+		row.resize(8)
+		row.fill("")
+		board.append(row)
+	return board
+
+
+## The carving has to show up as shading, on both armies, from geometry alone.
+## The shapes are analytic so that "concave" and "convex" are not a matter of
+## getting a winding order right in a test: a paraboloid y = +-(x^2 + z^2) / 2
+## with its exact surface normal is either a bowl or a dome, and nothing else.
+func _test_piece_shading() -> void:
+	# A dome: nothing on it may be darkened, or every collar and crown on the
+	# board would get a grey line down it.
+	#
+	# A dome this smooth curves by about 0.15 per unit - less than half the
+	# curvature at which the occlusion starts - so the correct answer for it is
+	# "no shading at all", and that is what the wider patch returns. The convex
+	# half of the same measurement is the gild mask, which is checked separately
+	# below on a ridge that is sharp enough to be an edge.
+	var dome := _paraboloid(-1.0, 12)
+	var shade := PieceShading.cavity_shade(dome.positions, dome.normals, dome.indices)
+	var dome_min := 1.0
+	for value in shade:
+		dome_min = minf(dome_min, value)
+	_expect(shade.size() == dome.positions.size() and dome_min > 0.999,
+		"a smooth convex surface is left alone (darkest %.3f)" % dome_min)
+
+	# A bowl: the inside of a crown, the hollow behind a shield. A paraboloid
+	# this shallow is still below the curvature at which a crease begins, so the
+	# correct answer is again "nothing" - a hollow is not a fold. What the
+	# occlusion must actually do on a fold is checked on the 90 degree valley in
+	# _test_sculpt_relief_and_gild, which is the shape a robe fold really is.
+	var bowl := _paraboloid(1.0, 12)
+	shade = PieceShading.cavity_shade(bowl.positions, bowl.normals, bowl.indices)
+	var bowl_min := 1.0
+	for value in shade:
+		bowl_min = minf(bowl_min, value)
+	# Not "exactly 1.000": a paraboloid does curve, by about 0.2 per unit, which
+	# is inside the smoothstep's first few percent. What matters is that a hollow
+	# of this size is a hair off white while a fold is a real shadow - the fold
+	# case below is 0.46.
+	_expect(bowl_min > 0.98, "a shallow hollow is barely touched (darkest %.3f)" % bowl_min)
+
+	# A flat face carries no shading at all: the turned pieces are all convex and
+	# flat, and greying them over would read as dirt.
+	var plate := PieceShading.cavity_shade(
+		PackedVector3Array([Vector3(0, 0, 0), Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(1, 0, 1)]),
+		PackedVector3Array([Vector3.UP, Vector3.UP, Vector3.UP, Vector3.UP]),
+		PackedInt32Array([0, 1, 2, 2, 1, 3]))
+	var plate_min := 1.0
+	for value in plate:
+		plate_min = minf(plate_min, value)
+	_expect(plate.size() == 4 and plate_min > 0.999, "a flat face carries no shading")
+
+	# Degenerate inputs come back as "no shading", never as a table the wrong
+	# size for the mesh it is about to be applied to.
+	shade = PieceShading.cavity_shade(PackedVector3Array(), PackedVector3Array(), PackedInt32Array())
+	_expect(shade.is_empty(), "an empty mesh shades to nothing")
+	shade = PieceShading.cavity_shade(PackedVector3Array([Vector3.UP]),
+		PackedVector3Array([Vector3.UP]), PackedInt32Array())
+	_expect(shade.size() == 1 and shade[0] > 0.999, "a lone vertex has nothing to curve against")
+
+
+## The fold, the ridge and the gilded edge - the three things the figurative
+## set's complaint was actually about.
+##
+## The fixtures are analytic so that "concave" and "convex" are facts about the
+## geometry rather than about a winding order I got wrong: two planes meeting
+## along an edge is a valley at +1 and a ridge at -1, and nothing else. Both are
+## 90 degree edges, because 90 degrees is what a crown point, a spear tip and the
+## rim of a shield are; a table of thresholds tuned on a 15 degree roof would be
+## tuned on nothing.
+func _test_sculpt_relief_and_gild() -> void:
+	# --- a fold of drapery -------------------------------------------------
+	# The numbers here are measured on this fixture with the shipped constants:
+	# 0.46 in the valley, 98% of the surface untouched, and the shading spread
+	# over about a tenth of the sheet rather than sitting on the seam.
+	var valley := _roof(1.0, 24, 1.0)
+	var fields := PieceShading.sculpt_fields(valley.positions, valley.normals, valley.indices, 0.0)
+	var shade: PackedFloat32Array = fields["shade"]
+	var deepest := INF
+	var painted := 0
+	for value in shade:
+		deepest = minf(deepest, value)
+		if value < 0.99:
+			painted += 1
+	_expect(deepest < 0.60, "a fold of drapery darkens sharply (deepest %.3f)" % deepest)
+	_expect(deepest > 0.35, "and stays stone rather than going black (%.3f)" % deepest)
+	var painted_share := float(painted) / float(shade.size())
+	_expect(painted_share > 0.03 and painted_share < 0.55,
+		"the fold is a band, not a line (%.0f%% of the surface)" % (painted_share * 100.0))
+
+	# A valley is never gold: gilding a crease is paint, not ornament, and it was
+	# half of what "blurry noisy mess" described.
+	var valley_gild: PackedFloat32Array = fields["gild"]
+	var valley_gilded := 0
+	for value in valley_gild:
+		if value > 0.5:
+			valley_gilded += 1
+	_expect(valley_gilded == 0, "a fold is not gilded (%d vertices)" % valley_gilded)
+
+	# --- a convex edge -----------------------------------------------------
+	# A ridge must not be darkened at all: it is the brightest thing on a
+	# carving, and greying it is exactly the "aggressive vertex-darkening" the
+	# set was reported with.
+	# A quarter of the fold's size: a crown point, not a roof. Curvature is per
+	# unit, so the scale is the whole difference between "an edge" and "a plane
+	# with a bend in it".
+	var ridge := _roof(-1.0, 24, 1.0, 0.25)
+	var ridge_fields := PieceShading.sculpt_fields(ridge.positions, ridge.normals, ridge.indices, 0.0)
+	var ridge_shade: PackedFloat32Array = ridge_fields["shade"]
+	var ridge_min := INF
+	for value in ridge_shade:
+		ridge_min = minf(ridge_min, value)
+	_expect(ridge_min > 0.999, "a ridge is not darkened at all (darkest %.3f)" % ridge_min)
+
+	# And it is where the gold goes. On the fixture a few vertices carry it (a
+	# single edge is not a crown); what the test can still pin is that the mask
+	# exists, is strongest on the axis of the ridge, and is scaled by the
+	# set's own strength.
+	var ridge_gild: PackedFloat32Array = ridge_fields["gild"]
+	var ridge_peak := 0.0
+	for value in ridge_gild:
+		ridge_peak = maxf(ridge_peak, value)
+	_expect(ridge_peak > 0.25, "the ridge carries gold (peak %.2f)" % ridge_peak)
+	var weaker := PieceShading.sculpt_fields(ridge.positions, ridge.normals, ridge.indices, 0.0, 0.0)
+	var weaker_peak := 0.0
+	for value in (weaker["gild"] as PackedFloat32Array):
+		weaker_peak = maxf(weaker_peak, value)
+	_expect(weaker_peak == 0.0, "a set that asks for no gold gets none (peak %.2f)" % weaker_peak)
+
+	# --- the plinth is stone ------------------------------------------------
+	# A statuette is gilded on its ornament, not round its base: a gold ring at
+	# the bottom of every piece reads as a band of paint, and it was the thing
+	# the first prototype of this mask produced. So with the plinth line put at a
+	# third of the height, the same ridge below a tenth of the height must be bare
+	# and its tip must still be gold - suppressed, not switched off.
+	var lowest := INF
+	var highest := -INF
+	for point in ridge.positions:
+		lowest = minf(lowest, point.y)
+		highest = maxf(highest, point.y)
+	var base := PieceShading.sculpt_fields(ridge.positions, ridge.normals, ridge.indices, 0.33, 1.0)
+	var base_gild: PackedFloat32Array = base["gild"]
+	var bare_peak := 0.0
+	var tip_peak := 0.0
+	for index in base_gild.size():
+		var height: float = (ridge.positions[index].y - lowest) / maxf(highest - lowest, 0.0001)
+		if height < 0.10:
+			bare_peak = maxf(bare_peak, base_gild[index])
+		elif height > 0.60:
+			tip_peak = maxf(tip_peak, base_gild[index])
+	_expect(bare_peak == 0.0, "nothing below the plinth line is gilded (peak %.2f)" % bare_peak)
+	_expect(tip_peak > 0.25, "the same ridge above the plinth line still is (peak %.2f)" % tip_peak)
+
+	# --- the gilded surface is whole triangles ------------------------------
+	var indices := PieceShading.gilded_indices(ridge.indices, ridge_gild, 0.0)
+	_expect(indices.size() % 3 == 0 and indices.size() == ridge.indices.size(),
+		"a threshold of zero keeps every triangle (%d)" % indices.size())
+	var none := PieceShading.gilded_indices(ridge.indices, ridge_gild, 2.0)
+	_expect(none.is_empty(), "a threshold above the peak keeps none")
+
+
+## Two planes meeting along the x axis, welded along the seam so it is a real
+## edge: sign +1 is a valley (a fold), sign -1 a ridge (a crown point). `slope` 1
+## is a 90 degree dihedral, and `scale` sets how large the shape is - which is
+## what decides how tight it reads, because curvature is per unit.
+func _roof(sign: float, steps: int, slope: float, scale := 1.0) -> Dictionary:
+	var positions := PackedVector3Array()
+	var normals := PackedVector3Array()
+	for side in 2:
+		for i in steps + 1:
+			var x := float(i) / float(steps)
+			for j in steps + 1:
+				var z := -1.0 + 2.0 * float(j) / float(steps)
+				positions.append(Vector3(x, sign * slope * x, z))
+				normals.append(Vector3(-sign * slope, 1.0, 0.0).normalized())
+	var half := (steps + 1) * (steps + 1)
+	var indices := PackedInt32Array()
+	for side in 2:
+		var base := side * half
+		var flip := side == 1
+		for i in steps:
+			for j in steps:
+				var a := base + i * (steps + 1) + j
+				var b := a + 1
+				var c := a + steps + 1
+				var d := c + 1
+				if flip:
+					# Mirroring reverses the winding: keep the faces facing out.
+					for index in [a, d, b, a, c, d]:
+						indices.append(index)
+				else:
+					for index in [a, b, d, a, d, c]:
+						indices.append(index)
+	# Mirror the second sheet onto the other side of the seam.
+	for i in range(half, positions.size()):
+		positions[i] = Vector3(-positions[i].x, positions[i].y, positions[i].z)
+		normals[i] = Vector3(-normals[i].x, normals[i].y, normals[i].z)
+	if not is_equal_approx(scale, 1.0):
+		for i in positions.size():
+			positions[i] = positions[i] * scale
+	return {"positions": positions, "normals": normals, "indices": indices}
+
+
+## A grid sampling y = +-(x*x + z*z) / 2 over [-1, 1]^2, with the exact analytic
+## normal, as (positions, normals, indices).
+func _paraboloid(sign: float, steps: int) -> Dictionary:
+	var positions := PackedVector3Array()
+	var normals := PackedVector3Array()
+	for i in steps + 1:
+		for j in steps + 1:
+			var x := -1.0 + 2.0 * float(i) / float(steps)
+			var z := -1.0 + 2.0 * float(j) / float(steps)
+			positions.append(Vector3(x, sign * (x * x + z * z) * 0.5, z))
+			normals.append(Vector3(-sign * x, 1.0, -sign * z).normalized())
+	var indices := PackedInt32Array()
+	for i in steps:
+		for j in steps:
+			var a := i * (steps + 1) + j
+			var b := a + 1
+			var c := a + steps + 1
+			var d := c + 1
+			for index in [a, b, d, a, d, c]:
+				indices.append(index)
+	return {"positions": positions, "normals": normals, "indices": indices}
+
+
+## The camera rig, checked for the properties that were asked for and that a
+## future edit could quietly undo: the elevation is in the range that clears the
+## pawns, the field of view is narrow enough not to trapezoid the board, and the
+## camera looks at the exact centre of the board rather than near it.
+func _test_camera_rig() -> void:
+	var home := CameraRigSpec.home()
+	var elevation := CameraRigSpec.elevation_of(home)
+	_expect(elevation >= 49.0 and elevation <= 55.0,
+		"the camera looks down at 49-55 degrees (%.1f)" % elevation)
+	_expect(CameraRigSpec.FOV >= 38.0 and CameraRigSpec.FOV <= 46.0,
+		"the field of view is 38-46 degrees (%.1f)" % CameraRigSpec.FOV)
+	# A camera on the origin's elevation vector looks at the origin: the angle
+	# below the horizon equals the elevation exactly, so the look-at point is
+	# (0, 0, 0) and the two armies are framed identically.
+	_expect(absf(elevation - CameraRigSpec.ELEVATION_DEG) < 0.001,
+		"the camera aims at the middle of the board")
+	_expect(home.x == 0.0, "and it is centred on the board's x axis")
+	_expect(CameraRigSpec.DISTANCE_DEFAULT >= CameraRigSpec.DISTANCE_MIN \
+			and CameraRigSpec.DISTANCE_DEFAULT <= CameraRigSpec.DISTANCE_MAX,
+		"the resting distance is inside the zoom range")
+	# The far rank has to clear the pawns, which is the whole reason for the
+	# elevation. At 52 degrees a piece five and a half units behind a one-unit
+	# pawn is seen about 6.0 units above it; at the old 42 it was 3.9.
+	var lift := CameraRigSpec.back_rank_lift()
+	# Four units is the bar now, not five: at 46 degrees the lift is 4.7, and the
+	# question the number answers is "can a knight's head be told from the pawn in
+	# front of it", which it can at four. The old bar was written for a board with
+	# no trays in the frame, where the camera could afford to sit higher.
+	_expect(lift > 4.0, "the back rank clears the pawns (%.2f units)" % lift)
+
+
+## The height ladder: the six kinds must climb in the requested proportions, and
+## the bishop must be decisively taller than the knight.
+##
+## This is a test rather than a comment because the previous ladder had the two
+## within 1.5% of each other, which on a phone is the same height.
+func _test_piece_height_ladder() -> void:
+	var order := ["pawn", "rook", "knight", "bishop", "queen", "king"]
+	for index in order.size():
+		var kind: String = order[index]
+		var height := PieceLadder.height(kind)
+		_expect(is_equal_approx(height, PieceLadder.RATIOS[kind] / PieceLadder.RATIOS["king"] * PieceLadder.KING_HEIGHT),
+			"%s sits on the ladder" % kind)
+		if index > 0:
+			_expect(height > PieceLadder.height(order[index - 1]),
+				"%s is taller than %s" % [kind, order[index - 1]])
+	_expect(PieceLadder.height("king") / PieceLadder.height("pawn") > 1.64,
+		"the king is 1.65x the pawn")
+	_expect(PieceLadder.height("bishop") / PieceLadder.height("knight") >= 1.07,
+		"the bishop is clearly taller than the knight (%.2f)"
+			% (PieceLadder.height("bishop") / PieceLadder.height("knight")))
+	# The scale is a ratio to the shipped height: a piece that already ships at its
+	# ladder height must not be scaled at all.
+	_expect(is_equal_approx(PieceLadder.height_scale("king", PieceLadder.KING_HEIGHT), 1.0),
+		"a king at reference height is scaled by exactly 1")
+	var pawn_scale := PieceLadder.height_scale("pawn", 0.910, 1.620)
+	_expect(is_equal_approx(0.910 * pawn_scale, PieceLadder.height("pawn")),
+		"the pawn ends at its ladder height (%.3f)" % (0.910 * pawn_scale))
+	# And the ladder is anchored to the king's *measured* height, so a set that
+	# ships at half scale keeps its proportions instead of doubling in size.
+	var half := PieceLadder.height_scale("pawn", 0.455, 0.810)
+	_expect(is_equal_approx(half, pawn_scale), "a set at half scale scales the same (%.4f)" % half)
+
+
+## The facing table against the meshes it describes.
+##
+## The rule a piece "faces" is a fact about its geometry, and it has now been
+## wrong twice - once for every knight, once for a set's knights only - with a
+## human seeing it in a screenshot as the only detector. So the knights are
+## measured here: in the top 15% of the piece - the head, the ears and the mane
+## above the neck - the point furthest forward or back along z is the muzzle, and
+## its z sign is what the table has to say.
+##
+## Two cheaper rules were tried and both got it wrong, which is why this one is
+## spelled out: the point furthest from the vertical axis lands on a cheek, and
+## the mass of the top 5% lands on the mane that sweeps back over the neck. Along
+## z, in the top 15%, the staunton knight measures -0.317 - the carved direction,
+## with a margin.
+func _test_knight_facing_matches_the_meshes() -> void:
+	for set_name in ["staunton"]:
+		var path := "res://assets/models/%s/knight.obj" % set_name
+		var file := FileAccess.open(path, FileAccess.READ)
+		_expect(file != null, "%s has a knight mesh" % set_name)
+		if file == null:
+			continue
+		var points: Array[Vector3] = []
+		while not file.eof_reached():
+			var line := file.get_line()
+			if not line.begins_with("v "):
+				continue
+			var parts := line.split(" ", false)
+			if parts.size() < 4:
+				continue
+			points.append(Vector3(float(parts[1]), float(parts[2]), float(parts[3])))
+		file.close()
+		_expect(points.size() > 100, "%s's knight has geometry (%d vertices)" % [set_name, points.size()])
+		var lowest := INF
+		var highest := -INF
+		for point in points:
+			lowest = minf(lowest, point.y)
+			highest = maxf(highest, point.y)
+		var height := highest - lowest
+		var muzzle_z := 0.0
+		for point in points:
+			if point.y < lowest + height * 0.85:
+				continue
+			if absf(point.z) > absf(muzzle_z):
+				muzzle_z = point.z
+		_expect(absf(muzzle_z) > 0.1, "%s's knight has a muzzle that sticks out (%.3f)" % [set_name, muzzle_z])
+		var measured := 1 if muzzle_z > 0.0 else -1
+		_expect(measured == PieceFacing.front_sign(set_name, "knight"),
+			"%s's knight is carved facing %s, as the table says (muzzle z %+.3f)"
+				% [set_name, "+Z" if measured > 0 else "-Z", muzzle_z])
+		# And the consequence, which is the thing the player actually sees: the two
+		# knights of a set end up facing each other.
+		var white_yaw := PieceFacing.yaw(set_name, "knight", true)
+		var black_yaw := PieceFacing.yaw(set_name, "knight", false)
+		_expect(absf(wrapf(white_yaw - black_yaw, -PI, PI)) > 3.0,
+			"%s's two knights face each other (yaws %.2f and %.2f)" % [set_name, white_yaw, black_yaw])
+		# The rule stated the other way round, because this is the form the bug
+		# was reported in and the form a future reader will check: after the turn,
+		# White's knight holds its muzzle toward rank 8 (-Z) and Black's toward
+		# rank 1 (+Z). A half turn reverses a muzzle, so the world direction is the
+		# carved direction times the turn.
+		var white_world: int = measured * (1 if is_zero_approx(white_yaw) else -1)
+		var black_world: int = measured * (1 if is_zero_approx(black_yaw) else -1)
+		_expect(white_world == -1,
+			"%s: White's knight looks toward rank 8" % set_name)
+		_expect(black_world == 1,
+			"%s: Black's knight looks toward rank 1" % set_name)

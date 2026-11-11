@@ -7,7 +7,7 @@ func _initialize() -> void:
 	# CI chooses board and pieces independently, exactly like the setup menu.
 	var piece_theme := OS.get_environment("CHESS_PIECE_THEME")
 	var board_theme := OS.get_environment("CHESS_BOARD_THEME")
-	if piece_theme == "": piece_theme = "royal_wood"
+	if piece_theme == "": piece_theme = "persian"
 	if board_theme == "": board_theme = "classic"
 	var output_name := OS.get_environment("CHESS_PREVIEW_NAME")
 	if output_name == "": output_name = "%s-%s.png" % [board_theme, piece_theme]
@@ -80,6 +80,41 @@ func capture_when_ready() -> void:
 	for frame in 30:
 		await process_frame
 	await create_timer(2.0).timeout
+
+	# One capture mode stands four units from the near army instead of thirteen.
+	#
+	# This exists because the board render cannot answer the question it is
+	# published for. At 1536x864 a figure is about sixty pixels tall, so a crown,
+	# a spearhead, a griffin's beak and a robe fold are three or four pixels each
+	# - which is enough to see that *something* is there and not enough to tell
+	# whether it reads as what it is. Every judgement about the figurative set's
+	# carving was being made on that, so the close-up is rendered by CI next to
+	# the board rather than being taken on trust.
+	#
+	# After the settle loop, because the rig writes the camera in
+	# _apply_camera_rig() and would overwrite anything set before it.
+	if OS.get_environment("CHESS_PREVIEW_DETAIL") == "1":
+		var camera := main.get("camera") as Camera3D
+		if is_instance_valid(camera):
+			# Global rather than local: the camera hangs off a rig node that the
+			# scene rotates to face the near army, and a local transform typed
+			# here would depend on that rotation.
+			camera.fov = 32.0
+			# The white army stands on the +z half of the board, so the camera
+			# stands off that side and looks back at its back rank; the first
+			# attempt was written from memory of the board render, where the pale
+			# army is at the bottom of the frame, and came back a portrait of the
+			# far army's backs.
+			camera.global_position = Vector3(3.40, 1.55, 1.55)
+			camera.look_at(Vector3(0.20, 0.58, 3.25), Vector3.UP)
+			# The HUD is not part of what the close-up is for, and the moves panel
+			# sits over the pieces at this distance. UI is a CanvasLayer in the
+			# scene, not a CanvasItem, so it is cast as one and not the other.
+			var hud := main.get_node_or_null("UI") as CanvasLayer
+			if is_instance_valid(hud):
+				hud.visible = false
+			for frame in 4:
+				await process_frame
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://build/preview"))
 	var image := root.get_texture().get_image()

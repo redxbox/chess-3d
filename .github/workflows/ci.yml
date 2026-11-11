@@ -25,6 +25,121 @@ jobs:
         uses: actions/checkout@v5
       - name: Import resources
         run: godot --headless --editor --quit-after 10
+      # GDScript resolves property assignment at run time, so `Viewport.
+      # shadow_atlas_size` and `Environment.dof_blur_far_enabled` both parsed,
+      # both passed --check-only, and both failed the startup check ten minutes
+      # later. The property lists come from Godot's own class reference at the tag
+      # this project builds against. See tools/check_engine_properties.py.
+      # The container image ships Godot and the Android toolchain but no Python.
+      # Both size checks below are Python (they parse OBJs and read the APK's
+      # zip directory), so it is installed once here rather than reimplemented
+      # in awk.
+      - name: Ensure python3
+        shell: bash
+        run: |
+          if ! command -v python3 >/dev/null; then
+            apt-get update && apt-get install -y --no-install-recommends python3
+            rm -rf /var/lib/apt/lists/*
+          fi
+
+      - name: Check engine properties exist
+        shell: bash
+        run: python3 tools/check_engine_properties.py
+
+      # Compile every script on its own, before anything is built. --check-only
+      # resolves identifiers, so it catches the class of error gdtoolkit's parser
+      # accepts: a declaration that was deleted but is still referenced, which
+      # shipped once and only surfaced in the startup log ten minutes later.
+      - name: Compile every script
+        shell: bash
+        run: |
+          set +e
+          failed=0
+          while IFS= read -r script; do
+            out=$(godot --headless --path . --check-only --script "res://$script" 2>&1)
+            code=$?
+            if [ "$code" -ne 0 ] || printf '%s' "$out" | grep -qE "SCRIPT ERROR|Parse Error|Identifier .* not declared"; then
+              failed=1
+              printf '::error title=%s::%s\n' "$script" "$(printf '%s' "$out" | tail -5 | tr '\n' ' ')"
+              printf '%s\n' "$out" | tail -20
+            fi
+          done < <(find src tools tests -name '*.gd' | sort)
+          exit "$failed"
+
+
+      # Every file the game reads with FileAccess has to be in the package. Godot
+      # only packs files it can import, or files its include_filter names, and a
+      # missing one is invisible in the editor and in the render job - both read
+      # the source tree - while the phone build draws whatever is left. A set of
+      # six colour sidecars missed the APK exactly this way and shipped as bare
+      # white pieces. See tools/check_export_presets.py.
+      - name: Check every runtime file reaches the package
+        run: python3 tools/check_export_presets.py
+
+      # The package budget is enforced before anything is built. It measures the
+      # part of the APK this repository decides - meshes, audio, scripts - and
+      # warns about files under assets/ that Godot has no importer for, which is
+      # how a multi-megabyte source export once came within one extension of
+      # shipping.
+      - name: Check packaged content budget
+        shell: bash
+        run: |
+          # No pipe into head. It was here to keep the annotation short, and what
+          # it actually did was close the script's stdout mid-write: the job then
+          # failed with exit 120 and a BrokenPipeError instead of with the budget
+          # message, which is exactly the kind of false alarm that makes a check
+          # stop being read. The full output goes to a file, the tail is printed,
+          # and the exit code is the script's own.
+          set +e
+          output=$(python3 tools/export_budget.py -v 2>&1)
+          status=$?
+          printf '%s\n' "$output" | tail -40
+          if [ "$status" -ne 0 ]; then
+            encoded=$(printf '%s' "$output" | grep -E 'budget|over|FAIL|WARNING' | tail -12 | base64 -w0 | cut -c1-4000)
+            echo "::error title=Content budget base64::$encoded"
+          fi
+          exit "$status"
+
+      # Nothing that is not a runtime asset may sit under assets/. A 36 MB folder
+      # of raw sculpts got packed into the APK that way once; see
+      # tools/check_shipped_assets.py.
+      # The board and the two armies must stay in separate brightness bands.
+      # Two complaints in a row were really one arithmetic failure - an army and
+      # a square landing on the same value, or a piece landing on 255 - so the
+      # relationship is measured here on every push instead of being eyeballed in
+      # a render review. See tools/check_visual_balance.py.
+      - name: Check board and armies stay in separate brightness bands
+        shell: bash
+        run: python3 tools/check_visual_balance.py
+
+      - name: Check nothing unshippable is in assets
+        shell: bash
+        run: python3 tools/check_shipped_assets.py
+
+      # The drop zone for new piece models. Uploading six GLBs has to be a
+      # complete act in itself, so this reports in the job summary what is
+      # sitting there and what is missing - it does not fail the build for an
+      # incomplete set, because an upload in progress is not a broken project,
+      # and it does fail for a file that cannot be read at all, because that is.
+      - name: Report the piece upload drop zone
+        if: hashFiles('tools/sources/incoming/*') != ''
+        shell: bash
+        run: |
+          set +e
+          output=$(python3 tools/check_incoming_set.py --strict 2>&1)
+          status=$?
+          printf '%s\n' "$output"
+          printf '```text\n%s\n```\n' "$output" >> "$GITHUB_STEP_SUMMARY"
+          if grep -q "UNREADABLE\|over the 25 MB" <<< "$output"; then
+            printf '%s\n' "$output" | grep -E 'UNREADABLE|25 MB' | sed ':a;N;$!ba;s/\n/%0A/g' > /tmp/incoming.txt
+            echo "::error title=Unusable file in the piece drop zone::$(cat /tmp/incoming.txt)"
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::notice title=Piece upload in progress::tools/sources/incoming holds an incomplete set - see the job summary"
+          fi
+          exit 0
+
       - name: Run chess rules tests
         shell: bash
         run: |
@@ -32,8 +147,19 @@ jobs:
           godot --headless --path . --script res://tests/test_chess.gd 2>&1 | tee /tmp/chess-tests.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            encoded_log=$(base64 -w0 /tmp/chess-tests.log | cut -c1-6000)
-            echo "::error title=Chess tests log base64::$encoded_log"
+            # The failures first: the full log is a hundred and forty passing
+            # lines, and an annotation is cut at about 4 000 characters, so the
+            # tail of the log is nearly all passes and the one failing case - the
+            # only thing anyone needs - fell off the end. The failing lines go in
+            # first, then as much of the tail as still fits.
+            {
+              echo "Failing cases:"
+              grep -E "FAIL|SCRIPT ERROR|Parse Error" /tmp/chess-tests.log | head -20
+              echo "--- end of log ---"
+              tail -20 /tmp/chess-tests.log
+            } | sed ':a;N;$!ba;s/\n/%0A/g' > /tmp/tail.txt
+            head -c 3800 /tmp/tail.txt > /tmp/tail-cut.txt
+            echo "::error title=Chess tests failed::$(cat /tmp/tail-cut.txt)"
           fi
           exit "$status"
       - name: Validate startup scene
@@ -41,7 +167,7 @@ jobs:
         run: |
           godot --headless --path . --quit-after 2 2>&1 | tee /tmp/godot-startup.log
           if grep -E "SCRIPT ERROR|Parse Error|Invalid call|Invalid set index" /tmp/godot-startup.log; then
-            encoded_log=$(base64 -w0 /tmp/godot-startup.log | cut -c1-6000)
+            encoded_log=$(base64 -w0 /tmp/godot-startup.log | cut -c1-24000)
             echo "::error title=Godot startup log base64::$encoded_log"
             echo "Godot reported a runtime error during startup"
             exit 1
@@ -56,108 +182,181 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-      - name: Install virtual display
+      - name: Install virtual display and the measurement tools
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends xvfb
+          # Pillow and numpy are for tools/measure_preview.py, which measures the
+          # renders this job produces; the image ships no Python at all.
+          apt-get install -y --no-install-recommends xvfb python3 python3-pil python3-numpy
           rm -rf /var/lib/apt/lists/*
       - name: Import resources
         run: godot --headless --editor --path . --quit-after 20
       - name: Render real Godot screenshot
         run: |
           mkdir -p build/preview
-          # Four combinations rather than one, because there are now four board
-          # themes and four piece sets and each of the two axes has to be seen
-          # working: the diagonal shows all four boards and all four sets in the
-          # smallest number of renders. classic-royal_wood is kept because the
-          # published showcase image is that pairing.
-          for pair in medieval-medieval persian-persian medieval-classic classic-classic classic-royal_wood jade-marble royal_blue-baroque royal_wood-classic; do
-            board="${pair%%-*}"
-            pieces="${pair#*-}"
-            name="${pair}.png"
+          # One render per board, all four of them with the one shipped piece
+          # set: the piece side of the picker has no alternatives to prove any
+          # more, and the board is what varies in the frame.
+          for board in classic royal_wood jade royal_blue; do
+            pieces=classic
+            name="${board}-${pieces}.png"
             CHESS_BOARD_THEME="$board" CHESS_PIECE_THEME="$pieces" CHESS_PREVIEW_NAME="$name" \
               xvfb-run -a -s "-screen 0 1536x864x24" \
               godot --path . --rendering-method gl_compatibility \
               --resolution 1536x864 --script res://tools/capture_preview.gd
             test -s "build/preview/$name"
           done
+          # And one close-up of the near army, because at board scale a crown is
+          # three pixels and no judgement about the carving can be made on it.
+          CHESS_PREVIEW_DETAIL=1 CHESS_BOARD_THEME=royal_wood CHESS_PIECE_THEME=classic \
+            CHESS_PREVIEW_NAME=classic-detail.png \
+            xvfb-run -a -s "-screen 0 1536x864x24" \
+            godot --path . --rendering-method gl_compatibility \
+            --resolution 1536x864 --script res://tools/capture_preview.gd
+          test -s "build/preview/classic-detail.png"
           # And the style screen itself, so the picker is reviewed in CI too.
           CHESS_PREVIEW_PICKER=1 CHESS_PREVIEW_NAME=style-picker.png \
             xvfb-run -a -s "-screen 0 1536x864x24" \
             godot --path . --rendering-method gl_compatibility \
             --resolution 1536x864 --script res://tools/capture_preview.gd
           test -s "build/preview/style-picker.png"
-          cp build/preview/classic-royal_wood.png build/preview/theme-showcase-preview.png
+          cp build/preview/royal_wood-classic.png build/preview/theme-showcase-preview.png
+      # The only place a frame time exists in this pipeline. It is llvmpipe, so
+      # the number is not the phone's - what it is, is comparable: same machine,
+      # same renderer, same resolution, every run. The report goes to the job
+      # summary beside the renders it was measured on.
+      - name: Benchmark load and frame time
+        shell: bash
+        run: |
+          set +e
+          xvfb-run -a -s "-screen 0 1536x864x24" \
+            godot --path . --rendering-method gl_compatibility --resolution 1536x864 \
+            --script res://tools/bench_perf.gd 2>&1 | tee build/preview/perf.log
+          status=${PIPESTATUS[0]}
+          grep '^BENCH ' build/preview/perf.log | sed 's/^BENCH //' > build/preview/perf.txt
+          if [ ! -s build/preview/perf.txt ]; then
+            echo "::error title=Benchmark produced no figures::the benchmark did not run"
+            exit 1
+          fi
+          { printf '## Performance (llvmpipe, 1536x864 - relative, not a phone)\n\n| metric | value |\n| --- | --- |\n'
+            while read -r name value; do printf '| %s | %s |\n' "$name" "$value"; done < build/preview/perf.txt; } >> "$GITHUB_STEP_SUMMARY"
+          # Also as a step annotation, because the artifact is not always
+          # downloadable and these are the numbers every performance change in
+          # this project is judged against.
+          compact=$(paste -sd' ' build/preview/perf.txt)
+          echo "::notice title=Performance::$compact"
+          cat build/preview/perf.txt
+          exit "$status"
+
       - name: Upload visual preview
         uses: actions/upload-artifact@v4
         with:
           name: all-theme-previews-${{ github.run_number }}
-          path: build/preview/*.png
+          path: |
+            build/preview/*.png
+            build/preview/perf.txt
           if-no-files-found: error
           retention-days: 14
-      - name: Publish latest preview on session branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/arena/01a0dc2e-chess-3d'
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const fs = require('fs');
-            const path = 'docs/previews/theme-showcase-preview.png';
-            let sha;
-            try {
-              const current = await github.rest.repos.getContent({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                path,
-                ref: context.ref
-              });
-              sha = current.data.sha;
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
-            await github.rest.repos.createOrUpdateFileContents({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              path,
-              branch: 'arena/01a0dc2e-chess-3d',
-              message: 'Update rendered Persian preview [skip ci]',
-              content: fs.readFileSync('build/preview/theme-showcase-preview.png').toString('base64'),
-              ...(sha ? { sha } : {})
-            });
-      # Committing the per-theme renders back to the branch gives a real visual
-      # feedback loop: the sandbox that edits the code has no Godot binary, so
-      # without this step lighting and material changes could only be judged by
-      # the arithmetic behind them.
-      - name: Publish per-theme renders on this branch
+
+      # Committing the per-theme renders and the benchmark back to the branch is
+      # what gives this project a real visual feedback loop: the sandbox that
+      # edits the code has no Godot binary, so without it lighting and material
+      # changes could only be judged by the arithmetic behind them.
+      #
+      # One commit per run, and only when something actually changed. The first
+      # version of this step called createOrUpdateFileContents once per file -
+      # seven commits, seven push events, so seven notification e-mails per run,
+      # and it committed them every time whether or not a pixel had moved. Over
+      # eighty commits on the branch, seventy were that step rewriting identical
+      # PNGs. So the bytes are compared against what is already on the branch,
+      # and the survivors go into one tree and one commit through the Git data
+      # API. A run that changed nothing now pushes nothing.
+      - name: Publish renders and benchmark on this branch
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/arena/')
         uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
             const branch = context.ref.replace('refs/heads/', '');
-            for (const name of ['medieval-medieval.png', 'persian-persian.png', 'medieval-classic.png', 'classic-classic.png', 'classic-royal_wood.png', 'jade-marble.png', 'royal_blue-baroque.png', 'royal_wood-classic.png', 'style-picker.png']) {
-              const path = `docs/previews/${name}`;
-              let sha;
-              try {
-                const current = await github.rest.repos.getContent({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  path,
-                  ref: context.ref
-                });
-                sha = current.data.sha;
-              } catch (error) {
-                if (error.status !== 404) throw error;
+            const files = {
+              'docs/previews/classic-classic.png': 'build/preview/classic-classic.png',
+              'docs/previews/royal_wood-classic.png': 'build/preview/royal_wood-classic.png',
+              'docs/previews/jade-classic.png': 'build/preview/jade-classic.png',
+              'docs/previews/royal_blue-classic.png': 'build/preview/royal_blue-classic.png',
+              'docs/previews/classic-detail.png': 'build/preview/classic-detail.png',
+              'docs/previews/style-picker.png': 'build/preview/style-picker.png',
+              'docs/perf/latest.txt': 'build/preview/perf.txt',
+            };
+
+            const head = await github.rest.repos.getBranch({ owner, repo, branch });
+            const parent = head.data.commit.sha;
+            const tree = await github.rest.git.getTree({ owner, repo, tree_sha: parent, recursive: 'true' });
+            const existing = new Map(tree.data.tree.map((entry) => [entry.path, entry.sha]));
+
+            const entries = [];
+            for (const [path, source] of Object.entries(files)) {
+              const local = fs.readFileSync(source);
+              const current = existing.get(path);
+              if (current) {
+                const blob = await github.rest.git.getBlob({ owner, repo, file_sha: current });
+                if (blob.data.encoding === 'base64' && Buffer.from(blob.data.content, 'base64').equals(local)) {
+                  continue;
+                }
               }
-              await github.rest.repos.createOrUpdateFileContents({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                path,
-                branch,
-                message: `Update ${name} render [skip ci]`,
-                content: fs.readFileSync(`build/preview/${name}`).toString('base64'),
-                ...(sha ? { sha } : {})
+              const created = await github.rest.git.createBlob({
+                owner, repo, encoding: 'base64', content: local.toString('base64'),
               });
+              entries.push({ path, mode: '100644', type: 'blob', sha: created.data.sha });
             }
+
+            if (entries.length === 0) {
+              console.log('Renders and benchmark are unchanged; nothing to publish.');
+              return;
+            }
+
+            const next = await github.rest.git.createTree({
+              owner, repo, base_tree: parent, tree: entries,
+            });
+            const commit = await github.rest.git.createCommit({
+              owner,
+              repo,
+              message: `Publish renders and benchmark [skip ci]\n\n${entries.map((e) => e.path).join('\n')}`,
+              tree: next.data.sha,
+              parents: [parent],
+            });
+            // force: false, so a human commit that landed while this job ran is
+            // never overwritten - the push is rejected and the next run redoes it.
+            await github.rest.git.updateRef({
+              owner, repo, ref: `heads/${branch}`, sha: commit.data.sha, force: false,
+            });
+            console.log(`Published ${entries.length} file(s) in one commit ${commit.data.sha}.`);
+
+      # The albedo guard cannot see the render: exposure, ACES, the light rig and
+      # the baked vertex occlusion all sit between an albedo and a pixel. This is
+      # the end-to-end measurement - the light squares, the dark squares, both
+      # armies' bodies and the background, read off the PNGs just produced, at
+      # the coordinates the camera rig says the board is at.
+      - name: Measure the renders
+        shell: bash
+        run: |
+          set +e
+          output=$(python3 tools/measure_preview.py \
+            build/preview/classic-classic.png \
+            build/preview/royal_wood-classic.png \
+            build/preview/jade-classic.png \
+            build/preview/royal_blue-classic.png 2>&1)
+          status=$?
+          printf '%s\n' "$output"
+          printf '```text\n%s\n```\n' "$output" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ]; then
+            # Only the failures, not the tail: four images of numbers is 4 000
+            # characters of annotation for four lines that matter.
+            printf '%s\n' "$output" | grep -E '^== |FAIL ' | sed ':a;N;$!ba;s/\n/%0A/g' > /tmp/measure.txt
+            echo "::error title=Render outside its brightness bands::$(cat /tmp/measure.txt)"
+          fi
+          exit "$status"
 
   android-debug:
     name: Build Android debug APK
@@ -210,10 +409,16 @@ jobs:
           tail -120 build/android/export.log >> "$GITHUB_STEP_SUMMARY"
           printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
           if [ "$status" -ne 0 ]; then
-            encoded_log=$(base64 -w0 build/android/export.log | cut -c1-6000)
-            echo "::error title=Godot export log base64::$encoded_log"
-            tail -12 build/android/export.log | while IFS= read -r line; do
-              echo "::error title=Godot Android export::$line"
+            # The last twelve lines of an Android export are Godot shutting
+            # down; the reason is Gradle's, a few hundred lines earlier, and
+            # GitHub keeps at most ten annotations per step - so the reason goes
+            # first and the tail follows only if there is room.
+            grep -aE "FAILURE:|Execution failed|Caused by:|^error:|\bERROR: |Failed to|What went wrong|Could not" \
+              build/android/export.log | head -6 | while IFS= read -r line; do
+              echo "::error title=Android export reason (whole log in the run summary)::${line:0:900}"
+            done
+            tail -4 build/android/export.log | while IFS= read -r line; do
+              echo "::error title=Godot Android export tail::${line:0:900}"
             done
           fi
           exit "$status"
@@ -246,6 +451,33 @@ jobs:
             exit 1
           fi
           printf '## APK identity\n\n| field | value |\n| --- | --- |\n| version name | `%s` |\n| version code | `%s` |\n\nInstall this build; **About** reports `%s`.\n' "$got_name" "$got_code" "$got_name" >> "$GITHUB_STEP_SUMMARY"
+      # The container image ships Godot and the Android toolchain but no Python.
+      # Both size checks below are Python (they parse OBJs and read the APK's
+      # zip directory), so it is installed once here rather than reimplemented
+      # in awk.
+      - name: Ensure python3
+        shell: bash
+        run: |
+          if ! command -v python3 >/dev/null; then
+            apt-get update && apt-get install -y --no-install-recommends python3
+            rm -rf /var/lib/apt/lists/*
+          fi
+
+      # The APK's own file list, not a guess: this is the only place the real
+      # number exists. The table goes into the job summary and the total into a
+      # step annotation, which the API can read, so a size change is visible on
+      # the pull request that caused it instead of only on a phone.
+      - name: Report package size
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=build/android/chess-3d.apk
+          total=$(stat -c %s "$APK")
+          python3 tools/apk_size_report.py "$APK" --annotate > build/android/size-report.md
+          echo "::notice title=APK size::$total bytes"
+          { printf '## APK size\n\n`%s` - %s\n\n' "$APK" "$(numfmt --to=iec "$total")"
+            cat build/android/size-report.md; } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
