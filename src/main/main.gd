@@ -227,11 +227,11 @@ const PIECE_THEMES := {
 		# charcoal, so the blue is gone and the red is two points above the green.
 		"dark": Color(0.330, 0.312, 0.292),
 		"accent": Color(0.95, 0.755, 0.380),
-		"light_roughness": 0.38,
+		"light_roughness": 0.44,
 		# 0.20 rather than 0.26: on the charcoal body this turns the crown, the
 		# collar and the curve of a mane into one hard travelling highlight, which
 		# is what makes a black piece read as polished ebony rather than as clay.
-		"dark_roughness": 0.20,
+		"dark_roughness": 0.30,
 		"accent_roughness": 0.26,
 		"accent_metallic": 0.85,
 		# None: the turned set's ornament is the generated trim mesh, which is
@@ -265,6 +265,12 @@ var _piece_gold_material: StandardMaterial3D
 var selected := Vector2i(-1, -1)
 var selected_moves: Array[Dictionary] = []
 var last_move: Dictionary = {}
+var _white_card: PanelContainer = null
+var _black_card: PanelContainer = null
+var _opponent_clock_label: Label = null
+var _opponent_name_label: Label = null
+var _opponent_detail_label: Label = null
+var _player_name_label: Label = null
 var play_vs_ai := true
 var human_color := ChessRules.WHITE
 var ai_difficulty := "medium"
@@ -465,16 +471,36 @@ func _apply_camera_rig() -> void:
 	if not is_instance_valid(camera):
 		return
 	camera.fov = CameraRigSpec.FOV
-	camera.position = CameraRigSpec.home()
+	camera.position = CameraRigSpec.home(_framed_distance())
 	# look_at() rather than a rotation written by hand: the target is the board's
 	# exact centre, so the horizon of the perspective is the middle of the grid
 	# and the two armies are framed identically however the elevation is changed.
 	camera.look_at(Vector3.ZERO, Vector3.UP)
 
 
+## The resting distance for the screen the game is actually on.
+##
+## The set is 20 units wide once the two trays are in it, and the camera's
+## horizontal field is fixed, so on anything narrower than about 16:9 the trays
+## walk off both edges of the frame. Rather than a second camera, the distance is
+## scaled by what the frame is missing: a 4:3 tablet pulls back about 15 per cent
+## and a portrait phone nearly doubles it. Clamped to the zoom range so the reset
+## can never put the camera somewhere the player cannot zoom back from.
+func _framed_distance() -> float:
+	var viewport := get_viewport()
+	if viewport == null:
+		return CameraRigSpec.DISTANCE_DEFAULT
+	var size := viewport.get_visible_rect().size
+	if size.y <= 0.0:
+		return CameraRigSpec.DISTANCE_DEFAULT
+	var aspect := size.x / size.y
+	var wanted := 20.0 / (2.0 * tan(deg_to_rad(CameraRigSpec.FOV) * 0.5) * maxf(aspect, 0.35))
+	return clampf(wanted, CameraRigSpec.DISTANCE_MIN, CameraRigSpec.DISTANCE_MAX)
+
+
 ## The camera's resting position, for the reset tween.
 func _camera_home_position() -> Vector3:
-	return CameraRigSpec.home()
+	return CameraRigSpec.home(_framed_distance())
 
 
 func _setup_environment() -> void:
@@ -704,8 +730,76 @@ func _surface_map(kind: String) -> Texture2D:
 		"walnut_normal": texture = _normal_map(_surface_heights(SURFACE_WALNUT))
 		"rosewood": texture = _surface_texture(SURFACE_ROSEWOOD)
 		"rosewood_normal": texture = _normal_map(_surface_heights(SURFACE_ROSEWOOD))
+		# The four woods the physical board is built from. Light maple and
+		# walnut for the squares, a walnut frame, and the same walnut held a
+		# shade darker for the tray rims.
+		"maple": texture = _wood_texture(Color(0.62, 0.50, 0.34), Color(0.50, 0.38, 0.23), 1201)
+		"maple_normal": texture = _normal_map(_wood_heights(1201))
+		"walnut": texture = _wood_texture(Color(0.36, 0.27, 0.19), Color(0.24, 0.17, 0.11), 4407)
+		"walnut_normal": texture = _normal_map(_wood_heights(4407))
+		"frame_wood": texture = _wood_texture(Color(0.42, 0.29, 0.18), Color(0.28, 0.18, 0.10), 7717)
+		"frame_wood_normal": texture = _normal_map(_wood_heights(7717))
+		# Piece grain. Deliberately neutral: these are detail maps multiplied
+		# over the army's own albedo, so they carry the figure and the polish
+		# variation and none of the colour. A tinted map here would fight the
+		# palette and leave the two armies one wood apart.
+		"piece_wood": texture = _wood_texture(Color(1.0, 0.975, 0.94), Color(0.80, 0.745, 0.67), 3301, 0.55)
+		"piece_wood_normal": texture = _normal_map(_wood_heights(3301))
 	_surface_maps[kind] = texture
 	return texture
+
+
+## A wood albedo: two tints and a grain field.
+##
+## The grain is not noise - it is noise *warped and stretched*. A plain noise
+## field at this frequency reads as blotches on a flat surface (that was the
+## first attempt, and on a chess square it looked like felt). What makes wood
+## read as wood is that the figure runs in one direction and wanders only
+## slightly across it, so the field is sampled with u stretched by 0.08 and v
+## squeezed by 9, then the rings are `sin` of v plus the warped field. The
+## result is a handful of long, soft bands per tile with a slight wave in them,
+## which is exactly the scale of figure you see on a plane-tree or walnut board.
+##
+## `contrast` is how far towards the dark tint the darkest grain goes; 0.42 is
+## restrained on purpose - a board whose grain is a pattern competes with the
+## pieces for attention, and every review of this project has asked for the
+## board to recede.
+func _wood_texture(base: Color, dark: Color, seed_value: int, contrast := 0.42) -> ImageTexture:
+	var size := _map_size() * 2
+	var warp := _surface_noise(seed_value, 0.45)
+	var fine := _surface_noise(seed_value + 733, 2.4)
+	var image := Image.create(size, size, true, Image.FORMAT_RGB8)
+	for y in size:
+		for x in size:
+			var u := float(x) / float(size)
+			var v := float(y) / float(size)
+			var pulled := warp.get_noise_2d(u * 0.55, v * 0.9)
+			# Long bands along u, a slow wave across them, and a fine streak on
+			# top of that so the bands are not mathematically smooth.
+			var bands := sin((v * 7.0 + pulled * 1.35) * TAU)
+			var streak := fine.get_noise_2d(u * 0.30, v * 26.0)
+			var figure := clampf(bands * 0.62 + streak * 0.38, -1.0, 1.0)
+			var amount := (figure * 0.5 + 0.5) * contrast
+			image.set_pixel(x, y, base.lerp(dark, amount))
+	image.generate_mipmaps()
+	return ImageTexture.create_from_image(image)
+
+
+## The height field that gives the grain its relief: the same bands, at a third
+## of the amplitude. Anything stronger and a machined square stops looking
+## machined.
+func _wood_heights(seed_value: int) -> PackedFloat32Array:
+	var size := _map_size()
+	var warp := _surface_noise(seed_value, 0.45)
+	var heights := PackedFloat32Array()
+	heights.resize(size * size)
+	for y in size:
+		for x in size:
+			var u := float(x) / float(size)
+			var v := float(y) / float(size)
+			var pulled := warp.get_noise_2d(u * 0.55, v * 0.9)
+			heights[y * size + x] = sin((v * 7.0 + pulled * 1.35) * TAU) * 0.09
+	return heights
 
 
 func _map_size() -> int:
@@ -880,7 +974,14 @@ func _setup_piece_materials() -> void:
 	# The specular is the other half of the story: at 0.06 the pale body was almost
 	# purely diffuse and a fold had no highlight along its crest at all, which is
 	# why the carving read as chalk.
-	var porcelain := _luxury_piece_material(body_light, clampf(palette.light_roughness, 0.30, 0.42), 0.0, false, false, 0.28, null, carve, 0.06, 0.40, 0.20, true)
+	# The body carries a wood grain now, triplanar so the turned surfaces and the
+	# knight's swept shell take it in the same direction. The grain map is
+	# neutral - it multiplies the army's albedo rather than recolouring it - so
+	# the two armies still differ by palette and only by palette.
+	var porcelain := _luxury_piece_material(body_light, clampf(palette.light_roughness, 0.34, 0.50), 0.0, false, false, 0.26,
+		_surface_map("piece_wood"), carve, 0.06, 0.40, 0.20, true)
+	porcelain.uv1_triplanar = true
+	porcelain.uv1_scale = Vector3(1.15, 1.15, 1.15)
 	# A rim light on the material itself, as well as the physical rim light in
 	# the scene: this one is view-dependent, so it traces the silhouette from
 	# wherever the camera is, which is what makes the edge of a pale piece read
@@ -919,7 +1020,10 @@ func _setup_piece_materials() -> void:
 	# The tight lobe is doing the work here: it is what draws a highlight along a
 	# mane, a shield rim and the fold of a robe on an army that would otherwise be
 	# a silhouette against dark squares.
-	var ebony := _luxury_piece_material(body_dark, clampf(palette.dark_roughness, 0.18, 0.30), 0.05, false, false, 0.65, null, carve, 0.22, 0.40, 0.20, true)
+	var ebony := _luxury_piece_material(body_dark, clampf(palette.dark_roughness, 0.22, 0.38), 0.05, false, false, 0.50,
+		_surface_map("piece_wood"), carve, 0.22, 0.40, 0.20, true)
+	ebony.uv1_triplanar = true
+	ebony.uv1_scale = Vector3(1.15, 1.15, 1.15)
 	ebony.rim_enabled = true
 	ebony.rim = 0.35
 	ebony.rim_tint = 0.35
@@ -1421,11 +1525,35 @@ func _create_board() -> void:
 	# spreads what is left over a half-tile instead of a corner. The sky's own
 	# reflection still reaches them through the ambient term, which is what keeps
 	# a square from reading as flat paint.
-	_board_light_material = _material(light_square, clampf(square_roughness + 0.10, 0.40, 0.44), 0.0, false, 0.02)
-	_board_dark_material = _material(dark_square, clampf(square_roughness + 0.10, 0.40, 0.44), 0.0, false, 0.02)
+	# The squares carry grain now, which is the single largest visual change of
+	# this round. They were flat colour for two rounds because a noise field on a
+	# broad face aliased into banding on the far ranks - but flat colour is also
+	# what made the board read as painted cardboard next to the reference. The
+	# fix is not "more noise": it is a grain that is *directional* and has a real
+	# mip chain, sampled at a scale where a tile shows three or four bands rather
+	# than thirty. Each square's box UV is scaled down in v so the bands run
+	# along the file direction, the way a plank is milled.
+	_board_light_material = _material(light_square, clampf(square_roughness + 0.12, 0.42, 0.46), 0.0, false, 0.05,
+		_surface_map("maple"), _surface_map("maple_normal"))
+	_board_light_material.uv1_scale = Vector3(0.55, 0.16, 0.55)
+	_board_light_material.normal_scale = 0.35
+	_board_dark_material = _material(dark_square, clampf(square_roughness + 0.12, 0.42, 0.46), 0.0, false, 0.05,
+		_surface_map("walnut"), _surface_map("walnut_normal"))
+	_board_dark_material.uv1_scale = Vector3(0.55, 0.16, 0.55)
+	_board_dark_material.normal_scale = 0.35
 	var apron_material := _material(apron, apron_roughness, apron_metallic, false, 0.06,
-		_surface_map(apron_map), _surface_map(apron_map + "_normal"))
+		_surface_map("frame_wood"), _surface_map("frame_wood_normal"))
+	apron_material.uv1_scale = Vector3(0.30, 0.30, 0.30)
+	apron_material.uv1_triplanar = true
 	var trim_material := _material(trim, trim_roughness, 0.90, false, 0.10)
+	# The felt in the two side trays: dark, matte, and very slightly figured, so
+	# it reads as a flat inlay rather than as a hole cut in the wood.
+	var tray_felt := _matte_material(Color(0.105, 0.100, 0.098), 0.88,
+		_surface_map("marble"), _surface_map("marble_normal"), 0.02)
+	var tray_wood := _material(apron.lerp(Color(0.30, 0.20, 0.12), 0.35), apron_roughness, apron_metallic, false, 0.06,
+		_surface_map("frame_wood"), _surface_map("frame_wood_normal"))
+	tray_wood.uv1_scale = Vector3(0.30, 0.30, 0.30)
+	tray_wood.uv1_triplanar = true
 	var table_material := _matte_material(table, 0.55,
 		_surface_map(apron_map), _surface_map(apron_map + "_normal"), 0.06)
 
@@ -1485,8 +1613,31 @@ func _create_board() -> void:
 	# wide as the slab above, so the stack runs continuously from the tile
 	# bottoms down to the table with no gap and no overhang on any side.
 	_add_board_box(Vector3(0, -0.145, 0), Vector3(9.40, 0.10, 9.40), apron_material)
-	_add_board_box(Vector3(0, -0.295, 0), Vector3(10.40, 0.20, 10.40), table_material)
-	_add_board_box(Vector3(0, -0.545, 0), Vector3(11.60, 0.30, 11.60), table_material)
+	# The platform. One slab under the board and both trays, so the set reads as
+	# one piece of furniture rather than as a board floating with two rectangles
+	# beside it. Its top is a hair under the board's plinth, so the frame's bottom
+	# step is still a visible shadow line.
+	_add_board_box(Vector3(0, -0.235, 0), Vector3(19.90, 0.10, 10.60), apron_material)
+	_add_board_box(Vector3(0, -0.375, 0), Vector3(20.50, 0.18, 11.20), table_material)
+	# The two side trays, and they are structural rather than decorative: a
+	# wooden rim, a recessed felt floor, and the rim's inner lip below the board's
+	# top face so a captured piece would sit down inside it.
+	#
+	# Each tray is five boxes rather than a CSG cut, so it costs five draw calls
+	# and no boolean geometry at load time: a base plate, a felt inlay a few
+	# millimetres above it, and three rim bars (outer, and a bar on the inner
+	# side facing the board). The bars are what cast the shadow that makes the
+	# recess read as a recess.
+	for side in [-1.0, 1.0]:
+		var cx: float = side * 7.35
+		_add_board_box(Vector3(cx, -0.150, 0), Vector3(4.60, 0.07, 8.80), tray_wood)
+		_add_board_box(Vector3(cx, -0.100, 0), Vector3(4.10, 0.03, 8.30), tray_felt)
+		# Outer rim, then the two end bars.
+		_add_board_box(Vector3(side * 9.45, -0.060, 0), Vector3(0.32, 0.13, 8.80), tray_wood)
+		_add_board_box(Vector3(cx, -0.060, 4.30), Vector3(4.60, 0.13, 0.32), tray_wood)
+		_add_board_box(Vector3(cx, -0.060, -4.30), Vector3(4.60, 0.13, 0.32), tray_wood)
+		# Inner rim, hard against the board's frame.
+		_add_board_box(Vector3(side * 5.25, -0.060, 0), Vector3(0.32, 0.13, 8.80), tray_wood)
 
 	_add_board_coordinates()
 
@@ -2490,24 +2641,26 @@ func _create_ui() -> void:
 	$UI.move_child(sidebar, 0)
 	_register_left_column(sidebar)
 
+	# The control row lives along the bottom edge now, the way the reference lays
+	# it out, instead of across the top: the top of the frame belongs to the two
+	# player cards, and a button row over the far rank was the one piece of the
+	# interface that sat on top of the pieces.
 	_top_panel = HBoxContainer.new()
 	var panel := _top_panel
+	panel.name = "ControlBar"
 	panel.add_theme_constant_override("separation", 6)
 	$UI.add_child(panel)
-	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, 14)
+	_make_player_cards()
 
+	# Whose turn it is, in one line, centred at the top where nothing else is.
 	_status_label = Label.new()
-	_status_label.custom_minimum_size = Vector2(196, 44)
-	_status_label.add_theme_font_size_override("font_size", 20)
+	_status_label.custom_minimum_size = Vector2(196, 34)
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status_label.add_theme_font_size_override("font_size", 19)
 	_status_label.add_theme_color_override("font_color", Color("e8c56a"))
-	panel.add_child(_status_label)
-
-	_clock_label = Label.new()
-	_clock_label.custom_minimum_size = Vector2(146, 44)
-	_clock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_clock_label.add_theme_font_size_override("font_size", 20)
-	_clock_label.add_theme_color_override("font_color", Color(0.90, 0.90, 0.92, 0.94))
-	panel.add_child(_clock_label)
+	$UI.add_child(_status_label)
+	_status_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE, 12)
 
 	_mode_button = Button.new()
 	_mode_button.text = "VS AI" if play_vs_ai else "LOCAL"
@@ -2597,6 +2750,7 @@ func _create_ui() -> void:
 	$UI.add_child(_fps_label)
 	_create_main_menu()
 	_create_game_panels()
+	_make_corner_buttons()
 
 
 func _style_hud_button(button: Button) -> void:
@@ -2899,6 +3053,109 @@ func _open_theme_picker() -> void:
 	# The menu pauses the tree, and this screen is opened from the menu, so it has
 	# to keep processing while paused or its buttons would not react.
 	_theme_overlay.process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+
+
+## One player card at each top corner, the way a broadcast chess game puts them:
+## a portrait tile, a name, the increment, and that player's clock.
+##
+## The two clocks used to be one label reading "W 09:55 • B 10:00" in the middle
+## of a button row. That is a scoreboard, not a chess game: at a glance it does
+## not say which army's time is running out, and it is the one piece of
+## information on this screen that a player looks at under time pressure. Split
+## in two, each clock sits on the side of the board its army is on.
+## The two thumb controls the reference puts in the bottom corners: undo on the
+## left, home on the right. Both already existed in the control bar, so these are
+## second buttons wired to the same methods rather than new behaviour - a thumb
+## reaches a corner, and the bar is for the things you change once a game.
+func _make_corner_buttons() -> void:
+	var undo := _corner_button("UNDO", "bottom_left", 14, 14)
+	undo.pressed.connect(_undo)
+	var home := _corner_button("HOME", "bottom_right", -14, 14)
+	home.pressed.connect(_show_main_menu)
+
+
+func _corner_button(label: String, corner: String, inset_x: float, inset_y: float) -> Button:
+	var button := Button.new()
+	button.text = label
+	button.custom_minimum_size = Vector2(92, 52)
+	button.add_theme_font_size_override("font_size", 14)
+	button.add_theme_stylebox_override("normal",
+		_glass_stylebox(12, Color(0.105, 0.082, 0.060, 0.82), Color(0.74, 0.60, 0.38, 0.45)))
+	button.add_theme_stylebox_override("hover",
+		_glass_stylebox(12, Color(0.20, 0.15, 0.09, 0.92), Color("e2c184")))
+	button.add_theme_stylebox_override("pressed",
+		_glass_stylebox(12, Color(0.26, 0.19, 0.11, 0.95), Color("e2c184")))
+	$UI.add_child(button)
+	if corner == "bottom_left":
+		button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, int(inset_y))
+	else:
+		button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_MINSIZE, int(inset_y))
+	button.offset_left += 0.0
+	# The preset positions the control against the edge with the given margin, so
+	# the horizontal inset is already the margin; the parameter exists so the two
+	# corners can be tuned apart if a phone's gesture bar ever needs it.
+	button.offset_left += inset_x * 0.0
+	return button
+
+
+func _make_player_cards() -> void:
+	_white_card = _player_card("Player", "+3s", true)
+	_white_card.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE, 14)
+	_black_card = _player_card("AI", "LEVEL MEDIUM", false)
+	_black_card.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 14)
+	_register_left_column(_white_card)
+
+
+func _player_card(title: String, detail: String, pale: bool) -> PanelContainer:
+	var card := PanelContainer.new()
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_theme_stylebox_override("panel",
+		_glass_stylebox(14, Color(0.105, 0.082, 0.060, 0.80), Color(0.74, 0.60, 0.38, 0.42)))
+	$UI.add_child(card)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	card.add_child(row)
+	# The portrait tile. A circle would need a shader or a rounded stylebox per
+	# size; a rounded square is the same idea at a fixed radius and it matches the
+	# corner radius of every other panel on the screen.
+	var avatar := Panel.new()
+	avatar.custom_minimum_size = Vector2(52, 52)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.72, 0.70, 0.66) if pale else Color(0.16, 0.15, 0.145)
+	style.border_color = Color(0.80, 0.66, 0.42, 0.9)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(10)
+	avatar.add_theme_stylebox_override("panel", style)
+	row.add_child(avatar)
+	var text := VBoxContainer.new()
+	text.add_theme_constant_override("separation", 0)
+	text.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(text)
+	var name_label := Label.new()
+	name_label.text = title.to_upper()
+	name_label.add_theme_font_size_override("font_size", 16)
+	name_label.add_theme_color_override("font_color", Color(0.96, 0.93, 0.86))
+	text.add_child(name_label)
+	var detail_label := Label.new()
+	detail_label.text = detail
+	detail_label.add_theme_font_size_override("font_size", 11)
+	detail_label.add_theme_color_override("font_color", Color(0.76, 0.68, 0.55))
+	text.add_child(detail_label)
+	var clock := Label.new()
+	clock.custom_minimum_size = Vector2(96, 0)
+	clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	clock.add_theme_font_size_override("font_size", 26)
+	clock.add_theme_color_override("font_color", Color(0.98, 0.94, 0.86))
+	clock.text = "10:00"
+	row.add_child(clock)
+	if pale:
+		_clock_label = clock
+		_player_name_label = name_label
+	else:
+		_opponent_clock_label = clock
+		_opponent_name_label = name_label
+		_opponent_detail_label = detail_label
+	return card
 
 
 func _build_theme_picker() -> void:
@@ -3260,10 +3517,27 @@ func _cycle_player_color() -> void:
 	_color_button.text = _text("play_as") + _text("white" if human_color == ChessRules.WHITE else "black")
 
 
+## The opponent card's second line says who the other side is. It changes with
+## the mode and the level, so both of those call this rather than writing the
+## label from two places.
+func _refresh_opponent_card() -> void:
+	if not is_instance_valid(_opponent_name_label):
+		return
+	if play_vs_ai:
+		_opponent_name_label.text = "AI"
+		_opponent_detail_label.text = "LEVEL " + ai_difficulty.to_upper()
+	else:
+		_opponent_name_label.text = "PLAYER 2"
+		_opponent_detail_label.text = "LOCAL"
+	if is_instance_valid(_player_name_label):
+		_player_name_label.text = "PLAYER" if play_vs_ai else "PLAYER 1"
+
+
 func _cycle_ai_difficulty() -> void:
 	var levels := ["easy", "medium", "hard", "professional"]
 	ai_difficulty = levels[(levels.find(ai_difficulty) + 1) % levels.size()]
 	_difficulty_button.text = _text("level") + _text(ai_difficulty)
+	_refresh_opponent_card()
 
 
 func _update_move_history() -> void:
@@ -4073,14 +4347,12 @@ func _update_status() -> void:
 
 
 func _update_clock_label() -> void:
-	if not is_instance_valid(_clock_label):
-		return
-	var text := "Clock: OFF"
-	if clock_enabled:
-		text = "W %s  •  B %s" % [_format_time(white_time), _format_time(black_time)]
-	if text == _clock_label.text:
-		return
-	_clock_label.text = text
+	var white_text := "--:--" if not clock_enabled else _format_time(white_time)
+	var black_text := "--:--" if not clock_enabled else _format_time(black_time)
+	if is_instance_valid(_clock_label) and _clock_label.text != white_text:
+		_clock_label.text = white_text
+	if is_instance_valid(_opponent_clock_label) and _opponent_clock_label.text != black_text:
+		_opponent_clock_label.text = black_text
 
 
 func _format_time(seconds: float) -> String:
@@ -4391,6 +4663,7 @@ func _apply_left_column_safe_area(safe: Rect2i, scale_x: float, scale_y: float, 
 func _toggle_game_mode() -> void:
 	play_vs_ai = not play_vs_ai
 	_mode_button.text = "VS AI" if play_vs_ai else "LOCAL"
+	_refresh_opponent_card()
 	_new_game()
 
 

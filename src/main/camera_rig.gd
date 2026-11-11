@@ -7,28 +7,21 @@ extends RefCounted
 ## have to orbit: tests/test_chess.gd checks them, and the scene file and the
 ## reset tween both read them from here so they cannot drift apart.
 ##
-## Elevation: 58 degrees. At the 42 the project shipped with, the back rank sat
-## directly behind the pawns - a knight's head was cut in half by the pawn in
-## front of it on a phone screen. 50 fixed that, and 58 is where the frame starts
-## to look like the games the author pointed at: the board is seen more from
-## above, the board and its frame fill the screen instead of sitting in a lake of
-## background, and every piece shows its own top, which is what makes a rook's
-## battlements and a queen's coronet readable without dragging the camera.
+## Elevation: 46 degrees, and the set is now framed as a whole piece of
+## furniture rather than as a grid.
 ##
-## Field of view: 40 degrees. The first version shipped at 52, which turned the
-## board into a trapezoid: the near rank twice the size of the far one. 34 was
-## tried in the other direction and cropped the near rank on a phone in
-## landscape. 38-42 keeps both ranks usable, and 40 is the middle of it.
-##
-## The camera always looks at (0, 0, 0). The rig sits at the board's origin and
-## the camera stands on the elevation vector from it, so the look-at point is the
-## middle of the grid by construction rather than by a rotation someone typed.
-
-const ELEVATION_DEG := 58.0
-const FOV := 40.0
-const DISTANCE_DEFAULT := 12.1
-const DISTANCE_MIN := 8.0
-const DISTANCE_MAX := 16.0
+## Two facts set this. The board has side trays, so the frame is about twice as
+## wide as the playing surface and the camera has to see all of it - that pushes
+## it back. And the reference the author pointed at is a three-quarter view from
+## roughly this angle: low enough that the frame's thickness and the trays' rims
+## show their front faces, high enough that the far rank is not hidden behind the
+## near pawns. 58 (the previous value) was a top-down board with no board in it;
+## 46 is a photograph of a set.
+const ELEVATION_DEG := 46.0
+const FOV := 42.0
+const DISTANCE_DEFAULT := 17.6
+const DISTANCE_MIN := 11.0
+const DISTANCE_MAX := 22.0
 
 
 ## The camera's position for a distance, on the elevation vector from the origin.
