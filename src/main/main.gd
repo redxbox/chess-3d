@@ -107,8 +107,8 @@ const BOARD_THEMES := {
 	# whole frame then reads as a render rather than as a photograph of a set.
 	"classic": {
 		"label": "CREAM & WALNUT",
-		"light_square": Color(0.548, 0.512, 0.452),
-		"dark_square": Color(0.256, 0.247, 0.234),
+		"light_square": Color(0.600, 0.556, 0.462),
+		"dark_square": Color(0.252, 0.238, 0.212),
 		"square_roughness": 0.30,
 		"apron": Color(0.420, 0.315, 0.215),
 		"apron_roughness": 0.34,
@@ -493,9 +493,17 @@ func _framed_distance() -> float:
 	var size := viewport.get_visible_rect().size
 	if size.y <= 0.0:
 		return CameraRigSpec.DISTANCE_DEFAULT
+	# 16:9 is the framing the rig's own distance is chosen for - the set fills the
+	# frame there and the trays sit inside it - so the correction is 1.0 at that
+	# aspect and only ever pulls back, never in. Written this way rather than as
+	# a fresh distance from the field of view so that the number on screen is the
+	# number in camera_rig.gd, which is also the number the render checker
+	# projects with. Two formulas for the same camera is how a measurement ends up
+	# describing a picture nobody took.
 	var aspect := size.x / size.y
-	var wanted := 20.0 / (2.0 * tan(deg_to_rad(CameraRigSpec.FOV) * 0.5) * maxf(aspect, 0.35))
-	return clampf(wanted, CameraRigSpec.DISTANCE_MIN, CameraRigSpec.DISTANCE_MAX)
+	var correction := maxf(1.0, 1.778 / maxf(aspect, 0.35))
+	return clampf(CameraRigSpec.DISTANCE_DEFAULT * correction,
+		CameraRigSpec.DISTANCE_MIN, CameraRigSpec.DISTANCE_MAX)
 
 
 ## The camera's resting position, for the reset tween.
@@ -1553,8 +1561,13 @@ func _create_board() -> void:
 	var trim_material := _material(trim, trim_roughness, 0.90, false, 0.10)
 	# The felt in the two side trays: dark, matte, and very slightly figured, so
 	# it reads as a flat inlay rather than as a hole cut in the wood.
-	var tray_felt := _matte_material(Color(0.105, 0.100, 0.098), 0.88,
-		_surface_map("marble"), _surface_map("marble_normal"), 0.02)
+	# 0.20, not 0.10. A recess three centimetres deep, facing away from the key,
+	# is already the darkest thing on the board; a near-black albedo on top of
+	# that turned both trays into two holes punched in the set, which is what the
+	# first render of this round showed. Charcoal felt reads as charcoal when the
+	# material gives it something to return.
+	var tray_felt := _matte_material(Color(0.205, 0.198, 0.192), 0.85,
+		_surface_map("marble"), _surface_map("marble_normal"), 0.05)
 	var tray_wood := _material(apron.lerp(Color(0.30, 0.20, 0.12), 0.35), apron_roughness, apron_metallic, false, 0.06,
 		_surface_map("frame_wood"), _surface_map("frame_wood_normal"))
 	tray_wood.uv1_scale = Vector3(0.30, 0.30, 0.30)
@@ -1643,6 +1656,10 @@ func _create_board() -> void:
 		var cx: float = side * 7.35
 		_add_board_box(Vector3(cx, -0.150, 0), Vector3(4.60, 0.07, 8.80), tray_wood)
 		_add_board_box(Vector3(cx, -0.100, 0), Vector3(4.10, 0.03, 8.30), tray_felt)
+		# An inner lip, so the felt floor is genuinely recessed rather than a
+		# darker rectangle painted on a slab.
+		_add_board_box(Vector3(cx, -0.078, 0), Vector3(4.10, 0.05, 0.10), tray_wood)
+		_add_board_box(Vector3(cx, -0.078, 0), Vector3(0.10, 0.05, 8.30), tray_wood)
 		# Outer rim, then the two end bars.
 		_add_board_box(Vector3(side * 9.45, -0.060, 0), Vector3(0.32, 0.13, 8.80), tray_wood)
 		_add_board_box(Vector3(cx, -0.060, 4.30), Vector3(4.60, 0.13, 0.32), tray_wood)

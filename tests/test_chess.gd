@@ -710,8 +710,8 @@ func _paraboloid(sign: float, steps: int) -> Dictionary:
 func _test_camera_rig() -> void:
 	var home := CameraRigSpec.home()
 	var elevation := CameraRigSpec.elevation_of(home)
-	_expect(elevation >= 43.0 and elevation <= 49.0,
-		"the camera looks down at 43-49 degrees (%.1f)" % elevation)
+	_expect(elevation >= 46.0 and elevation <= 52.0,
+		"the camera looks down at 46-52 degrees (%.1f)" % elevation)
 	_expect(CameraRigSpec.FOV >= 38.0 and CameraRigSpec.FOV <= 46.0,
 		"the field of view is 38-46 degrees (%.1f)" % CameraRigSpec.FOV)
 	# A camera on the origin's elevation vector looks at the origin: the angle

@@ -17,7 +17,7 @@ extends RefCounted
 ## show their front faces, high enough that the far rank is not hidden behind the
 ## near pawns. 58 (the previous value) was a top-down board with no board in it;
 ## 46 is a photograph of a set.
-const ELEVATION_DEG := 46.0
+const ELEVATION_DEG := 49.0
 const FOV := 42.0
 const DISTANCE_DEFAULT := 17.6
 const DISTANCE_MIN := 11.0

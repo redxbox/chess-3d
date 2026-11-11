@@ -54,8 +54,8 @@ DARK_ARMY_MIN_LIT = 100.0           # p90: the lit top has to exist
 # At the higher camera the frame is nearly all board: the top-left corner is the
 # table or the sky depending on how wide the window is, and both are the same warm
 # family now, so the band is the whole warm range rather than one studio wall.
-BACKGROUND = (110.0, 235.0)
-BACKGROUND_WARMTH = (2.0, 45.0)  # red minus blue: warm, but not orange
+BACKGROUND = (95.0, 235.0)
+BACKGROUND_WARMTH = (2.0, 60.0)  # red minus blue: warm, but not orange
 # The gold trim: the crowns, collars and inlay bands. It is a metallic material,
 # so if there is nothing for it to reflect it renders as a dark ring - which is
 # what "the gold looks like mud" was. These are counts and a floor, not a target:
@@ -251,7 +251,7 @@ def measure(path: Path) -> list[str]:
     # corners are taken - the two thumb buttons live in them and the player card
     # owns the top left - and the first version of this measured whatever widget
     # happened to be there, so the number tracked the HUD and not the studio.
-    background = pixels[-24:, int(image.width * 0.42):int(image.width * 0.58)].reshape(-1, 3)
+    background = pixels[6:26, int(image.width * 0.62):int(image.width * 0.72)].reshape(-1, 3)
     background_luma = float(luma(background).mean())
     red_blue = float(background[:, 0].mean() - background[:, 2].mean())
     print(f"   background     luma {background_luma:6.1f}  r-b {red_blue:4.1f}")
