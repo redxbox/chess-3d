@@ -115,7 +115,7 @@ const BOARD_THEMES := {
 		"apron_metallic": 0.06,
 		"trim": Color(0.660, 0.520, 0.300),
 		"trim_roughness": 0.36,
-		"table": Color(0.300, 0.240, 0.180),
+		"table": Color(0.560, 0.480, 0.380),
 		"apron_map": "rosewood",
 		"label_color": Color(0.80, 0.71, 0.55),
 		"swatch_light": Color(0.74, 0.65, 0.51),
@@ -132,7 +132,7 @@ const BOARD_THEMES := {
 		"apron_metallic": 0.05,
 		"trim": Color(0.330, 0.275, 0.150),
 		"trim_roughness": 0.42,
-		"table": Color(0.260, 0.205, 0.155),
+		"table": Color(0.540, 0.450, 0.350),
 		"apron_map": "rosewood",
 		"label_color": Color(0.78, 0.66, 0.40),
 		"swatch_light": Color(0.70, 0.62, 0.50),
@@ -151,7 +151,7 @@ const BOARD_THEMES := {
 		"apron_metallic": 0.12,
 		"trim": Color(0.340, 0.285, 0.150),
 		"trim_roughness": 0.40,
-		"table": Color(0.240, 0.235, 0.195),
+		"table": Color(0.520, 0.490, 0.420),
 		"apron_map": "marble",
 		"label_color": Color(0.68, 0.72, 0.58),
 		"swatch_light": Color(0.50, 0.58, 0.51),
@@ -171,7 +171,7 @@ const BOARD_THEMES := {
 		"apron_metallic": 0.12,
 		"trim": Color(0.330, 0.290, 0.170),
 		"trim_roughness": 0.42,
-		"table": Color(0.260, 0.235, 0.200),
+		"table": Color(0.545, 0.480, 0.395),
 		"apron_map": "marble",
 		"label_color": Color(0.74, 0.70, 0.58),
 		"swatch_light": Color(0.68, 0.67, 0.64),
@@ -733,11 +733,16 @@ func _surface_map(kind: String) -> Texture2D:
 		# The four woods the physical board is built from. Light maple and
 		# walnut for the squares, a walnut frame, and the same walnut held a
 		# shade darker for the tray rims.
-		"maple": texture = _wood_texture(Color(0.62, 0.50, 0.34), Color(0.50, 0.38, 0.23), 1201)
+		# These are detail maps, not albedoes: near-white, with the grain carried
+		# as a gentle darkening. The colour of every square and both piece armies
+		# comes from the palettes, so a tinted map here would multiply the
+		# calibrated albedo down - the first version of this shipped a board
+		# two stops darker than the theme table says, which is exactly that bug.
+		"maple": texture = _wood_texture(Color(1.0, 0.995, 0.985), Color(0.78, 0.75, 0.70), 1201, 0.55)
 		"maple_normal": texture = _normal_map(_wood_heights(1201))
-		"walnut": texture = _wood_texture(Color(0.36, 0.27, 0.19), Color(0.24, 0.17, 0.11), 4407)
+		"walnut": texture = _wood_texture(Color(1.0, 0.99, 0.975), Color(0.70, 0.66, 0.61), 4407, 0.52)
 		"walnut_normal": texture = _normal_map(_wood_heights(4407))
-		"frame_wood": texture = _wood_texture(Color(0.42, 0.29, 0.18), Color(0.28, 0.18, 0.10), 7717)
+		"frame_wood": texture = _wood_texture(Color(1.0, 0.985, 0.96), Color(0.72, 0.68, 0.62), 7717, 0.50)
 		"frame_wood_normal": texture = _normal_map(_wood_heights(7717))
 		# Piece grain. Deliberately neutral: these are detail maps multiplied
 		# over the army's own albedo, so they carry the figure and the polish
@@ -1554,8 +1559,14 @@ func _create_board() -> void:
 		_surface_map("frame_wood"), _surface_map("frame_wood_normal"))
 	tray_wood.uv1_scale = Vector3(0.30, 0.30, 0.30)
 	tray_wood.uv1_triplanar = true
-	var table_material := _matte_material(table, 0.55,
-		_surface_map(apron_map), _surface_map(apron_map + "_normal"), 0.06)
+	# The floor: warm sand, matte, with the same grain as the furniture. It is
+	# what the whole set stands on and, at this camera, most of the frame is it -
+	# so it is a colour, not a texture: at 20 units across the grain would be
+	# five hundred bands and would read as corduroy.
+	var table_material := _matte_material(table, 0.72,
+		_surface_map("frame_wood"), _surface_map("frame_wood_normal"), 0.04)
+	table_material.uv1_scale = Vector3(0.06, 0.06, 0.06)
+	table_material.uv1_triplanar = true
 
 	# The grid is static, so the 32 light squares share one surface and the 32
 	# dark squares share another: two draw calls instead of 64, and two mesh
@@ -3101,6 +3112,13 @@ func _corner_button(label: String, corner: String, inset_x: float, inset_y: floa
 func _make_player_cards() -> void:
 	_white_card = _player_card("Player", "+3s", true)
 	_white_card.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE, 14)
+	# The player card owns the top-left corner now, so the tools column (graphics,
+	# sound, music, the moves list, resign) starts underneath it rather than under
+	# it. Every node in that column was registered with the position it was built
+	# with, so shifting the registration keeps the notch/gesture-bar logic honest.
+	for node in _left_column_nodes:
+		node.position = node.position + Vector2(0, 84)
+		_left_column_base[node] = node.position
 	_black_card = _player_card("AI", "LEVEL MEDIUM", false)
 	_black_card.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 14)
 	_register_left_column(_white_card)
